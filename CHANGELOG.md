@@ -1,5 +1,31 @@
 # Max Mahon Changelog
 
+## v6.5.1 — 2026-05-08 · Daily Price Refresh — SETSMART Primary
+
+**Hotfix: ราคาที่ refresh ทุกวัน 19:00 (และตอนกด trigger เอง) ดึงไม่ครบ — บางตัวค้าง 1-7 วัน เพราะ yahoo rate-limit/flake แล้ว code เดิม `continue` เงียบๆ → cache เก่าไม่ถูกเขียนทับ → UI แสดงราคาเก่า**
+
+### Root cause
+
+`scripts/daily_price_refresh.py` เดิม fetch SETSMART EOD bulk แล้ว cache ทิ้ง — ไม่ feed เข้า `data/price_cache/` ที่ UI อ่าน. เขียน cache จาก yahoo `regularMarketPrice` ล้วน → ตัวที่ yahoo ไม่ส่ง = skip → ไฟล์เก่าค้างไปเรื่อยๆ ไม่มี TTL/alert. ตัวอย่างที่เจอ: BJC ค้าง 7 วัน, PTTEP/SCB/RATCH/etc. 12 ตัวค้าง 1 วัน
+
+### Fix
+
+`scripts/daily_price_refresh.py` rewrite เป็น 3 layer:
+- **Layer 1 — SETSMART primary** — `cached_eod_bulk` 1 request → 875+ CS symbols → strip `.BK` แล้ว lookup → write cache ตรง (ตามกฎ Data Source Rule 0)
+- **Layer 2 — yahoo batch fallback** — เฉพาะตัวที่ SETSMART ไม่มี (rare for Thai CS), 20 symbols/chunk
+- **Layer 3 — yahoo sequential retry** — ตัวที่ batch ยังพลาด รอ 30s + 1.5s/sym (mirror scan pipeline Stage 2 repair pattern)
+- Cache JSON เพิ่ม field `source` (`setsmart` / `yahoo`) สำหรับ debug
+
+### ผลทดสอบ
+
+40/40 watchlist + screener candidates อัพเดทผ่าน — 39 จาก SETSMART, 1 fallback yahoo. ราคา May 7 EOD (ตลาดวันที่ 8 ยังเปิดอยู่ตอนทดสอบ)
+
+### Audit
+
+ตรวจ symbol-format mismatch ทั่ว codebase — `data_adapter._fetch_setsmart`, `server/app.py:get_stock`, scan pipeline ทุกจุดมี `_to_tf_symbol()` strip `.BK` ก่อนเรียก SETSMART อยู่แล้ว ไม่ต้องแก้เพิ่ม
+
+---
+
 ## v6.5.0 — 2026-05-07 · Niwes Alignment + Yahoo Resilience + Scoring v2 + Frontend De-hardcode
 
 **4 plans รวด — แก้ filter ให้ตรงเจตนา ดร.นิเวศน์ จริง + กัน yahoo flake poison cache + rebalance scoring + de-hardcode frontend.** ผลลัพธ์ที่ user เห็นใน scan รอบใหม่: AMATA top 82 (เก่า 76) / SAT-METCO-QH กลับคะแนนเดิม 70+ หลัง Stage 2 recover yahoo flake / AWC ผ่าน Niwes growing exception แสดง NIWES_GROWING tag / CMR-CIMBT แสดง YIELD_SPIKE_FROM_PRICE_DROP / sector filter chips multi-select 13 sectors dynamic

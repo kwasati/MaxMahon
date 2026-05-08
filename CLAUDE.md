@@ -115,7 +115,7 @@
 - `scripts/report_template.py` — markdown generator (deterministic, no LLM)
 - `scripts/telegram_alert.py` — exit signal alert
 - `scripts/portfolio_builder.py` — Niwes portfolio construction pure functions: input watchlist + screener → output 5-sector × 80/20 portfolio (Banking/Energy/Property/REIT-PFund/Other canonical buckets) + role tags (anchor/supporting/tail) + bench list + sector warnings. Used by `/api/portfolio/builder`. Standalone smoke test in `__main__`.
-- `scripts/daily_price_refresh.py` — daily 19:00 price refresh for watchlist + PASS (yahooquery batch → `data/price_cache/{sym}.json`)
+- `scripts/daily_price_refresh.py` — daily 19:00 price refresh for watchlist + PASS. **SETSMART EOD bulk = primary** (1 request → 875+ CS symbols, strip `.BK` for lookup), yahooquery batch fallback for missing, sequential retry rounds (sleep 30s + 1.5s/sym) for stubborn flakes. Writes `data/price_cache/{sym}.json` with `{symbol, price, fetched_at, source}` (`source` ∈ `setsmart`/`yahoo`)
 - `server/app.py` — FastAPI server (public API, pipeline, scheduler, SSE)
 - `server/admin.py` — admin namespace router (legacy/debug endpoints)
 - `max-server.bat` — startup script

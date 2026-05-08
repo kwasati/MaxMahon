@@ -4,10 +4,13 @@ Scheduled 19:00 Asia/Bangkok (post SET close 17:00 + 2h buffer).
 
 Collects symbols from EVERY user's watchlist (set-union via
 ``scripts.user_data_io.aggregate_watchlists``) + latest screener_*.json
-candidates, batches price fetches through yahooquery (20 per chunk, 0.2s
-sleep between chunks), and writes ``data/price_cache/{symbol}.json`` with
-``{symbol, price, fetched_at}``. Errors on any single batch are logged and
-do not stop the overall refresh.
+candidates, then writes ``data/price_cache/{symbol}.json`` with
+``{symbol, price, fetched_at, source}``.
+
+Pricing source priority (Rule 0 — SETSMART precedence):
+  1. SETSMART EOD bulk — primary. 1 request covers ~933 CS symbols, reliable.
+  2. yahooquery batch — fallback for symbols SETSMART does not return
+     (rare for Thai CS), with sequential retry for transient flake.
 """
 import json
 import logging
@@ -61,64 +64,142 @@ def _load_symbols() -> list[str]:
     return sorted(symbols)
 
 
-def refresh_prices() -> dict:
-    """Fetch current prices for watchlist + PASS candidates and cache to disk.
+def _write_cache(sym: str, price: float, fetched_at: str, source: str) -> None:
+    payload = {
+        "symbol": sym,
+        "price": price,
+        "fetched_at": fetched_at,
+        "source": source,
+    }
+    (CACHE_DIR / f"{sym}.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
-    Layer 0: SETSMART EOD bulk (1 request, all CS securities) — primary aggregate snapshot.
-    Layer 1: yahooquery batch (preserved for DPS events + per-symbol price fallback).
 
-    Returns a dict {symbol: price} for symbols successfully fetched via yahooquery.
+def _load_setsmart_eod_map() -> tuple[dict[str, float], str | None]:
+    """Find latest SETSMART EOD payload, return ({symbol_no_bk: close}, date).
+
+    Walks today → 7 days back; first non-empty response wins. Returns ({}, None) on failure.
     """
-    # 0. SETSMART EOD bulk — 1 request covering ~933 CS symbols (cached to data/setsmart_cache/)
     try:
         from setsmart_adapter import cached_eod_bulk
-        for delta in range(1, 8):
-            d = (datetime.now() - timedelta(days=delta)).strftime("%Y-%m-%d")
-            data = cached_eod_bulk(d)
-            if len(data) > 0:
-                logger.info("SETSMART EOD bulk: %d rows for %s", len(data), d)
-                break
-        else:
-            logger.warning("SETSMART EOD bulk: no data found in last 7 days")
     except Exception as e:
-        logger.warning("SETSMART bulk fetch failed (continuing with yahooquery): %s", e)
+        logger.warning("SETSMART adapter import failed: %s", e)
+        return {}, None
 
-    # 1. yahooquery batch (preserved for DPS events + price fallback)
+    for delta in range(0, 8):
+        d = (datetime.now() - timedelta(days=delta)).strftime("%Y-%m-%d")
+        try:
+            data = cached_eod_bulk(d)
+        except Exception as e:
+            logger.warning("SETSMART fetch failed for %s: %s", d, e)
+            continue
+        if not data:
+            continue
+        price_map: dict[str, float] = {}
+        for row in data:
+            sym = row.get("symbol")
+            close = row.get("close")
+            if sym and close is not None:
+                price_map[sym] = float(close)
+        if price_map:
+            logger.info("SETSMART EOD bulk: %d symbols for %s", len(price_map), d)
+            return price_map, d
+
+    logger.warning("SETSMART EOD bulk: no data in last 8 days")
+    return {}, None
+
+
+def _yahoo_fetch_batch(chunk: list[str]) -> dict[str, float]:
+    """Fetch one chunk via yahooquery batch. Returns {symbol: price} for hits."""
+    out: dict[str, float] = {}
+    try:
+        tk = Ticker(chunk)
+        prices = tk.price
+        if not isinstance(prices, dict):
+            logger.warning("yahoo batch returned non-dict: %s", type(prices).__name__)
+            return out
+        for sym in chunk:
+            info = prices.get(sym)
+            if not isinstance(info, dict):
+                continue
+            price = info.get("regularMarketPrice")
+            if price is None:
+                continue
+            out[sym] = float(price)
+    except Exception as e:
+        logger.warning("yahoo batch failed: %s", e)
+    return out
+
+
+def refresh_prices() -> dict:
+    """Refresh prices for watchlist + PASS candidates.
+
+    Strategy:
+      1. SETSMART EOD bulk (primary) — covers all Thai CS symbols in one request.
+         Strip ".BK" suffix on lookup since SETSMART uses raw symbol.
+      2. yahoo batch fallback — only for symbols SETSMART did not return.
+      3. yahoo sequential retry — for symbols still missing after batch, with
+         30s wait + 1.5s/sym delay (mirrors scan pipeline Stage 2 repair).
+
+    Returns {symbol: price} for symbols successfully written to cache.
+    """
     symbols = _load_symbols()
-    logger.info(f"refreshing {len(symbols)} symbols")
+    logger.info("refreshing %d symbols", len(symbols))
     fetched: dict[str, float] = {}
 
-    for i in range(0, len(symbols), 20):
-        chunk = symbols[i:i + 20]
-        try:
-            tk = Ticker(chunk)
-            prices = tk.price
-            if not isinstance(prices, dict):
-                logger.warning(f"batch {i} returned non-dict price payload: {type(prices).__name__}")
-                time.sleep(0.2)
-                continue
-            for sym in chunk:
-                info = prices.get(sym)
-                if not isinstance(info, dict):
-                    continue
-                price = info.get("regularMarketPrice")
-                if price is None:
-                    continue
-                payload = {
-                    "symbol": sym,
-                    "price": price,
-                    "fetched_at": datetime.now().isoformat(timespec="seconds"),
-                }
-                (CACHE_DIR / f"{sym}.json").write_text(
-                    json.dumps(payload, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-                fetched[sym] = price
-        except Exception as e:
-            logger.warning(f"batch {i} failed: {e}")
-        time.sleep(0.2)
+    # 1. SETSMART primary
+    ss_map, ss_date = _load_setsmart_eod_map()
+    ss_fetched_at = (
+        datetime.strptime(ss_date, "%Y-%m-%d").replace(hour=17, minute=0).isoformat(timespec="seconds")
+        if ss_date else datetime.now().isoformat(timespec="seconds")
+    )
+    missing: list[str] = []
+    for sym in symbols:
+        base = sym[:-3] if sym.endswith(".BK") else sym
+        price = ss_map.get(base)
+        if price is not None:
+            _write_cache(sym, price, ss_fetched_at, "setsmart")
+            fetched[sym] = price
+        else:
+            missing.append(sym)
+    logger.info("SETSMART covered %d/%d, missing %d", len(fetched), len(symbols), len(missing))
 
-    logger.info(f"refreshed {len(fetched)}/{len(symbols)} prices")
+    # 2. yahoo batch fallback for missing
+    still_missing: list[str] = []
+    if missing:
+        for i in range(0, len(missing), 20):
+            chunk = missing[i:i + 20]
+            yh = _yahoo_fetch_batch(chunk)
+            for sym in chunk:
+                price = yh.get(sym)
+                if price is not None:
+                    _write_cache(sym, price, datetime.now().isoformat(timespec="seconds"), "yahoo")
+                    fetched[sym] = price
+                else:
+                    still_missing.append(sym)
+            time.sleep(0.2)
+        logger.info("yahoo batch recovered %d, still missing %d", len(missing) - len(still_missing), len(still_missing))
+
+    # 3. yahoo sequential retry for stubborn flakes
+    if still_missing:
+        logger.info("yahoo retry sequential: %d symbols (sleep 30s first)", len(still_missing))
+        time.sleep(30)
+        recovered = 0
+        for sym in still_missing:
+            yh = _yahoo_fetch_batch([sym])
+            price = yh.get(sym)
+            if price is not None:
+                _write_cache(sym, price, datetime.now().isoformat(timespec="seconds"), "yahoo")
+                fetched[sym] = price
+                recovered += 1
+            time.sleep(1.5)
+        logger.warning("yahoo retry recovered %d/%d (still stale: %s)",
+                       recovered, len(still_missing),
+                       [s for s in still_missing if s not in fetched])
+
+    logger.info("refreshed %d/%d prices total", len(fetched), len(symbols))
     return fetched
 
 
