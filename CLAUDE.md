@@ -1,5 +1,14 @@
 # Max Mahon v6 — Claude Instructions
 
+## Visual Identity [CRITICAL]
+**ก่อนเขียน/แก้ UI ของ MaxMahon ทุกครั้ง → อ่าน `DESIGN.md` ที่ root project ก่อน**
+- สเปกหน้าตาเต็ม: 2-layer color tokens (light+dark) / typography / spacing / radius / shadow / desktop-mobile split pattern / component spec / signal tags / 5-pillar score / drift candidates
+- ห้าม hardcode hex/px — ใช้ `var(--xxx)` semantic token เท่านั้น (ห้ามอ้าง primitive --sage-500 ตรง)
+- ทุก token ต้องมี dark counterpart (`@media (prefers-color-scheme: dark)`)
+- แก้ desktop → ต้อง check `mobile.css` override ตาม (แยกชั้น ไม่ใช่ responsive single-file)
+- ทุก page route → ต้องมี 2 module: `pages/{route}.js` + `pages/{route}.mobile.js`
+- ดู section 15 "กฎเหล็ก" ใน DESIGN.md สำหรับ rule list
+
 ## Architecture
 - **Agent:** Max Mahon — Thai stock analyst, Niwes Dividend-First style
 - **Stack:** Python + SETSMART API (primary aggregate) + thaifin (history) + yahooquery (DPS events + 52w/capex/IE) + Anthropic SDK (claude-opus-4-7)
