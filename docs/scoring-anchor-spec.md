@@ -82,9 +82,77 @@ Step function — interpolate ไม่ใช่ linear
 
 ---
 
-## ด้าน 2 — Cash Flow จริง (25 คะแนน) — TBD Phase 2
+## ด้าน 2 — Cash Flow จริง (25 คะแนน) — Base + Bonus FINAL 2026-05-17
 
-(ยังไม่เริ่ม discussion)
+อ้างอิง: Niwes ch4 — กำไรเป็นความเห็น / Cash flow คือข้อเท็จจริง
+
+**Formula:** CCR (Cash Conversion Ratio) = OCF ÷ EBITDA — เลือก 2026-05-17 หลัง test 2 formula (NI_total fail / OCF/EBITDA viable). Bypass minority interest issue + thaifin compute ได้ครบ 16 ปี (EBITDA = Gross Profit - SG&A + D&A)
+
+**Threshold (CCR equivalent ของ Niwes OCF/NI 0.80/0.50):** ≥ 0.7 healthy / 0.5-0.7 acceptable / < 0.5 warning — EBITDA ใหญ่กว่า NI ~1.5-2x → CCR shift left
+
+### Base — ติดป้ายได้คะแนน
+
+| ป้าย | คะแนน | เงื่อนไข (จาก parent plan Stage 3) |
+|------|-------|-----------------------------------|
+| สบาย (CASHFLOW_HEALTHY) | 17 | OCF บวก 3 ปีติด + ccr_avg_3y ≥ 0.70 |
+| พอใช้ (CASHFLOW_OK) | 9 | OCF บวก 3 ปีติด + ccr_avg_3y 0.50-0.70 |
+| น่าระวัง (CASHFLOW_BELOW_PROFIT) | 0 | ccr_avg_3y < 0.50 — TBD Phase 5 (disqualify/penalty) |
+| กำไรลม (FAKE_PROFIT) | 0 | OCF ติดลบ ≥ 1 ปี + NP บวก — TBD Phase 5 |
+| กำลังเสื่อม (CASHFLOW_DETERIORATING) | 0 | OCF ลด magnitude ≤ -20% — TBD Phase 5 (trend orthogonal) |
+
+Base รวม max = 17 → เหลือ 8 คะแนนสำหรับ bonus
+
+### Bonus — CCR extend (ccr_avg_3y) — Step
+
+| ccr_avg_3y | คะแนน |
+|------------|-------|
+| < 1.0 (baseline tier HEALTHY) | 0 |
+| ≥ 1.0 | +3 |
+| ≥ 1.5 | +6 |
+| ≥ 2.0 | +8 |
+
+Step function — interpolate ไม่ใช่ linear
+
+**ทำไม metric ตัวเดียว:** Phase 1 pattern — window 3y ใช้ในทั้ง tier + bonus (cleaner ไม่ double-count)
+
+### Cap
+
+ด้าน Cash Flow รวม ≤ 25
+
+### ตัวอย่างคำนวณ (Test 5 หุ้น 2026-05-17)
+
+| หุ้น | ป้าย | CCR 3y | base | bonus | รวม |
+|------|------|--------|------|-------|-----|
+| PTT | สบาย | 0.87 | 17 | 0 | **17** |
+| SCC | สบาย | 0.80 | 17 | 0 | **17** |
+| CPALL | พอใช้ | 0.67 | 9 | 0 | **9** |
+| ADVANC | สบาย | 0.96 | 17 | 0 | **17** |
+| BDMS | สบาย | 0.91 | 17 | 0 | **17** |
+
+(ยังไม่มีหุ้น CCR ≥ 1.0 ใน sample — bonus 0 ทั้งหมด)
+
+### Decision log ด้าน 2
+
+1. **Formula = OCF/EBITDA (CCR)** — เลือก 2026-05-17 หลัง test 2 ทางแก้ (Formula A NI_total fail / Formula B CCR viable). Root cause: thaifin OCF total (รวม minority) ÷ NI to parent (หัก minority) = ฐาน mismatch — ratio พุ่ง 3.4-5.7x systematic บน conglomerate
+2. **Base distribution 17/9/0/0/0** — base กินใหญ่ (68% ของ cap) เพราะ ratio ไม่มี "ขนาด" กว้างให้ขยาย เก็บ bonus น้อย
+3. **Bonus metric ตัวเดียว — ccr_avg_3y** — window เดียวกับ tier (Niwes ปักธง 3y) ตัด overlap
+4. **Step 0/3/6/8** — reward CCR > 1.0 (เก็บเงินสดเกินกำไรในงบ) + cap ที่ 2.0 (outlier good — high CCR อาจมาจาก one-off working capital)
+5. **Threshold 0.70/0.50** — CCR equivalent ของ Niwes OCF/NI 0.80/0.50 (EBITDA ~1.5-2x NI → CCR shift left ~0.1)
+6. **Disqualify/penalty 3 ป้ายฝ่ายเสีย — FINAL 2026-05-17** — ดู section "Disqualify / Penalty rules" ด้านล่าง
+
+### Disqualify / Penalty rules (Cash Flow tags) — FINAL 2026-05-17
+
+3 ป้ายฝ่ายเสียของ Stage 3 — รวมเข้า Phase 5 disqualify/penalty list (รวมทุก stage)
+
+**หลัก:** penalty หัก total anchor score (cross-ด้าน, cap floor 0) — disqualify ทำให้ anchor = 0 ทั้งหมด
+
+| ป้าย | Verdict | จำนวน | Reason (Niwes ch4) |
+|------|---------|-------|-------------------|
+| CASHFLOW_BELOW_PROFIT | **penalty** | -5 | "ถ้า OCF น้อยกว่า 50% ของกำไร = เริ่มระวัง" — warning ไม่ใช่ขาย, scale เดียวกับ Phase 1 ROE_DECLINING |
+| FAKE_PROFIT | **disqualify** | anchor = 0 | "ถ้า OCF ติดลบทั้งที่กำไรบวก = red flag ขายตั้งแต่ปีที่ 2" — strong sell trigger |
+| CASHFLOW_DETERIORATING | **disqualify** | anchor = 0 | Niwes "ต้องไม่ลดลง" + precursor ของ FAKE_PROFIT (บทอสังหาฯ: OCF ลดต่อเนื่อง → ปีที่ 4 หยุดจ่ายปันผล + ราคาตก 80%) |
+
+**Note: CPALL implication** — ใน test 2026-05-17 CPALL ติด HEALTHY + DETERIORATING (trend orthogonal) → ตามกฎใหม่ disqualify ที่ระดับ total anchor (anchor = 0). ตัวอย่างคำนวณด้าน 2 (CPALL = 9) แสดง score ของ ด้าน 2 เท่านั้น — total anchor ของ CPALL = 0 (Phase 6 verify จะ recompute เต็มอีกที)
 
 ---
 
