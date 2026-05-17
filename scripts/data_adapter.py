@@ -901,6 +901,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         "200d_avg": d200_avg,
         "yearly_metrics": yearly_metrics,
         "dividend_history": dividend_history,
+        "fy_is_complete": yf_fy_complete,
     }
 
 

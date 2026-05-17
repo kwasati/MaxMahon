@@ -13,7 +13,9 @@
     "bonus_pe": 8.0,
     "max_pbv": 1.5,
     "bonus_pbv": 1.0,
-    "min_market_cap": 5000000000
+    "min_market_cap": 5000000000,
+    "growing_yield_floor": 2.0,
+    "growing_min_streak": 3
   },
   "universe": "set_only",
   "last_saved_at": "2026-04-25T18:47:46"

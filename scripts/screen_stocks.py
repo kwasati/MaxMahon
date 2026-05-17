@@ -87,10 +87,14 @@ def hard_filter(data: dict) -> tuple:
         fail_reasons.append("ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — รอ rerun พรุ่งนี้)")
         return "FAIL", fail_reasons
 
-    # 3. EPS — 3-tier
+    # 3. EPS — 3-tier (exclude current calendar year — partial-year row safety)
     norm_eps = compute_normalized_earnings(data)
     if norm_eps:
-        sorted_years = sorted(norm_eps.keys())[-5:]
+        current_year = datetime.now().year
+        sorted_years = sorted(
+            (y for y in norm_eps.keys() if int(y) < current_year),
+            key=lambda y: int(y),
+        )[-5:]
         eps_recent = [norm_eps[y] for y in sorted_years]
         pos = sum(1 for e in eps_recent if e is not None and e > 0)
         total = len(eps_recent)
@@ -584,9 +588,16 @@ def assign_signals(data: dict, total_score: int) -> list:
     if dy > 0 and streak == 0 and not div_history:
         signals.append("DATA_INCOMPLETE")
 
-    # NIWES_5555 — passes 5-5-5-5
+    # NIWES_5555 — passes 5-5-5-5 (exclude current calendar year — match hard_filter)
     norm_eps = compute_normalized_earnings(data)
-    sorted_years = sorted(norm_eps.keys())[-5:] if norm_eps else []
+    if norm_eps:
+        _cy = datetime.now().year
+        sorted_years = sorted(
+            (y for y in norm_eps.keys() if int(y) < _cy),
+            key=lambda y: int(y),
+        )[-5:]
+    else:
+        sorted_years = []
     eps_recent = [norm_eps[y] for y in sorted_years]
     eps_5_pos = len(eps_recent) >= 5 and all(e is not None and e > 0 for e in eps_recent)
 

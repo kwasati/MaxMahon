@@ -73,11 +73,19 @@ def compute_cagr(values, reject_negatives=False):
         return None
 
 
-def count_dividend_streak(dps_by_year):
+def count_dividend_streak(dps_by_year, fy_is_complete=None):
+    """Streak นับเฉพาะ FY ที่ is_complete=True เท่านั้น.
+
+    ถ้า fy_is_complete=None (backward compat) → filter y < current_year แบบเดิม.
+    """
     if not dps_by_year:
         return 0
-    current_year = datetime.now().year
-    years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
+    if fy_is_complete is not None:
+        years = [y for y in sorted(dps_by_year.keys(), reverse=True)
+                 if fy_is_complete.get(y) is True]
+    else:
+        current_year = datetime.now().year
+        years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
     streak = 0
     for y in years:
         if dps_by_year[y] > 0:
@@ -87,11 +95,19 @@ def count_dividend_streak(dps_by_year):
     return streak
 
 
-def count_dividend_growth_streak(dps_by_year):
+def count_dividend_growth_streak(dps_by_year, fy_is_complete=None):
+    """Growth streak นับเฉพาะ FY ที่ is_complete=True เท่านั้น.
+
+    ถ้า fy_is_complete=None (backward compat) → filter y < current_year แบบเดิม.
+    """
     if not dps_by_year:
         return 0
-    current_year = datetime.now().year
-    years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
+    if fy_is_complete is not None:
+        years = [y for y in sorted(dps_by_year.keys(), reverse=True)
+                 if fy_is_complete.get(y) is True]
+    else:
+        current_year = datetime.now().year
+        years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
     streak = 0
     for i in range(len(years) - 1):
         if dps_by_year[years[i]] > dps_by_year[years[i + 1]] and dps_by_year[years[i + 1]] > 0:
@@ -124,8 +140,13 @@ def validate_metrics(info, yearly_metrics):
     return warnings
 
 
-def _build_aggregates(yearly_metrics, dps_by_year):
-    """Compute aggregates from yearly_metrics and dividend history."""
+def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
+    """Compute aggregates from yearly_metrics and dividend history.
+
+    fy_is_complete: optional dict {year: bool} — when provided, streak functions
+    use it to exclude incomplete fiscal years. CAGR excludes current calendar
+    year regardless (thaifin has no is_complete equivalent for EPS/revenue).
+    """
     revenues = [m["revenue"] for m in yearly_metrics]
     eps_list = [m["diluted_eps"] for m in yearly_metrics]
     roe_list = [m["roe"] for m in yearly_metrics if m["roe"] is not None]
@@ -134,8 +155,23 @@ def _build_aggregates(yearly_metrics, dps_by_year):
     om_list = [m["operating_margin"] for m in yearly_metrics if m["operating_margin"] is not None]
     fcf_list = [m["fcf"] for m in yearly_metrics if m["fcf"] is not None]
 
-    revenue_cagr = compute_cagr(revenues)
-    eps_cagr = compute_cagr(eps_list, reject_negatives=True)
+    # CAGR: exclude current calendar year (thaifin may emit partial-year row;
+    # no is_complete flag exists for thaifin → use year-based filter).
+    current_year = datetime.now().year
+
+    def _year_lt_current(m):
+        y = m.get("year")
+        if y is None:
+            return False
+        try:
+            return int(y) < current_year
+        except (ValueError, TypeError):
+            return False
+
+    cagr_revenues = [m.get("revenue") for m in yearly_metrics if _year_lt_current(m)]
+    cagr_eps_list = [m.get("diluted_eps") for m in yearly_metrics if _year_lt_current(m)]
+    revenue_cagr = compute_cagr(cagr_revenues)
+    eps_cagr = compute_cagr(cagr_eps_list, reject_negatives=True)
     avg_roe = sum(roe_list) / len(roe_list) if roe_list else None
     avg_net_margin = sum(nm_list) / len(nm_list) if nm_list else None
     min_roe = min(roe_list) if roe_list else None
@@ -149,8 +185,8 @@ def _build_aggregates(yearly_metrics, dps_by_year):
     eps_positive_years = sum(1 for e in eps_list if e is not None and e > 0)
     fcf_positive_years = sum(1 for f in fcf_list if f > 0)
 
-    div_streak = count_dividend_streak(dps_by_year)
-    div_growth_streak = count_dividend_growth_streak(dps_by_year)
+    div_streak = count_dividend_streak(dps_by_year, fy_is_complete=fy_is_complete)
+    div_growth_streak = count_dividend_growth_streak(dps_by_year, fy_is_complete=fy_is_complete)
 
     # dps_cagr from dividend_history
     dps_years = sorted([y for y in dps_by_year if dps_by_year[y] and dps_by_year[y] > 0])
@@ -248,8 +284,10 @@ def fetch_multi_year(symbol: str) -> dict:
         # Adapter succeeded — compute aggregates and finalize
         yearly_metrics = adapter_result["yearly_metrics"]
         dividend_history = adapter_result["dividend_history"]
+        fy_is_complete = adapter_result.get("fy_is_complete")
 
-        aggregates = _build_aggregates(yearly_metrics, dividend_history)
+        aggregates = _build_aggregates(yearly_metrics, dividend_history,
+                                       fy_is_complete=fy_is_complete)
 
         # Validate
         # Build a minimal info-like dict for validate_metrics
