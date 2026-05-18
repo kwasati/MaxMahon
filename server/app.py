@@ -222,6 +222,10 @@ async def get_screener(user: dict = Depends(get_current_user)):
             if sym and score is not None:
                 prev_scores[sym] = score
 
+    # anchor-refactor-01 Phase 4: candidates pass through as-is — handler only adds enrichment
+    # fields (is_new_in_batch, in_watchlist, score_delta, etc.) without stripping existing
+    # keys. New anchor schema fields (display_score, disqualified, penalty, penalty_tags,
+    # disqualify_tags, anchor_stage_tags, 4-key breakdown) flow through automatically.
     for c in data.get("candidates", []):
         sym = _norm_sym(c.get("symbol", ""))
         c["is_new_in_batch"] = bool(sym) and sym not in historical
@@ -311,6 +315,28 @@ async def get_stock(symbol: str, user: dict = Depends(get_current_user)):
                 break
 
     # Enrich or fallback from screener (discoveries + score)
+    # anchor-refactor-01 Phase 4: when merging screener candidate into existing snapshot,
+    # preserve new anchor schema fields (display_score, disqualified, penalty,
+    # penalty_tags, disqualify_tags, anchor_stage_tags) alongside legacy score/breakdown.
+    # Defensive: c.get() returns None gracefully for old screener files missing new keys.
+    _ANCHOR_FIELDS = (
+        "score", "display_score", "breakdown",
+        "disqualified", "penalty", "penalty_tags", "disqualify_tags",
+        "anchor_stage_tags", "signals", "reasons",
+    )
+    # 4-key anchor breakdown default (Phase 1 schema: dividend/cashflow/moat/long_hold)
+    _EMPTY_BREAKDOWN = {"dividend": 0, "cashflow": 0, "moat": 0, "long_hold": 0}
+
+    def _merge_anchor_fields(target: dict, source: dict) -> None:
+        """Copy anchor schema fields from screener candidate into stock_data."""
+        for k in _ANCHOR_FIELDS:
+            if k in source:
+                target[k] = source[k]
+        target["screener_metrics"] = source.get("metrics")
+        for key in ("aggregates", "yearly_metrics", "dividend_history"):
+            if key not in target and key in source:
+                target[key] = source[key]
+
     scr_path = find_latest("screener_*.json", DATA_DIR)
     if scr_path:
         scr = read_json(scr_path)
@@ -321,16 +347,7 @@ async def get_stock(symbol: str, user: dict = Depends(get_current_user)):
                     # Not in watchlist — use screener as primary source
                     stock_data = dict(c)
                 else:
-                    # Merge screener data into snapshot
-                    stock_data["score"] = c.get("score")
-                    stock_data["breakdown"] = c.get("breakdown")
-                    stock_data["signals"] = c.get("signals")
-                    stock_data["reasons"] = c.get("reasons")
-                    stock_data["screener_metrics"] = c.get("metrics")
-                    # Merge fields snapshot might not have
-                    for key in ("aggregates", "yearly_metrics", "dividend_history"):
-                        if key not in stock_data and key in c:
-                            stock_data[key] = c[key]
+                    _merge_anchor_fields(stock_data, c)
                 stock_data["filter_status"] = "PASS"
                 found = True
                 break
@@ -340,14 +357,7 @@ async def get_stock(symbol: str, user: dict = Depends(get_current_user)):
                     if stock_data is None:
                         stock_data = dict(c)
                     else:
-                        stock_data["score"] = c.get("score")
-                        stock_data["breakdown"] = c.get("breakdown")
-                        stock_data["signals"] = c.get("signals")
-                        stock_data["reasons"] = c.get("reasons")
-                        stock_data["screener_metrics"] = c.get("metrics")
-                        for key in ("aggregates", "yearly_metrics", "dividend_history"):
-                            if key not in stock_data and key in c:
-                                stock_data[key] = c[key]
+                        _merge_anchor_fields(stock_data, c)
                     stock_data["filter_status"] = "REVIEW"
                     stock_data["review_reasons"] = c.get("review_reasons") or c.get("reasons") or []
                     found = True
@@ -358,6 +368,7 @@ async def get_stock(symbol: str, user: dict = Depends(get_current_user)):
                     if stock_data is None:
                         stock_data = dict(c)
                     else:
+                        # Filtered-out: copy signals/reasons but force zero score+breakdown
                         stock_data["signals"] = c.get("signals")
                         stock_data["reasons"] = c.get("reasons")
                         stock_data["screener_metrics"] = c.get("metrics")
@@ -365,11 +376,11 @@ async def get_stock(symbol: str, user: dict = Depends(get_current_user)):
                             if key not in stock_data and key in c:
                                 stock_data[key] = c[key]
                         stock_data["score"] = 0
-                        stock_data["breakdown"] = {"dividend": 0, "valuation": 0, "cash_flow": 0, "hidden_value": 0, "track_record": 0}
+                        stock_data["breakdown"] = dict(_EMPTY_BREAKDOWN)
                     stock_data["filter_status"] = "FAIL"
                     stock_data["filter_reasons"] = c.get("filter_reasons") or c.get("reasons") or []
                     stock_data.setdefault("score", 0)
-                    stock_data.setdefault("breakdown", {"dividend": 0, "valuation": 0, "cash_flow": 0, "hidden_value": 0, "track_record": 0})
+                    stock_data.setdefault("breakdown", dict(_EMPTY_BREAKDOWN))
                     found = True
                     break
 
