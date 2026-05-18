@@ -647,6 +647,137 @@ def assign_signals(data: dict, total_score: int) -> list:
     return signals
 
 
+# Inline sector lists (TEMP — Plan 02 will refactor to sector_taxonomy.py module)
+STABLE_SECTORS_TEMP = {
+    'Commerce',
+    'Food & Beverage',
+    'Health Care Services',
+    'Information & Communication Technology',
+    'Media & Publishing',
+    'Tourism & Leisure',
+    'Transportation & Logistics',
+}
+CYCLICAL_SECTORS_TEMP = {
+    'Energy & Utilities',
+    'Petrochemicals & Chemicals',
+    'Steel',
+    'Construction Materials',
+    'Property Development',
+    'Mining',
+    'Banking',
+    'Finance & Securities',
+    'Insurance',
+}
+STABLE_UTILITY_SYMBOLS_TEMP = {'EGCO', 'GPSC', 'RATCH', 'BPP', 'BCPG', 'WHAUP', 'TPIPP'}
+
+
+def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
+    """Assign Stage 2-5 anchor tags per parent plan niwes-refactor-v2-design.
+
+    Side-by-side with existing assign_signals() — doesn't replace.
+    Returns list of tag strings (e.g. 'GROWING_DIVIDEND', 'STRONG_MOAT').
+    """
+    tags: list[str] = []
+    sector = data.get('sector', '') or ''
+    symbol = (data.get('symbol', '') or '').replace('.BK', '').upper()
+
+    # Stage 2: Dividend tier (mutually exclusive)
+    consecutive = agg.get('dividend_streak', 0) or 0
+    rising = agg.get('rising_ratio') or 0
+    growth = agg.get('avg_yoy_growth') or 0
+    if consecutive >= 10 and rising >= 0.70 and growth >= 0.03:
+        tags.append('GROWING_DIVIDEND')
+    elif consecutive >= 10:
+        tags.append('STABLE_PAYER')
+    elif consecutive >= 3:
+        tags.append('NEW_PAYER')
+    else:
+        tags.append('INTERMITTENT')
+
+    # Stage 2: DIVIDEND_SHRINKING (orthogonal — drop >= 30% from peak)
+    dividend_history = data.get('dividend_history') or {}
+    if dividend_history:
+        sorted_years = sorted(dividend_history.keys())
+        if len(sorted_years) >= 2:
+            recent_dps = [dividend_history[y] for y in sorted_years[-5:]]
+            peak = max(recent_dps) if recent_dps else 0
+            current_dps = recent_dps[-1] if recent_dps else 0
+            if peak > 0 and current_dps < peak * 0.70:
+                tags.append('DIVIDEND_SHRINKING')
+
+    # Stage 2: YIELD_TRAP (orthogonal — yield > 8% + streak < 5)
+    dy = data.get('dividend_yield') or 0
+    if dy > 8 and consecutive < 5:
+        tags.append('YIELD_TRAP')
+
+    # Stage 2: ROE trend (orthogonal — from Phase 1 aggregate)
+    roe_trend = agg.get('roe_trend', 'ROE_STABLE')
+    tags.append(roe_trend)
+
+    # Stage 3: Cash flow tier
+    ccr = agg.get('ccr_avg_3y')
+    ocf_positive = agg.get('ocf_positive_3y', False)
+    ocf_neg = agg.get('ocf_negative_count_3y', 0) or 0
+    ocf_decline = agg.get('ocf_yoy_decline_pct')
+    if ccr is not None and ocf_positive:
+        if ccr >= 0.70:
+            tags.append('CASHFLOW_HEALTHY')
+        elif ccr >= 0.50:
+            tags.append('CASHFLOW_OK')
+        else:
+            tags.append('CASHFLOW_BELOW_PROFIT')
+    if ocf_neg >= 1:
+        # FAKE_PROFIT: OCF negative but NP positive
+        latest_eps = data.get('eps_trailing') or 0
+        if latest_eps > 0:
+            tags.append('FAKE_PROFIT')
+    if ocf_decline is not None and ocf_decline <= -0.20:
+        tags.append('CASHFLOW_DETERIORATING')
+
+    # Stage 4: Moat tier (mutually exclusive — pick first match priority order)
+    roe_15plus = agg.get('roe_consecutive_15plus_years', 0) or 0
+    gm_trend = agg.get('gm_trend', 'stable') or 'stable'
+    avg_roe = agg.get('avg_roe', 0) or 0
+    de = data.get('debt_to_equity') or data.get('de_ratio')
+    int_cov = agg.get('interest_coverage_4y_avg')
+    net_debt_inc = agg.get('net_debt_increases_in_3y', 0) or 0
+
+    if avg_roe >= 0.15 and de is not None and de > 2.0 and int_cov is not None and int_cov < 3 and net_debt_inc >= 2:
+        tags.append('ROE_FUELED_BY_DEBT')
+    elif roe_15plus >= 7 and gm_trend in ('stable', 'improving'):
+        tags.append('STRONG_MOAT')
+    elif roe_15plus >= 5 and gm_trend == 'stable' and avg_roe >= 0.10:
+        tags.append('MODERATE_MOAT')
+    elif gm_trend == 'declining' or avg_roe < 0.10:
+        tags.append('NO_MOAT')
+        if roe_15plus >= 3:
+            tags.append('MOAT_ERODING')
+    else:
+        tags.append('NO_MOAT')
+
+    # Stage 5: Stability tier
+    eps_cv = agg.get('eps_cv_10y')
+    is_stable_sector = (sector in STABLE_SECTORS_TEMP) or (symbol in STABLE_UTILITY_SYMBOLS_TEMP)
+    is_cyclical_sector = sector in CYCLICAL_SECTORS_TEMP
+    if is_stable_sector and eps_cv is not None and eps_cv <= 0.30:
+        tags.append('STABLE_BUSINESS')
+    elif is_cyclical_sector or (eps_cv is not None and eps_cv > 0.50):
+        tags.append('CYCLICAL_BUSINESS')
+    else:
+        tags.append('MIXED_STABILITY')
+
+    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive)
+    drop2011 = agg.get('crisis_2011_drop_pct')
+    drop2020 = agg.get('crisis_2020_drop_pct')
+    ocf2011 = agg.get('ocf_2011')
+    ocf2020 = agg.get('ocf_2020')
+    if (drop2011 is not None and drop2011 >= -0.40 and (ocf2011 or 0) > 0 and
+        drop2020 is not None and drop2020 >= -0.40 and (ocf2020 or 0) > 0):
+        tags.append('RESILIENT_THROUGH_CRISIS')
+
+    return tags
+
+
 def valuation_grade(data: dict, sector_medians: dict) -> dict:
     """Evaluate price attractiveness — Grade A-F."""
     pe = data.get("pe_ratio")
@@ -943,6 +1074,7 @@ def main():
 
             # status == "PASS"
             result = quality_score(data)
+            anchor_stage_tags = assign_anchor_stage_tags(data, data.get("aggregates", {}))
 
             in_watchlist = sym in watched
 
@@ -989,6 +1121,7 @@ def main():
                 "previous_score": prev_score,
                 "breakdown": result["breakdown"],
                 "signals": result["signals"],
+                "anchor_stage_tags": anchor_stage_tags,
                 "reasons": result["reasons"],
                 "metrics": {
                     "dividend_yield": data.get("dividend_yield"),
