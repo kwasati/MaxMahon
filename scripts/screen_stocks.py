@@ -27,6 +27,7 @@ from data_adapter import (
 from case_study_detector import detect_case_study_tags, detect_moat_tags, load_patterns
 from flake_queue import add_to_queue
 from sector_taxonomy import is_stable_sector, is_cyclical_sector
+from anchor_scoring import compute_anchor_score
 
 _PATTERNS = load_patterns()
 
@@ -149,248 +150,6 @@ def hard_filter(data: dict) -> tuple:
     if review_reasons:
         return "REVIEW", review_reasons
     return "PASS", []
-
-
-def dividend_score(data: dict) -> tuple:
-    """Niwes Dividend pillar — 50 pts max.
-
-    yield (15) + streak (15) + payout sustainability (10) + dividend growth or stable (10)
-    """
-    import statistics
-    score = 0
-    reasons = []
-    agg = data.get("aggregates", {})
-
-    # Yield (15 pts) — Niwes wants ≥5%
-    dy = data.get("dividend_yield")
-    if dy is not None:
-        if dy >= 7:
-            score += 15
-            reasons.append(f"yield สูง {dy:.1f}%")
-        elif dy >= 5:
-            score += 12
-            reasons.append(f"yield ผ่านเกณฑ์ {dy:.1f}%")
-        elif dy >= 4:
-            score += 8
-        elif dy >= 3:
-            score += 5
-        elif dy >= 2:
-            score += 2
-
-    # Streak (15 pts) — disproportionate Niwes-style: 20y elite tier
-    streak = agg.get("dividend_streak", 0)
-    if streak >= 20:
-        score += 15
-        reasons.append(f"จ่ายปันผล {streak} ปีติด (elite)")
-    elif streak >= 15:
-        score += 13
-        reasons.append(f"จ่ายปันผล {streak} ปีติด")
-    elif streak >= 10:
-        score += 10
-    elif streak >= 7:
-        score += 8
-    elif streak >= 5:
-        score += 5
-    elif streak >= 3:
-        score += 2
-
-    # Payout sustainability (10 pts) — independent if/elif (ไม่ exclusive chain)
-    sust_map = compute_payout_sustainability(data)
-    payout = data.get("payout_ratio")
-    sust_count = sum(1 for v in sust_map.values() if v.get("sustainable"))
-    if sust_count >= 5:
-        score += 10
-        reasons.append("payout ยั่งยืน 5+ ปี")
-    elif sust_count >= 3:
-        score += 6
-    elif sust_count >= 1:
-        score += 3
-    elif payout is not None and payout < 0.70:
-        score += 2
-    if payout is not None and payout >= 1.0:
-        reasons.append("payout เกิน 100%")
-
-    # Dividend Growth or Stable (10 pts) — Niwes accepts both growing AND stable
-    div_growth_streak = agg.get("dividend_growth_streak", 0)
-    div_history = data.get("dividend_history") or {}
-    stable = False
-    if div_growth_streak == 0 and len(div_history) >= 5:
-        # Check stable: DPS stdev/mean < 0.1 over last 5 years
-        recent_years = sorted(div_history.keys())[-5:]
-        recent_dps = [div_history[y] for y in recent_years if div_history[y] and div_history[y] > 0]
-        if len(recent_dps) >= 5:
-            mean_dps = sum(recent_dps) / len(recent_dps)
-            if mean_dps > 0:
-                stdev_dps = statistics.stdev(recent_dps)
-                if stdev_dps / mean_dps < 0.1:
-                    stable = True
-
-    if div_growth_streak >= 5:
-        score += 10
-        reasons.append(f"ปันผลเพิ่มต่อเนื่อง {div_growth_streak} ปี")
-    elif div_growth_streak >= 3:
-        score += 7
-    elif div_growth_streak >= 1:
-        score += 4
-    elif stable:
-        score += 5
-        reasons.append("ปันผลคงที่ (stable payer)")
-
-    return min(score, 50), reasons
-
-
-def valuation_score(data: dict) -> tuple:
-    """Niwes Valuation pillar — 25 pts max.
-
-    P/E (10) + P/BV (10) + EV/EBITDA (5)
-    """
-    score = 0
-    reasons = []
-
-    # P/E (10 pts) — bonus PE ≤8
-    pe = data.get("pe_ratio")
-    if pe is not None and pe > 0:
-        if pe <= HARD_FILTERS["bonus_pe"]:
-            score += 10
-            reasons.append(f"P/E {pe:.1f} ถูกมาก")
-        elif pe <= 12:
-            score += 7
-            reasons.append(f"P/E {pe:.1f} ถูก")
-        elif pe <= HARD_FILTERS["max_pe"]:
-            score += 4
-        elif pe <= 20:
-            score += 1
-
-    # P/BV (10 pts) — bonus PBV ≤1
-    pbv = data.get("pb_ratio")
-    if pbv is not None and pbv > 0:
-        if pbv <= HARD_FILTERS["bonus_pbv"]:
-            score += 10
-            reasons.append(f"P/BV {pbv:.2f} ต่ำกว่า book")
-        elif pbv <= 1.2:
-            score += 7
-        elif pbv <= HARD_FILTERS["max_pbv"]:
-            score += 4
-        elif pbv <= 2.0:
-            score += 1
-
-    # EV/EBITDA (5 pts) — use thaifin ev_per_ebit_da from latest yearly_metrics
-    yearly = data.get("yearly_metrics", [])
-    latest = yearly[-1] if yearly else {}
-    ev_ebitda = latest.get("ev_per_ebit_da")
-    if ev_ebitda is None:
-        score += 2  # neutral default — missing data shouldn't penalize
-    elif ev_ebitda > 0:
-        if ev_ebitda <= 6:
-            score += 5
-            reasons.append(f"EV/EBITDA {ev_ebitda:.1f}x ถูก")
-        elif ev_ebitda <= 10:
-            score += 3
-        elif ev_ebitda <= 15:
-            score += 1
-
-    return min(score, 25), reasons
-
-
-def cash_flow_score(data: dict) -> tuple:
-    """Niwes Cash Flow Strength pillar — 10 pts max.
-
-    FCF positive (5) + OCF/NI ratio (3) + Interest coverage or no-debt (2)
-    """
-    score = 0
-    reasons = []
-    agg = data.get("aggregates", {})
-
-    # FCF positive (5 pts) — keep
-    fcf_pos = agg.get("fcf_positive_years", 0)
-    fcf_total = agg.get("fcf_total_years", 0)
-    if fcf_total >= 3:
-        if fcf_pos == fcf_total:
-            score += 5
-            reasons.append("FCF บวกทุกปี")
-        elif fcf_pos >= fcf_total - 1:
-            score += 3
-        elif fcf_pos >= fcf_total // 2:
-            score += 1
-
-    # OCF/NI ratio (3 pts) — reduced
-    ocf_ni = agg.get("latest_ocf_ni_ratio")
-    if ocf_ni is not None:
-        if 0.8 <= ocf_ni <= 3.0:
-            score += 3
-            reasons.append("กำไรมีเงินสดรองรับ")
-        elif 0.5 <= ocf_ni:
-            score += 2
-
-    # Interest coverage or no-debt (2 pts) — reduced + no-debt handle
-    int_cov = agg.get("latest_interest_coverage")
-    yearly = data.get("yearly_metrics", [])
-    latest_de = yearly[-1].get("de_ratio") if yearly else None
-    if int_cov is not None:
-        if int_cov > 10:
-            score += 2
-            reasons.append(f"interest coverage {int_cov:.0f}x")
-        elif int_cov > 5:
-            score += 1
-    elif int_cov is None and latest_de is not None and latest_de < 0.1:
-        score += 2
-        reasons.append("ไม่มีหนี้ (no debt = max coverage)")
-
-    return min(score, 10), reasons
-
-
-def hidden_value_score(data: dict) -> tuple:
-    """Niwes Hidden Value pillar — 5 pts max.
-
-    Base 5 if symbol has hidden-value flag (holdings file maintained manually).
-    """
-    score = 0
-    reasons = []
-    sym = data.get("symbol", "")
-    holdings = check_hidden_value(sym)
-    if not holdings:
-        return 0, reasons
-
-    score += 5
-    reasons.append(f"hidden value: {len(holdings)} holding(s)")
-
-    return min(score, 5), reasons
-
-
-def track_record_score(data: dict) -> tuple:
-    """Niwes Track Record pillar — 10 pts max.
-
-    Revenue growth 5y (5) + EPS growth 5y (5).
-    Per Niwes: รายได้เพิ่มทุกปี กำไรเพิ่มทุกปี ปันผลเพิ่มทุกปี.
-    Dividend growth covered in dividend_score; revenue + eps covered here.
-    """
-    score = 0
-    reasons = []
-    agg = data.get("aggregates", {})
-
-    # Revenue CAGR (5 pts)
-    rev_cagr = agg.get("revenue_cagr")
-    if rev_cagr is not None:
-        if rev_cagr >= 0.10:
-            score += 5
-            reasons.append(f"รายได้โต {rev_cagr*100:.1f}%/ปี")
-        elif rev_cagr >= 0.05:
-            score += 3
-        elif rev_cagr >= 0:
-            score += 1
-
-    # EPS CAGR (5 pts)
-    eps_cagr = agg.get("eps_cagr")
-    if eps_cagr is not None:
-        if eps_cagr >= 0.10:
-            score += 5
-            reasons.append(f"กำไร EPS โต {eps_cagr*100:.1f}%/ปี")
-        elif eps_cagr >= 0.05:
-            score += 3
-        elif eps_cagr >= 0:
-            score += 1
-
-    return min(score, 10), reasons
 
 
 def detect_exit_signal(symbol: str, current_data: dict, historical_baseline: dict | None = None) -> list[dict]:
@@ -844,47 +603,6 @@ def valuation_grade(data: dict, sector_medians: dict) -> dict:
     }
 
 
-def quality_score(data: dict) -> dict:
-    """Niwes Dividend-First Quality Score — 100 pts cap.
-
-    Dividend 50 + Valuation 25 + Cash Flow 10 + Hidden Value 5 + Track Record 10
-    Modifiers: NIWES_GROWING +10, DIVIDEND_TRAP -20, DATA_WARNING -5, YIELD_SPIKE_FROM_PRICE_DROP -5
-    """
-    d_score, d_reasons = dividend_score(data)
-    v_score, v_reasons = valuation_score(data)
-    c_score, c_reasons = cash_flow_score(data)
-    h_score, h_reasons = hidden_value_score(data)
-    t_score, t_reasons = track_record_score(data)
-
-    total = d_score + v_score + c_score + h_score + t_score
-    signals = assign_signals(data, total)
-
-    # Modifier adjustments (cap applied after valuation_grade modifier in main)
-    if "NIWES_GROWING" in signals:
-        total += 10
-    if "DIVIDEND_TRAP" in signals:
-        total -= 20
-    if "DATA_WARNING" in signals:
-        total -= 5
-    if "YIELD_SPIKE_FROM_PRICE_DROP" in signals:
-        total -= 5
-
-    all_reasons = d_reasons + v_reasons + c_reasons + h_reasons + t_reasons
-
-    return {
-        "score": max(0, min(100, total)),
-        "breakdown": {
-            "dividend": d_score,
-            "valuation": v_score,
-            "cash_flow": c_score,
-            "hidden_value": h_score,
-            "track_record": t_score,
-        },
-        "signals": signals,
-        "reasons": all_reasons,
-    }
-
-
 def main():
     universe = json.loads(UNIVERSE.read_text(encoding="utf-8"))
 
@@ -1052,20 +770,23 @@ def main():
                 continue
 
             # status == "PASS"
-            result = quality_score(data)
+            # Anchor scoring (primary, replaces 5-pillar quality_score)
             anchor_stage_tags = assign_anchor_stage_tags(data, data.get("aggregates", {}))
+            anchor_result = compute_anchor_score(anchor_stage_tags, data.get("aggregates", {}))
+            # Legacy signals — kept parallel (frontend will migrate to anchor_stage_tags later)
+            legacy_signals = assign_signals(data, anchor_result["anchor_score"])
 
             in_watchlist = sym in watched
 
             # Save exit baseline the first time a stock passes 5-5-5-5
-            if "NIWES_5555" in result["signals"]:
+            if "NIWES_5555" in legacy_signals:
                 baselines = save_exit_baseline(
                     sym,
                     {
                         "pe_ratio": data.get("pe_ratio"),
                         "pb_ratio": data.get("pb_ratio"),
                         "dividend_yield": data.get("dividend_yield"),
-                        "entry_score": result.get("score"),
+                        "entry_score": anchor_result["anchor_score"],
                     },
                     baselines,
                 )
@@ -1087,7 +808,7 @@ def main():
 
             # v6 Phase 6 — score streak + previous score (computed from prior screener files)
             streak_weeks, prev_score = compute_score_streak(
-                sym, result["score"], prior_screener_files,
+                sym, anchor_result["anchor_score"], prior_screener_files,
             )
 
             entry = {
@@ -1095,13 +816,20 @@ def main():
                 "name": data.get("name", sym),
                 "sector": data.get("sector", "N/A"),
                 "in_watchlist": in_watchlist,
-                "score": result["score"],
+                # Anchor scoring fields (Plan anchor-refactor-01):
+                "score": anchor_result["anchor_score"],            # int 0-100 (anchor)
+                "display_score": anchor_result["display_score"],   # float 0.0-10.0 (anchor)
+                "breakdown": anchor_result["by_dimension"],        # dict 4 keys: dividend/cashflow/moat/long_hold
+                "disqualified": anchor_result["disqualified"],     # bool — true if anchor disqualify hit
+                "penalty": anchor_result["penalty"],               # int (negative or 0)
+                "penalty_tags": anchor_result.get("penalty_tags", []),
+                "disqualify_tags": anchor_result.get("disqualify_tags", []),
+                "anchor_stage_tags": anchor_stage_tags,
+                # Legacy parallel (kept while frontend migrates):
+                "signals": legacy_signals,
+                # Streak tracking (unchanged):
                 "score_streak_weeks": streak_weeks,
                 "previous_score": prev_score,
-                "breakdown": result["breakdown"],
-                "signals": result["signals"],
-                "anchor_stage_tags": anchor_stage_tags,
-                "reasons": result["reasons"],
                 "metrics": {
                     "dividend_yield": data.get("dividend_yield"),
                     "pe": data.get("pe_ratio"),
@@ -1130,10 +858,14 @@ def main():
             candidates.append(entry)
 
             marker = "★" if in_watchlist else "✦"
-            sig_str = f" [{','.join(result['signals'])}]" if result["signals"] else ""
-            breakdown = result["breakdown"]
-            bd_str = f"D{breakdown['dividend']}+V{breakdown['valuation']}+C{breakdown['cash_flow']}+H{breakdown['hidden_value']}"
-            print(f"  [{i+1}/{len(symbols)}] {marker} {sym} — {result['score']}/100 ({bd_str}){sig_str}")
+            sig_str = f" [{','.join(legacy_signals)}]" if legacy_signals else ""
+            breakdown = anchor_result["by_dimension"]
+            if anchor_result["disqualified"]:
+                bd_str = f"DISQUALIFIED({', '.join(anchor_result.get('disqualify_tags', []))})"
+            else:
+                bd_str = f"D{breakdown['dividend']}+C{breakdown['cashflow']}+M{breakdown['moat']}+L{breakdown['long_hold']}"
+            display = anchor_result["display_score"]
+            print(f"  [{i+1}/{len(symbols)}] {marker} {sym} — {display}/10.0 ({bd_str}){sig_str}")
 
         except Exception as e:
             error_count += 1
@@ -1206,7 +938,12 @@ def main():
         marker = "★" if c["in_watchlist"] else "✦ NEW"
         bd = c["breakdown"]
         sig = f" [{','.join(c['signals'])}]" if c["signals"] else ""
-        print(f"  {marker} {c['symbol']} — {c['score']}/100 (D{bd['dividend']}+V{bd['valuation']}+C{bd['cash_flow']}+H{bd['hidden_value']}){sig}")
+        if c.get("disqualified"):
+            bd_str = f"DISQUALIFIED({', '.join(c.get('disqualify_tags', []))})"
+        else:
+            bd_str = f"D{bd.get('dividend',0)}+C{bd.get('cashflow',0)}+M{bd.get('moat',0)}+L{bd.get('long_hold',0)}"
+        display = c.get("display_score", round(c['score'] / 10.0, 1))
+        print(f"  {marker} {c['symbol']} — {display}/10.0 ({bd_str}){sig}")
     print(f"\nSaved → {out_path}")
 
     return out_path
