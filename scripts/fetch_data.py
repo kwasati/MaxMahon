@@ -362,7 +362,16 @@ def _compute_interest_coverage_4y_avg(yearly_metrics: list, current_year: int) -
 
 
 def _compute_eps_cv_10y(yearly_metrics: list, current_year: int) -> dict:
-    """Coefficient of variation (stdev / |mean|) of diluted_eps over up to 10 prior years."""
+    """Coefficient of variation (CV) of diluted_eps over up to 10 prior years.
+
+    CV = stdev / |mean|. Uses population stdev (pstdev) because:
+    - The 10y EPS series is the full population of observations for this period
+      (not a sample drawn from a larger population)
+    - Difference vs sample stdev is small (factor of sqrt(N/(N-1)) ~= 1.05 for N=10)
+    - Intentional choice for descriptive measure of historical stability
+
+    Lower CV = more stable earnings = STABLE_BUSINESS qualifier.
+    """
     valid = []
     for m in yearly_metrics:
         y = _year_int(m)
@@ -386,7 +395,11 @@ def _compute_eps_cv_10y(yearly_metrics: list, current_year: int) -> dict:
 
 def _compute_crisis_drop(yearly_metrics: list, pre_year: int, crisis_year: int,
                          field: str = "close") -> "float | None":
-    """% change of `field` from pre_year to crisis_year (e.g. close price drop in crisis)."""
+    """Fallback: yearly close-to-close % change of `field` from pre_year to crisis_year.
+
+    Less precise than monthly drawdown (misses intra-year low). Used as fallback
+    when monthly yahoo fetch fails.
+    """
     by_year = {}
     for m in yearly_metrics:
         y = _year_int(m)
@@ -399,6 +412,62 @@ def _compute_crisis_drop(yearly_metrics: list, pre_year: int, crisis_year: int,
     return (crisis - pre) / pre
 
 
+def _fetch_crisis_drop_monthly(symbol: str, pre_year: int, crisis_year: int) -> "float | None":
+    """Compute max peak-to-trough drawdown using monthly history.
+
+    drop = (min(low) during crisis_year) / (max(close) during pre_year) - 1
+
+    Returns a negative value (e.g. -0.45 = 45% drawdown peak-to-trough).
+    Uses yahooquery monthly history. Returns None on fetch failure or missing data
+    so the caller can fall back to yearly close-to-close.
+    """
+    try:
+        from yahooquery import Ticker
+        sym_yf = symbol if symbol.endswith('.BK') else f'{symbol}.BK'
+        t = Ticker(sym_yf)
+        hist = t.history(
+            start=f'{pre_year}-01-01',
+            end=f'{crisis_year}-12-31',
+            interval='1mo',
+        )
+        if hist is None:
+            return None
+        # yahooquery may return a string error message on failure
+        if not hasattr(hist, 'empty') or hist.empty:
+            return None
+        hist = hist.reset_index()
+        if 'date' not in hist.columns:
+            return None
+        hist['year'] = pd.to_datetime(hist['date']).dt.year
+        pre_data = hist[hist['year'] == pre_year]
+        crisis_data = hist[hist['year'] == crisis_year]
+        if pre_data.empty or crisis_data.empty:
+            return None
+        # Peak during pre_year: prefer 'high' if available, else 'close'
+        if 'high' in pre_data.columns and pre_data['high'].notna().any():
+            pre_peak = pre_data['high'].max()
+        elif 'close' in pre_data.columns and pre_data['close'].notna().any():
+            pre_peak = pre_data['close'].max()
+        else:
+            return None
+        # Trough during crisis_year: prefer 'low' if available, else 'close'
+        if 'low' in crisis_data.columns and crisis_data['low'].notna().any():
+            crisis_trough = crisis_data['low'].min()
+        elif 'close' in crisis_data.columns and crisis_data['close'].notna().any():
+            crisis_trough = crisis_data['close'].min()
+        else:
+            return None
+        if pre_peak is None or pre_peak == 0 or crisis_trough is None:
+            return None
+        try:
+            return float((crisis_trough - pre_peak) / pre_peak)
+        except (TypeError, ZeroDivisionError):
+            return None
+    except Exception as e:
+        logger.warning(f"crisis_drop monthly fetch failed for {symbol} {pre_year}-{crisis_year}: {e}")
+        return None
+
+
 def _get_ocf_for_year(yearly_metrics: list, year: int) -> "float | None":
     for m in yearly_metrics:
         if _year_int(m) == year:
@@ -406,12 +475,16 @@ def _get_ocf_for_year(yearly_metrics: list, year: int) -> "float | None":
     return None
 
 
-def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
+def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=None):
     """Compute aggregates from yearly_metrics and dividend history.
 
     fy_is_complete: optional dict {year: bool} — when provided, streak functions
     use it to exclude incomplete fiscal years. CAGR excludes current calendar
     year regardless (thaifin has no is_complete equivalent for EPS/revenue).
+
+    symbol: optional ticker (e.g. 'BBL') — when provided, crisis_drop computation
+    uses monthly yahoo history (intra-year peak-to-trough) for higher precision,
+    falling back to yearly close-to-close on fetch failure.
     """
     revenues = [m["revenue"] for m in yearly_metrics]
     eps_list = [m["diluted_eps"] for m in yearly_metrics]
@@ -528,14 +601,28 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
     eps_stats = _compute_eps_cv_10y(yearly_metrics, current_year)
     aggregates["eps_cv_10y"] = eps_stats["eps_cv_10y"]
     aggregates["eps_mean_10y"] = eps_stats["eps_mean_10y"]
-    aggregates["crisis_2011_drop_pct"] = _compute_crisis_drop(
-        yearly_metrics, 2010, 2011, "close"
-    )
-    aggregates["crisis_2020_drop_pct"] = _compute_crisis_drop(
-        yearly_metrics, 2019, 2020, "close"
-    )
+
+    # crisis_drop: prefer monthly intra-year peak-to-trough (more precise).
+    # Falls back to yearly close-to-close when monthly fetch fails or symbol is unknown.
+    crisis_2011 = None
+    crisis_2020 = None
+    if symbol:
+        crisis_2011 = _fetch_crisis_drop_monthly(symbol, 2010, 2011)
+        crisis_2020 = _fetch_crisis_drop_monthly(symbol, 2019, 2020)
+    if crisis_2011 is None:
+        crisis_2011 = _compute_crisis_drop(yearly_metrics, 2010, 2011, "close")
+    if crisis_2020 is None:
+        crisis_2020 = _compute_crisis_drop(yearly_metrics, 2019, 2020, "close")
+    aggregates["crisis_2011_drop_pct"] = crisis_2011
+    aggregates["crisis_2020_drop_pct"] = crisis_2020
+
     aggregates["ocf_2011"] = _get_ocf_for_year(yearly_metrics, 2011)
     aggregates["ocf_2020"] = _get_ocf_for_year(yearly_metrics, 2020)
+
+    # FIX 3: dps_5y_cagr alias for spec consistency
+    # Spec uses 'dps_5y_cagr' in DEFAULT_SCORING_CONFIG bonus_metrics;
+    # existing data key is 'dps_cagr'. Both point to the same 5-year CAGR value.
+    aggregates["dps_5y_cagr"] = aggregates.get("dps_cagr")
 
     return aggregates
 
@@ -597,7 +684,8 @@ def fetch_multi_year(symbol: str) -> dict:
         fy_is_complete = adapter_result.get("fy_is_complete")
 
         aggregates = _build_aggregates(yearly_metrics, dividend_history,
-                                       fy_is_complete=fy_is_complete)
+                                       fy_is_complete=fy_is_complete,
+                                       symbol=symbol)
 
         # Validate
         # Build a minimal info-like dict for validate_metrics
