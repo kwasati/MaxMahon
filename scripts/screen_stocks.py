@@ -545,7 +545,7 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
     elif roe_strong_consecutive >= 5 and gm_trend in ('stable', 'improving'):
         # STRONG: 5y consecutive above threshold (was 7y of 15%+, now 5y of 12% general / 10% banks)
         tags.append('STRONG_MOAT')
-    elif roe_moderate_consecutive >= 3 and gm_trend == 'stable' and avg_roe >= moderate_avg_min:
+    elif roe_moderate_consecutive >= 3 and gm_trend in ('stable', 'improving') and avg_roe >= moderate_avg_min:
         # MODERATE: 3y consecutive above moderate threshold
         tags.append('MODERATE_MOAT')
     elif gm_trend == 'declining' or avg_roe < moderate_avg_min:
