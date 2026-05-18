@@ -2086,7 +2086,7 @@
     },
     {
       "iso_week": "2026-W21",
-      "scanned_at": "2026-05-18T17:22:08",
+      "scanned_at": "2026-05-18T18:44:39",
       "date": "2026-05-18",
       "counts": {
         "scanned": 932,
@@ -2095,13 +2095,28 @@
         "new": 52,
         "filtered": 850
       },
-      "summary": "MTI.BK, PTTEP.BK, ILM.BK · +52 ใหม่",
+      "summary": "CIMBT.BK, MTI.BK, PTTEP.BK · +52 ใหม่",
       "report": "scan_2026-05-18.md",
       "scoring_version": "niwes-dividend-first-v2",
       "top_candidates": [
         {
+          "symbol": "CIMBT.BK",
+          "score": 49,
+          "yield": null,
+          "pe": 5.285714,
+          "pbv": 0.24966262,
+          "tags": [
+            "DATA_WARNING",
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "YIELD_SPIKE_FROM_PRICE_DROP",
+            "DEEP_VALUE",
+            "BANK_VALUE_PBV1"
+          ]
+        },
+        {
           "symbol": "MTI.BK",
-          "score": 47,
+          "score": 49,
           "yield": null,
           "pe": 8.73,
           "pbv": 1.06,
@@ -2112,13 +2127,60 @@
         },
         {
           "symbol": "PTTEP.BK",
-          "score": 47,
+          "score": 49,
           "yield": null,
           "pe": 10.79,
           "pbv": 1.13,
           "tags": [
             "NIWES_5555",
             "QUALITY_DIVIDEND"
+          ]
+        },
+        {
+          "symbol": "CMR.BK",
+          "score": 47,
+          "yield": null,
+          "pe": 2.16,
+          "pbv": 1.18,
+          "tags": [
+            "DATA_WARNING",
+            "NIWES_5555",
+            "YIELD_SPIKE_FROM_PRICE_DROP"
+          ]
+        },
+        {
+          "symbol": "ALUCON.BK",
+          "score": 46,
+          "yield": null,
+          "pe": 9.6,
+          "pbv": 1.32,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND"
+          ]
+        },
+        {
+          "symbol": "KBANK.BK",
+          "score": 46,
+          "yield": null,
+          "pe": 9.34,
+          "pbv": 0.8,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND"
+          ]
+        },
+        {
+          "symbol": "BBL.BK",
+          "score": 45,
+          "yield": null,
+          "pe": 6.83,
+          "pbv": 0.55,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "DEEP_VALUE",
+            "BANK_VALUE_PBV1"
           ]
         },
         {
@@ -2133,65 +2195,34 @@
           ]
         },
         {
-          "symbol": "KBANK.BK",
-          "score": 44,
-          "yield": null,
-          "pe": 9.34,
-          "pbv": 0.8,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND"
-          ]
-        },
-        {
-          "symbol": "BBL.BK",
+          "symbol": "STANLY.BK",
           "score": 42,
           "yield": null,
-          "pe": 6.83,
-          "pbv": 0.55,
+          "pe": 8.8,
+          "pbv": 0.78,
           "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "DEEP_VALUE",
-            "BANK_VALUE_PBV1"
+            "NIWES_5555"
           ]
         },
         {
-          "symbol": "CIMBT.BK",
-          "score": 41,
+          "symbol": "KTB.BK",
+          "score": 38,
           "yield": null,
-          "pe": 5.285714,
-          "pbv": 0.24966262,
+          "pe": 9.78,
+          "pbv": 1.02,
           "tags": [
-            "DATA_WARNING",
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "YIELD_SPIKE_FROM_PRICE_DROP",
-            "DEEP_VALUE",
-            "BANK_VALUE_PBV1"
-          ]
-        },
-        {
-          "symbol": "CMR.BK",
-          "score": 41,
-          "yield": null,
-          "pe": 2.16,
-          "pbv": 1.18,
-          "tags": [
-            "DATA_WARNING",
             "NIWES_5555",
             "YIELD_SPIKE_FROM_PRICE_DROP"
           ]
         },
         {
-          "symbol": "ALUCON.BK",
-          "score": 40,
+          "symbol": "AWC.BK",
+          "score": 37,
           "yield": null,
-          "pe": 9.6,
-          "pbv": 1.32,
+          "pe": 10.9,
+          "pbv": 0.71,
           "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND"
+            "NIWES_GROWING"
           ]
         },
         {
@@ -2205,28 +2236,8 @@
           ]
         },
         {
-          "symbol": "AWC.BK",
-          "score": 35,
-          "yield": null,
-          "pe": 10.9,
-          "pbv": 0.71,
-          "tags": [
-            "NIWES_GROWING"
-          ]
-        },
-        {
-          "symbol": "STANLY.BK",
-          "score": 35,
-          "yield": null,
-          "pe": 8.8,
-          "pbv": 0.78,
-          "tags": [
-            "NIWES_5555"
-          ]
-        },
-        {
           "symbol": "AMATA.BK",
-          "score": 34,
+          "score": 36,
           "yield": null,
           "pe": 7.56,
           "pbv": 1.01,
@@ -2236,8 +2247,18 @@
           ]
         },
         {
+          "symbol": "PTT.BK",
+          "score": 36,
+          "yield": null,
+          "pe": 11.7,
+          "pbv": 0.94,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
+        {
           "symbol": "SUC.BK",
-          "score": 34,
+          "score": 35,
           "yield": null,
           "pe": 4.62,
           "pbv": 0.33,
@@ -2245,28 +2266,6 @@
             "NIWES_5555",
             "QUALITY_DIVIDEND",
             "DEEP_VALUE"
-          ]
-        },
-        {
-          "symbol": "HTC.BK",
-          "score": 30,
-          "yield": null,
-          "pe": 10.68,
-          "pbv": 1.43,
-          "tags": [
-            "NIWES_5555",
-            "RETAIL_DEFENSIVE_MOAT"
-          ]
-        },
-        {
-          "symbol": "THANI.BK",
-          "score": 30,
-          "yield": null,
-          "pe": 8.22,
-          "pbv": 0.7,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND"
           ]
         }
       ],
@@ -2282,17 +2281,32 @@
           "triggers": []
         },
         {
-          "symbol": "LH.BK",
+          "symbol": "QH.BK",
           "status": "HELD",
           "triggers": []
         },
         {
-          "symbol": "QH.BK",
+          "symbol": "LH.BK",
           "status": "HELD",
           "triggers": []
         }
       ],
       "entry_thesis": {
+        "CIMBT.BK": {
+          "sector": "Banking",
+          "pe": 5.285714,
+          "pbv": 0.24966262,
+          "yield": null,
+          "streak": 10,
+          "tags": [
+            "DATA_WARNING",
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "YIELD_SPIKE_FROM_PRICE_DROP",
+            "DEEP_VALUE",
+            "BANK_VALUE_PBV1"
+          ]
+        },
         "MTI.BK": {
           "sector": "Insurance",
           "pe": 8.73,
@@ -2315,15 +2329,27 @@
             "QUALITY_DIVIDEND"
           ]
         },
-        "ILM.BK": {
-          "sector": "Commerce",
-          "pe": 8.73,
-          "pbv": 0.96,
+        "CMR.BK": {
+          "sector": "Health Care Services",
+          "pe": 2.16,
+          "pbv": 1.18,
           "yield": null,
-          "streak": 6,
+          "streak": 24,
+          "tags": [
+            "DATA_WARNING",
+            "NIWES_5555",
+            "YIELD_SPIKE_FROM_PRICE_DROP"
+          ]
+        },
+        "ALUCON.BK": {
+          "sector": "Packaging",
+          "pe": 9.6,
+          "pbv": 1.32,
+          "yield": null,
+          "streak": 27,
           "tags": [
             "NIWES_5555",
-            "RETAIL_DEFENSIVE_MOAT"
+            "QUALITY_DIVIDEND"
           ]
         },
         "KBANK.BK": {
@@ -2350,52 +2376,15 @@
             "BANK_VALUE_PBV1"
           ]
         },
-        "CIMBT.BK": {
-          "sector": "Banking",
-          "pe": 5.285714,
-          "pbv": 0.24966262,
+        "ILM.BK": {
+          "sector": "Commerce",
+          "pe": 8.73,
+          "pbv": 0.96,
           "yield": null,
-          "streak": 10,
-          "tags": [
-            "DATA_WARNING",
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "YIELD_SPIKE_FROM_PRICE_DROP",
-            "DEEP_VALUE",
-            "BANK_VALUE_PBV1"
-          ]
-        },
-        "CMR.BK": {
-          "sector": "Health Care Services",
-          "pe": 2.16,
-          "pbv": 1.18,
-          "yield": null,
-          "streak": 24,
-          "tags": [
-            "DATA_WARNING",
-            "NIWES_5555",
-            "YIELD_SPIKE_FROM_PRICE_DROP"
-          ]
-        },
-        "ALUCON.BK": {
-          "sector": "Packaging",
-          "pe": 9.6,
-          "pbv": 1.32,
-          "yield": null,
-          "streak": 27,
+          "streak": 6,
           "tags": [
             "NIWES_5555",
-            "QUALITY_DIVIDEND"
-          ]
-        },
-        "SAT.BK": {
-          "sector": "Automotive",
-          "pe": 8.67,
-          "pbv": 0.76,
-          "yield": null,
-          "streak": 19,
-          "tags": [
-            "NIWES_5555"
+            "RETAIL_DEFENSIVE_MOAT"
           ]
         },
         "STANLY.BK": {
@@ -2404,6 +2393,27 @@
           "pbv": 0.78,
           "yield": null,
           "streak": 24,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
+        "KTB.BK": {
+          "sector": "Banking",
+          "pe": 9.78,
+          "pbv": 1.02,
+          "yield": null,
+          "streak": 24,
+          "tags": [
+            "NIWES_5555",
+            "YIELD_SPIKE_FROM_PRICE_DROP"
+          ]
+        },
+        "SAT.BK": {
+          "sector": "Automotive",
+          "pe": 8.67,
+          "pbv": 0.76,
+          "yield": null,
+          "streak": 19,
           "tags": [
             "NIWES_5555"
           ]
@@ -2419,6 +2429,16 @@
             "QUALITY_DIVIDEND"
           ]
         },
+        "PTT.BK": {
+          "sector": "Energy & Utilities",
+          "pe": 11.7,
+          "pbv": 0.94,
+          "yield": null,
+          "streak": 20,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
         "SUC.BK": {
           "sector": "Fashion",
           "pe": 4.62,
@@ -2429,6 +2449,17 @@
             "NIWES_5555",
             "QUALITY_DIVIDEND",
             "DEEP_VALUE"
+          ]
+        },
+        "THANI.BK": {
+          "sector": "Finance & Securities",
+          "pe": 8.22,
+          "pbv": 0.7,
+          "yield": null,
+          "streak": 23,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND"
           ]
         },
         "HTC.BK": {
@@ -2442,15 +2473,16 @@
             "RETAIL_DEFENSIVE_MOAT"
           ]
         },
-        "THANI.BK": {
-          "sector": "Finance & Securities",
-          "pe": 8.22,
-          "pbv": 0.7,
+        "METCO.BK": {
+          "sector": "Electronic Components",
+          "pe": 5.22,
+          "pbv": 0.77,
           "yield": null,
-          "streak": 23,
+          "streak": 27,
           "tags": [
             "NIWES_5555",
-            "QUALITY_DIVIDEND"
+            "YIELD_SPIKE_FROM_PRICE_DROP",
+            "DEEP_VALUE"
           ]
         },
         "TTB.BK": {
@@ -2477,26 +2509,31 @@
             "F&B_CONSUMER_BRAND"
           ]
         },
-        "PTT.BK": {
+        "RATCH.BK": {
           "sector": "Energy & Utilities",
-          "pe": 11.7,
-          "pbv": 0.94,
+          "pe": 10.48,
+          "pbv": 0.66,
           "yield": null,
-          "streak": 20,
-          "tags": [
-            "NIWES_5555"
-          ]
-        },
-        "METCO.BK": {
-          "sector": "Electronic Components",
-          "pe": 5.22,
-          "pbv": 0.77,
-          "yield": null,
-          "streak": 27,
+          "streak": 23,
           "tags": [
             "NIWES_5555",
-            "YIELD_SPIKE_FROM_PRICE_DROP",
-            "DEEP_VALUE"
+            "QUALITY_DIVIDEND",
+            "UTILITY_DEFENSIVE",
+            "STRUCTURAL_MOAT"
+          ]
+        },
+        "TCAP.BK": {
+          "sector": "Banking",
+          "pe": 7.55,
+          "pbv": 0.75,
+          "yield": null,
+          "streak": 22,
+          "tags": [
+            "NIWES_5555",
+            "HIDDEN_VALUE",
+            "QUALITY_DIVIDEND",
+            "DEEP_VALUE",
+            "BANK_VALUE_PBV1"
           ]
         },
         "AEONTS.BK": {
@@ -2509,19 +2546,6 @@
             "NIWES_5555",
             "QUALITY_DIVIDEND",
             "DEEP_VALUE"
-          ]
-        },
-        "RATCH.BK": {
-          "sector": "Energy & Utilities",
-          "pe": 10.48,
-          "pbv": 0.66,
-          "yield": null,
-          "streak": 23,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "UTILITY_DEFENSIVE",
-            "STRUCTURAL_MOAT"
           ]
         },
         "SCCC.BK": {
@@ -2557,6 +2581,19 @@
             "BANK_VALUE_PBV1"
           ]
         },
+        "QH.BK": {
+          "sector": "Property Development",
+          "pe": 8.36,
+          "pbv": 0.49,
+          "yield": null,
+          "streak": 13,
+          "tags": [
+            "NIWES_5555",
+            "HIDDEN_VALUE",
+            "QUALITY_DIVIDEND",
+            "HOLDING_CO_HIDDEN"
+          ]
+        },
         "ROJNA.BK": {
           "sector": "Property Development",
           "pe": 8.494,
@@ -2580,16 +2617,6 @@
             "DEEP_VALUE"
           ]
         },
-        "TPIPP.BK": {
-          "sector": "Energy & Utilities",
-          "pe": 9.82,
-          "pbv": 0.41,
-          "yield": null,
-          "streak": 8,
-          "tags": [
-            "NIWES_5555"
-          ]
-        },
         "ASIAN.BK": {
           "sector": "Food & Beverage",
           "pe": 9.27,
@@ -2602,24 +2629,37 @@
             "RETAIL_DEFENSIVE_MOAT"
           ]
         },
-        "IMPACT.BK": {
-          "sector": "Property Fund & REITs",
-          "pe": 14.7727,
-          "pbv": 1.03,
+        "SIRI.BK": {
+          "sector": "Property Development",
+          "pe": 5.51,
+          "pbv": 0.5,
+          "yield": null,
+          "streak": 23,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "DEEP_VALUE"
+          ]
+        },
+        "TPIPP.BK": {
+          "sector": "Energy & Utilities",
+          "pe": 9.82,
+          "pbv": 0.41,
           "yield": null,
           "streak": 8,
           "tags": [
             "NIWES_5555"
           ]
         },
-        "GVREIT.BK": {
-          "sector": "Property Fund & REITs",
-          "pe": 10.4688,
-          "pbv": 0.67,
+        "SAK.BK": {
+          "sector": "Finance & Securities",
+          "pe": 7.44,
+          "pbv": 0.93,
           "yield": null,
-          "streak": 9,
+          "streak": 6,
           "tags": [
-            "NIWES_5555"
+            "NIWES_5555",
+            "DEEP_VALUE"
           ]
         },
         "LANNA.BK": {
@@ -2628,6 +2668,28 @@
           "pbv": 0.91,
           "yield": null,
           "streak": 25,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
+        "AP.BK": {
+          "sector": "Property Development",
+          "pe": 5.42,
+          "pbv": 0.5,
+          "yield": null,
+          "streak": 23,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "DEEP_VALUE"
+          ]
+        },
+        "IMPACT.BK": {
+          "sector": "Property Fund & REITs",
+          "pe": 14.7727,
+          "pbv": 1.03,
+          "yield": null,
+          "streak": 8,
           "tags": [
             "NIWES_5555"
           ]
@@ -2645,34 +2707,22 @@
             "DEEP_VALUE"
           ]
         },
-        "AIMIRT.BK": {
+        "GVREIT.BK": {
           "sector": "Property Fund & REITs",
-          "pe": 10.381,
-          "pbv": 0.94,
+          "pe": 10.4688,
+          "pbv": 0.67,
           "yield": null,
-          "streak": 7,
+          "streak": 9,
           "tags": [
             "NIWES_5555"
           ]
         },
-        "AP.BK": {
+        "SPALI.BK": {
           "sector": "Property Development",
-          "pe": 5.42,
-          "pbv": 0.5,
+          "pe": 7.24,
+          "pbv": 0.52,
           "yield": null,
-          "streak": 23,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "DEEP_VALUE"
-          ]
-        },
-        "AYUD.BK": {
-          "sector": "Insurance",
-          "pe": 5.55,
-          "pbv": 0.98,
-          "yield": null,
-          "streak": 18,
+          "streak": 19,
           "tags": [
             "NIWES_5555",
             "QUALITY_DIVIDEND",
@@ -2687,6 +2737,38 @@
           "streak": 7,
           "tags": [
             "NIWES_5555"
+          ]
+        },
+        "JMT.BK": {
+          "sector": "Finance & Securities",
+          "pe": 13.4,
+          "pbv": 0.51,
+          "yield": null,
+          "streak": 11,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
+        "AIMIRT.BK": {
+          "sector": "Property Fund & REITs",
+          "pe": 10.381,
+          "pbv": 0.94,
+          "yield": null,
+          "streak": 7,
+          "tags": [
+            "NIWES_5555"
+          ]
+        },
+        "AYUD.BK": {
+          "sector": "Insurance",
+          "pe": 5.55,
+          "pbv": 0.98,
+          "yield": null,
+          "streak": 18,
+          "tags": [
+            "NIWES_5555",
+            "QUALITY_DIVIDEND",
+            "DEEP_VALUE"
           ]
         },
         "BPP.BK": {
@@ -2722,16 +2804,6 @@
             "NIWES_5555"
           ]
         },
-        "JMT.BK": {
-          "sector": "Finance & Securities",
-          "pe": 13.4,
-          "pbv": 0.51,
-          "yield": null,
-          "streak": 11,
-          "tags": [
-            "NIWES_5555"
-          ]
-        },
         "KGI.BK": {
           "sector": "Finance & Securities",
           "pe": 8.51,
@@ -2740,17 +2812,6 @@
           "streak": 23,
           "tags": [
             "NIWES_5555"
-          ]
-        },
-        "KTB.BK": {
-          "sector": "Banking",
-          "pe": 9.78,
-          "pbv": 1.02,
-          "yield": null,
-          "streak": 24,
-          "tags": [
-            "NIWES_5555",
-            "YIELD_SPIKE_FROM_PRICE_DROP"
           ]
         },
         "KYE.BK": {
@@ -2809,30 +2870,6 @@
             "RETAIL_DEFENSIVE_MOAT"
           ]
         },
-        "QH.BK": {
-          "sector": "Property Development",
-          "pe": 8.36,
-          "pbv": 0.49,
-          "yield": null,
-          "streak": 13,
-          "tags": [
-            "NIWES_5555",
-            "HIDDEN_VALUE",
-            "QUALITY_DIVIDEND",
-            "HOLDING_CO_HIDDEN"
-          ]
-        },
-        "SAK.BK": {
-          "sector": "Finance & Securities",
-          "pe": 7.44,
-          "pbv": 0.93,
-          "yield": null,
-          "streak": 6,
-          "tags": [
-            "NIWES_5555",
-            "DEEP_VALUE"
-          ]
-        },
         "SC.BK": {
           "sector": "Property Development",
           "pe": 5.19,
@@ -2854,69 +2891,19 @@
           "tags": [
             "NIWES_5555"
           ]
-        },
-        "SIRI.BK": {
-          "sector": "Property Development",
-          "pe": 5.51,
-          "pbv": 0.5,
-          "yield": null,
-          "streak": 23,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "DEEP_VALUE"
-          ]
-        },
-        "SPALI.BK": {
-          "sector": "Property Development",
-          "pe": 7.24,
-          "pbv": 0.52,
-          "yield": null,
-          "streak": 19,
-          "tags": [
-            "NIWES_5555",
-            "QUALITY_DIVIDEND",
-            "DEEP_VALUE"
-          ]
-        },
-        "TCAP.BK": {
-          "sector": "Banking",
-          "pe": 7.55,
-          "pbv": 0.75,
-          "yield": null,
-          "streak": 22,
-          "tags": [
-            "NIWES_5555",
-            "HIDDEN_VALUE",
-            "QUALITY_DIVIDEND",
-            "DEEP_VALUE",
-            "BANK_VALUE_PBV1"
-          ]
         }
       },
       "dividend_paid_since_entry": {},
       "price_snapshot": {
+        "CIMBT.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
         "MTI.BK": {
           "price": null,
           "date": "2026-05-18"
         },
         "PTTEP.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "ILM.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "KBANK.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "BBL.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "CIMBT.BK": {
           "price": null,
           "date": "2026-05-18"
         },
@@ -2928,11 +2915,15 @@
           "price": null,
           "date": "2026-05-18"
         },
-        "SAT.BK": {
+        "KBANK.BK": {
           "price": null,
           "date": "2026-05-18"
         },
-        "AWC.BK": {
+        "BBL.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
+        "ILM.BK": {
           "price": null,
           "date": "2026-05-18"
         },
@@ -2940,19 +2931,27 @@
           "price": null,
           "date": "2026-05-18"
         },
+        "KTB.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
+        "AWC.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
+        "SAT.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
         "AMATA.BK": {
           "price": null,
           "date": "2026-05-18"
         },
+        "PTT.BK": {
+          "price": null,
+          "date": "2026-05-18"
+        },
         "SUC.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "HTC.BK": {
-          "price": null,
-          "date": "2026-05-18"
-        },
-        "THANI.BK": {
           "price": null,
           "date": "2026-05-18"
         }
