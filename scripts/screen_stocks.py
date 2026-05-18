@@ -26,6 +26,7 @@ from data_adapter import (
 )
 from case_study_detector import detect_case_study_tags, detect_moat_tags, load_patterns
 from flake_queue import add_to_queue
+from sector_taxonomy import is_stable_sector, is_cyclical_sector
 
 _PATTERNS = load_patterns()
 
@@ -647,30 +648,6 @@ def assign_signals(data: dict, total_score: int) -> list:
     return signals
 
 
-# Inline sector lists (TEMP — Plan 02 will refactor to sector_taxonomy.py module)
-STABLE_SECTORS_TEMP = {
-    'Commerce',
-    'Food & Beverage',
-    'Health Care Services',
-    'Information & Communication Technology',
-    'Media & Publishing',
-    'Tourism & Leisure',
-    'Transportation & Logistics',
-}
-CYCLICAL_SECTORS_TEMP = {
-    'Energy & Utilities',
-    'Petrochemicals & Chemicals',
-    'Steel',
-    'Construction Materials',
-    'Property Development',
-    'Mining',
-    'Banking',
-    'Finance & Securities',
-    'Insurance',
-}
-STABLE_UTILITY_SYMBOLS_TEMP = {'EGCO', 'GPSC', 'RATCH', 'BPP', 'BCPG', 'WHAUP', 'TPIPP'}
-
-
 def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
     """Assign Stage 2-5 anchor tags per parent plan niwes-refactor-v2-design.
 
@@ -757,11 +734,11 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
 
     # Stage 5: Stability tier
     eps_cv = agg.get('eps_cv_10y')
-    is_stable_sector = (sector in STABLE_SECTORS_TEMP) or (symbol in STABLE_UTILITY_SYMBOLS_TEMP)
-    is_cyclical_sector = sector in CYCLICAL_SECTORS_TEMP
-    if is_stable_sector and eps_cv is not None and eps_cv <= 0.30:
+    stable = is_stable_sector(sector, symbol)
+    cyclical = is_cyclical_sector(sector)
+    if stable and eps_cv is not None and eps_cv <= 0.30:
         tags.append('STABLE_BUSINESS')
-    elif is_cyclical_sector or (eps_cv is not None and eps_cv > 0.50):
+    elif cyclical or (eps_cv is not None and eps_cv > 0.50):
         tags.append('CYCLICAL_BUSINESS')
     else:
         tags.append('MIXED_STABILITY')
