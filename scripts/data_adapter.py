@@ -442,11 +442,20 @@ def _attribute_dividends_to_fiscal_years(divs) -> dict:
     return {'by_fy': by_fy, 'is_complete': is_complete, 'events_per_fy': events_per_fy, 'typical_count': typical_count}
 
 
-def _fetch_yahoo_supplement(symbol: str) -> dict:
+def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
     """Fetch supplementary data from yahooquery (price, 52w, forward PE, etc.).
 
     Also fetches: dividends history (DPS by year), capex, operating income,
     interest expense — used to supplement thaifin data.
+
+    Args:
+        symbol: stock symbol (with or without .BK suffix)
+        snapshot: when True (default), populate info dict with realtime snapshot
+            fields (price, PE, PBV, marketCap, dividendYield) and early-return on
+            empty info. When False (SETSMART has primary snapshot), skip the
+            currentPrice gate so dividends/52w/capex/IE still fetch even if
+            yahoo summary endpoints flake — info dict still populated as fallback
+            for fields SETSMART doesn't provide (52w range, payoutRatio, etc.).
     """
     try:
         from yahooquery import Ticker
@@ -503,7 +512,10 @@ def _fetch_yahoo_supplement(symbol: str) -> dict:
             "currency": px.get("currency"),
         }
 
-        if info.get("currentPrice") is None:
+        # When snapshot=True (legacy default), early-return if yahoo has no price.
+        # When snapshot=False (SETSMART warm), continue to fetch dividends/capex/IE
+        # even if summary endpoints flake — those are the irreplaceable bits.
+        if snapshot and info.get("currentPrice") is None:
             return {"info": info, "divs": None, "error": "near-empty info (no price)"}
 
         # Dividends — yahooquery dividend_history returns DataFrame
@@ -726,29 +738,42 @@ fetch_yfinance_supplement = _fetch_yahoo_supplement
 def fetch_fundamentals(symbol: str) -> dict:
     """Fetch fundamentals — SETSMART (primary aggregate) + thaifin (history) + yahooquery (DPS events + 52w + capex/oi/ie).
 
-    SETSMART overrides snapshot fields (price, dy, pe, pbv, market_cap) when cache is available.
+    Flow (Phase 3 — SETSMART primary):
+      1. SETSMART first → use EOD as primary snapshot (price, dy, pe, pbv, mcap)
+         + financial_yearly as primary ROE/ROA/D/E/EPS for last 5y
+      2. thaifin → yearly history (10-16y) for years outside SETSMART range
+      3. yahoo → irreplaceable only (DPS events for fiscal-year attribution,
+         52w range, capex, operating_income, interest_expense). When SETSMART
+         snapshot is warm, yahoo info is consulted only as fallback for
+         fields SETSMART doesn't provide (52w, payoutRatio, etc.).
+
     Returns schema identical to fetch_multi_year() output.
     """
     yf_sym = _to_yf_symbol(symbol)
     tf_sym = _to_tf_symbol(symbol)
 
-    # 0. SETSMART primary layer — realtime aggregate (yield, P/E, P/BV, market cap, EPS, ROE, ROA)
+    # 0. SETSMART primary layer — realtime aggregate + 5y yearly ratios
     ss_data = _fetch_setsmart(symbol)
+    ss_eod = (ss_data or {}).get("eod") or {}
+    ss_fin_yearly = (ss_data or {}).get("financial_yearly") or {}
+    use_ss_snapshot = bool(ss_eod and ss_eod.get("close") is not None)
 
-    # 1. Try thaifin for historical data
+    # 1. thaifin yearly history (10-16y full)
     tf_data = _fetch_thaifin(symbol)
 
-    # 2. Always get yahooquery supplement for realtime data
-    yf_supp = _fetch_yahoo_supplement(symbol)
+    # 2. yahoo supplement — pass snapshot flag so dividends/capex/IE still fetch
+    #    even if yahoo summary endpoints flake (when SETSMART has primary snapshot)
+    yf_supp = _fetch_yahoo_supplement(symbol, snapshot=not use_ss_snapshot)
     yf_info = yf_supp.get("info", {})
 
     # If Yahoo + thaifin + SETSMART all empty → delisted/missing
-    if "error" in yf_supp and tf_data is None and ss_data is None:
-        return {"symbol": yf_sym, "error": yf_supp["error"]}
+    # Only treat yahoo "error" as fatal when SETSMART has no snapshot either.
+    yf_err = yf_supp.get("error")
+    if yf_err and not use_ss_snapshot and tf_data is None and ss_data is None:
+        return {"symbol": yf_sym, "error": yf_err}
 
     # 3. If thaifin failed → return delisted marker (no fallback)
     use_thaifin = tf_data is not None and len(tf_data.get("yearly_metrics", [])) > 0
-    use_setsmart = ss_data is not None
 
     if use_thaifin:
         tf_info = tf_data["info"]
@@ -795,19 +820,56 @@ def fetch_fundamentals(symbol: str) -> dict:
                 if da_approx > 0:
                     m["ebitda"] = oi_val + da_approx
 
+        # SETSMART yearly override (5y range) — overlay ROE/ROA/D/E/EPS from
+        # financial_yearly onto thaifin yearly_metrics where year matches.
+        # thaifin schema: m["roe"], m["roa"] (decimal), m["de_ratio"] (raw ratio),
+        # m["diluted_eps"] (THB). SETSMART roe/roa come as percentage → /100.
+        # EPS stored as separate field eps_setsmart to preserve thaifin diluted_eps.
+        if ss_fin_yearly:
+            for m in yearly_metrics:
+                try:
+                    y_int = int(m.get("year"))
+                except (TypeError, ValueError):
+                    continue
+                ss_y = ss_fin_yearly.get(y_int)
+                if not ss_y:
+                    continue
+                if ss_y.get("roe") is not None:
+                    m["roe"] = ss_y["roe"] / 100.0
+                if ss_y.get("roa") is not None:
+                    m["roa"] = ss_y["roa"] / 100.0
+                if ss_y.get("de") is not None:
+                    m["de_ratio"] = ss_y["de"]
+                if ss_y.get("eps") is not None:
+                    m["eps_setsmart"] = ss_y["eps"]
+
         # Merge: thaifin base + Yahoo supplement
         name = tf_info.get("name") or yf_info.get("shortName", yf_sym)
         sector = tf_info.get("sector", "N/A")
         industry = tf_info.get("industry", "N/A")
 
-        # Price fields: always from Yahoo (realtime)
-        price = yf_info.get("currentPrice") or yf_info.get("regularMarketPrice")
-        market_cap = yf_info.get("marketCap") or tf_snap.get("market_cap")
+        # --- SNAPSHOT FIELDS — SETSMART primary, yahoo/thaifin fallback ---
+        if use_ss_snapshot:
+            price = ss_eod.get("close")
+            pe_ratio = ss_eod.get("pe") or tf_snap.get("pe_ratio")
+            pb_ratio = ss_eod.get("pbv") or tf_snap.get("pb_ratio")
+            market_cap = ss_eod.get("marketCap") or tf_snap.get("market_cap")
+            # dy from SETSMART EOD — DPS-based override may follow below
+            dy_snapshot = ss_eod.get("dividendYield")
+            logger.info(
+                "SETSMART snapshot primary for %s (price=%s pe=%s pbv=%s mcap=%s dy=%s)",
+                symbol, price, pe_ratio, pb_ratio, market_cap, dy_snapshot,
+            )
+        else:
+            # SETSMART cold → fall back to yahoo + thaifin
+            price = yf_info.get("currentPrice") or yf_info.get("regularMarketPrice")
+            market_cap = yf_info.get("marketCap") or tf_snap.get("market_cap")
+            pe_ratio = yf_info.get("trailingPE") or tf_snap.get("pe_ratio")
+            pb_ratio = yf_info.get("priceToBook") or tf_snap.get("pb_ratio")
+            dy_snapshot = None
+            logger.info("SETSMART snapshot cold for %s — using yahoo+thaifin fallback", symbol)
 
-        # PE: prefer Yahoo (realtime), fallback thaifin
-        pe_ratio = yf_info.get("trailingPE") or tf_snap.get("pe_ratio")
         forward_pe = yf_info.get("forwardPE")
-        pb_ratio = yf_info.get("priceToBook") or tf_snap.get("pb_ratio")
 
         # --- Dividend: DPS-first, yield = DPS/price (Fiscal Year Attribution per SET methodology) ---
         complete_fys = sorted([y for y, ok in yf_fy_complete.items() if ok])
@@ -820,6 +882,8 @@ def fetch_fundamentals(symbol: str) -> dict:
 
         if dps_current is not None and price is not None and price > 0:
             dy = dps_current / price * 100
+        elif dy_snapshot is not None:
+            dy = dy_snapshot  # SETSMART EOD dividendYield
         else:
             dy = tf_snap.get("dividend_yield")  # fallback thaifin
 
@@ -870,54 +934,11 @@ def fetch_fundamentals(symbol: str) -> dict:
         # Recent dividends from Yahoo
         recent_divs = yf_supp.get("recent_dividends", [])
 
-        # Price technicals from Yahoo
+        # Price technicals from Yahoo (irreplaceable — SETSMART doesn't provide)
         w52_high = yf_info.get("fiftyTwoWeekHigh")
         w52_low = yf_info.get("fiftyTwoWeekLow")
         d50_avg = yf_info.get("fiftyDayAverage")
         d200_avg = yf_info.get("twoHundredDayAverage")
-
-        # OVERRIDE aggregate fields with SETSMART when available (primary layer)
-        if use_setsmart:
-            ss_eod = ss_data.get("eod") or {}
-            # After Phase 2 refactor: ss_data["financial"] is list[dict] of 5y × 4q records.
-            # Pick latest record (max by year, then quarter) to preserve legacy override semantics.
-            # Full refactor of this block → Phase 3.
-            ss_fin_records = ss_data.get("financial") or []
-            ss_fin = {}
-            if ss_fin_records:
-                ss_fin = max(
-                    ss_fin_records,
-                    key=lambda r: (r.get("year") or 0, r.get("quarter") or 0),
-                )
-
-            # Override realtime price snapshot
-            if ss_eod.get("close") is not None:
-                price = ss_eod["close"]
-            if ss_eod.get("dividendYield") is not None:
-                dy = ss_eod["dividendYield"]
-            if ss_eod.get("pe") is not None:
-                pe_ratio = ss_eod["pe"]
-            if ss_eod.get("pbv") is not None:
-                pb_ratio = ss_eod["pbv"]
-            if ss_eod.get("marketCap") is not None:
-                market_cap = ss_eod["marketCap"]
-
-            # Override quarterly ratios in the latest yearly_metric (apply when SETSMART year matches)
-            if ss_fin and yearly_metrics:
-                target_year = ss_fin.get("year")
-                target_year_str = str(target_year) if target_year is not None else None
-                for m in yearly_metrics:
-                    if target_year_str is not None and str(m.get("year")) == target_year_str:
-                        if ss_fin.get("roe") is not None:
-                            m["roe"] = ss_fin["roe"] / 100.0
-                        if ss_fin.get("roa") is not None:
-                            m["roa"] = ss_fin["roa"] / 100.0
-                        if ss_fin.get("de") is not None:
-                            m["de_ratio"] = ss_fin["de"]
-                        if ss_fin.get("epsAccum") is not None:
-                            m["eps_diluted"] = ss_fin["epsAccum"]
-                        break
-            logger.info("SETSMART override applied for %s (price=%s dy=%s pe=%s)", symbol, price, dy, pe_ratio)
 
     else:
         # thaifin failed — return None to signal delisted/missing
