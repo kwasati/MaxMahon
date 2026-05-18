@@ -25,6 +25,7 @@ from data_adapter import (
     check_hidden_value,
 )
 from case_study_detector import detect_case_study_tags, detect_moat_tags, load_patterns
+from flake_queue import add_to_queue
 
 _PATTERNS = load_patterns()
 
@@ -58,7 +59,7 @@ HARD_FILTERS = load_filters()
 
 
 def hard_filter(data: dict) -> tuple:
-    """Niwes 5-5-5-5 hard filter — 3-tier (PASS/REVIEW/FAIL).
+    """Niwes 5-5-5-5 hard filter — 4-tier (PASS/REVIEW/FAIL/PENDING).
 
     1. dividend_yield ≥ 5% (main path) OR 2.0%-5% AND growth_streak ≥ 3 (Niwes growing exception) — else FAIL
     3. EPS: 5/5 positive PASS / 4/5 & last 3 positive REVIEW / else FAIL
@@ -66,8 +67,9 @@ def hard_filter(data: dict) -> tuple:
     5. P/BV ≤ 1.5 (hard FAIL)
     6. market_cap ≥ 5B THB (hard FAIL, early return)
 
-    Returns (status, reasons) where status ∈ {'PASS','REVIEW','FAIL'}.
-    Rule: any FAIL → 'FAIL'; no FAIL + any REVIEW → 'REVIEW'; else 'PASS'.
+    Returns (status, reasons) where status ∈ {'PASS','REVIEW','FAIL','PENDING'}.
+    Rule: data integrity guard (yahoo flake) → 'PENDING' (queued for retry, not a verdict);
+    any FAIL → 'FAIL'; no FAIL + any REVIEW → 'REVIEW'; else 'PASS'.
     """
     fail_reasons: list[str] = []
     review_reasons: list[str] = []
@@ -80,12 +82,13 @@ def hard_filter(data: dict) -> tuple:
         return "FAIL", fail_reasons
 
     # Data integrity guard — yahoo flake (yield > 0 but no DPS history after Stage 2 retry)
+    # filter-07: return PENDING (was FAIL) so caller can queue for retry instead of false-FAIL.
     streak = agg.get("dividend_streak", 0)
     dy_check = data.get("dividend_yield")
     div_history = data.get("dividend_history") or {}
     if dy_check is not None and dy_check > 0 and streak == 0 and not div_history:
-        fail_reasons.append("ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — รอ rerun พรุ่งนี้)")
-        return "FAIL", fail_reasons
+        pending_reasons = ["ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — queued for retry)"]
+        return "PENDING", pending_reasons
 
     # 3. EPS — 3-tier (exclude current calendar year — partial-year row safety)
     norm_eps = compute_normalized_earnings(data)
@@ -418,7 +421,8 @@ def detect_exit_signal(symbol: str, current_data: dict, historical_baseline: dic
     # If stock previously passed 5-5-5-5 but now fails any Niwes hard filter
     if baseline.get("passed_5555"):
         status_now, fail_reasons = hard_filter(current_data)
-        if status_now != "PASS":
+        # filter-07: PENDING = yahoo flake (data issue, not actual degradation) — skip alert
+        if status_now not in ("PASS", "PENDING"):
             triggers.append({
                 "type": "FILTER_DEGRADATION",
                 "reason": f"เคยผ่าน 5-5-5-5 แต่ตอนนี้ {status_now}: {'; '.join(fail_reasons[:3])}",
@@ -851,9 +855,11 @@ def main():
     # ===== Phase B — serial post-process =====
     candidates = []
     review_candidates: list[dict] = []
+    pending_candidates: list[dict] = []
     filtered_stocks = []
     filtered_out = 0
     error_count = 0
+    today_str = datetime.now().strftime("%Y-%m-%d")
 
     for i, sym in enumerate(symbols):
         if sym in blacklisted:
@@ -921,6 +927,18 @@ def main():
                     review_entry["exit_triggers"] = []
                 review_candidates.append(review_entry)
                 print(f"  [{i+1}/{len(symbols)}] {sym} — review: {', '.join(filter_reasons[:2])}")
+                continue
+
+            if status == "PENDING":
+                # filter-07 Phase 2: yahoo flake — queue for retry in daily price refresh.
+                # Skip scoring; do not classify as PASS/REVIEW/FAIL.
+                add_to_queue(sym, filter_reasons, today_str)
+                pending_candidates.append({
+                    "symbol": sym,
+                    "sector": data.get("sector", "N/A"),
+                    "reasons": filter_reasons,
+                })
+                print(f"  [{i+1}/{len(symbols)}] {sym} — pending (queued for retry): {', '.join(filter_reasons[:2])}")
                 continue
 
             # status == "PASS"
@@ -1051,15 +1069,18 @@ def main():
         "passed_filter": len(candidates),
         "review_count": len(review_candidates),
         "filtered_out": filtered_out,
+        "pending_count": len(pending_candidates),
         "new_discoveries": len(new_finds),
         "counts": {
             "passed": len(candidates),
             "review": len(review_candidates),
             "filtered_out": filtered_out,
+            "pending": len(pending_candidates),
         },
         "hard_filters": HARD_FILTERS,
         "candidates": candidates,
         "review_candidates": review_candidates,
+        "pending_candidates": pending_candidates,
         "filtered_out_stocks": filtered_stocks,
     }
 
@@ -1067,7 +1088,7 @@ def main():
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
     print(f"\n{'='*60}")
-    print(f"Scanned: {len(symbols)} | Passed: {len(candidates)} | Review: {len(review_candidates)} | Filtered: {filtered_out} | Errors: {error_count} | New: {len(new_finds)}")
+    print(f"Scanned: {len(symbols)} | Passed: {len(candidates)} | Review: {len(review_candidates)} | Pending: {len(pending_candidates)} | Filtered: {filtered_out} | Errors: {error_count} | New: {len(new_finds)}")
     print(f"\nTop 10:")
     for c in candidates[:10]:
         marker = "★" if c["in_watchlist"] else "✦ NEW"
