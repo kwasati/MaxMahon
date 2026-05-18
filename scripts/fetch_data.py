@@ -7,6 +7,7 @@ No fallback: if thaifin fails the stock is treated as delisted/missing.
 
 import json
 import logging
+import statistics
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -140,6 +141,271 @@ def validate_metrics(info, yearly_metrics):
     return warnings
 
 
+def _year_int(m):
+    """Safely convert yearly_metric's 'year' field (str) → int. None if invalid."""
+    y = m.get("year")
+    if y is None:
+        return None
+    try:
+        return int(y)
+    except (TypeError, ValueError):
+        return None
+
+
+# --- Anchor scoring helpers (Phases 1-4) ---
+# All helpers return None gracefully when source data is missing in yearly_metrics.
+# Field name notes (verified against data_adapter._fetch_thaifin yearly_metrics dict):
+#   - cash_and_equivalents → use field 'cash' (thaifin column)
+#   - payout_ratio_year → use field 'payout_ratio'
+#   - All other plan-referenced fields match actual schema.
+
+def _compute_rising_ratio(dps_by_year: dict, fy_is_complete) -> "float | None":
+    """Ratio of YoY transitions where DPS increased (complete FY only)."""
+    if not dps_by_year:
+        return None
+    if fy_is_complete is not None:
+        years = sorted(y for y in dps_by_year if fy_is_complete.get(y) is True)
+    else:
+        years = sorted(dps_by_year.keys())
+    if len(years) < 2:
+        return None
+    transitions = 0
+    rising = 0
+    for i in range(1, len(years)):
+        prev = dps_by_year[years[i - 1]]
+        curr = dps_by_year[years[i]]
+        if prev is not None and prev > 0 and curr is not None:
+            transitions += 1
+            if curr > prev:
+                rising += 1
+    return rising / transitions if transitions > 0 else None
+
+
+def _compute_avg_yoy_growth(dps_by_year: dict, fy_is_complete) -> "float | None":
+    """Arithmetic mean of YoY DPS % changes (complete FY only)."""
+    if not dps_by_year:
+        return None
+    if fy_is_complete is not None:
+        years = sorted(y for y in dps_by_year if fy_is_complete.get(y) is True)
+    else:
+        years = sorted(dps_by_year.keys())
+    if len(years) < 2:
+        return None
+    growths = []
+    for i in range(1, len(years)):
+        prev = dps_by_year[years[i - 1]]
+        curr = dps_by_year[years[i]]
+        if prev is not None and prev > 0 and curr is not None:
+            growths.append((curr / prev) - 1)
+    return sum(growths) / len(growths) if growths else None
+
+
+def _compute_roe_trend(yearly_metrics: list) -> str:
+    """Compare recent 3y ROE avg vs earlier 3y ROE avg. Needs >=6 non-None ROE points."""
+    roes = [m.get("roe") for m in yearly_metrics if m.get("roe") is not None]
+    if len(roes) < 6:
+        return "ROE_STABLE"
+    recent = sum(roes[-3:]) / 3
+    earlier = sum(roes[-6:-3]) / 3
+    if recent > earlier + 0.02:
+        return "ROE_IMPROVING"
+    if recent < earlier - 0.02:
+        return "ROE_DECLINING"
+    return "ROE_STABLE"
+
+
+def _compute_ccr_avg_3y(yearly_metrics: list, current_year: int) -> "float | None":
+    """3y average of OCF / EBITDA (excluding current calendar year)."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        ocf = m.get("ocf")
+        ebitda = m.get("ebitda")
+        if ocf is None or ebitda is None or ebitda == 0:
+            continue
+        valid.append((y, ocf, ebitda))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    valid = valid[:3]
+    if len(valid) < 3:
+        return None
+    ratios = [ocf / ebitda for _, ocf, ebitda in valid]
+    return sum(ratios) / len(ratios)
+
+
+def _compute_ocf_stats_3y(yearly_metrics: list, current_year: int) -> dict:
+    """Return {negative_count_3y, yoy_decline_pct, consecutive_declining, positive_3y}."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        ocf = m.get("ocf")
+        if ocf is None:
+            continue
+        valid.append((y, ocf))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    recent_3 = valid[:3]
+    negative_count_3y = sum(1 for _, ocf in recent_3 if ocf < 0)
+    positive_3y = len(recent_3) == 3 and all(ocf > 0 for _, ocf in recent_3)
+    yoy_decline_pct = None
+    if len(valid) >= 6:
+        recent_avg = sum(ocf for _, ocf in valid[:3]) / 3
+        earlier_avg = sum(ocf for _, ocf in valid[3:6]) / 3
+        if earlier_avg != 0:
+            yoy_decline_pct = (recent_avg / earlier_avg) - 1
+    # Consecutive declining count (newest going back; each step requires ocf < prev)
+    consecutive = 0
+    for i in range(len(valid) - 1):
+        if valid[i][1] < valid[i + 1][1]:
+            consecutive += 1
+        else:
+            break
+    return {
+        "negative_count_3y": negative_count_3y,
+        "yoy_decline_pct": yoy_decline_pct,
+        "consecutive_declining": consecutive,
+        "positive_3y": positive_3y,
+    }
+
+
+def _compute_roe_consecutive_15plus(yearly_metrics: list, current_year: int) -> int:
+    """Consecutive years (from newest, excluding current year) with ROE >= 0.15."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        roe = m.get("roe")
+        if roe is None:
+            continue
+        valid.append((y, roe))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    count = 0
+    for _, roe in valid:
+        if roe >= 0.15:
+            count += 1
+        else:
+            break
+    return count
+
+
+def _compute_gm_trend_stats(yearly_metrics: list, current_year: int) -> dict:
+    """Gross margin trend: recent 3y avg vs earlier 3y avg. Returns dict."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        gm = m.get("gross_margin")
+        if gm is None:
+            continue
+        valid.append((y, gm))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    if len(valid) < 6:
+        return {"trend": "stable", "recent_3y_avg": None, "earlier_3y_avg": None}
+    recent = sum(gm for _, gm in valid[:3]) / 3
+    earlier = sum(gm for _, gm in valid[3:6]) / 3
+    if recent > earlier + 0.01:
+        trend = "improving"
+    elif recent < earlier - 0.01:
+        trend = "declining"
+    else:
+        trend = "stable"
+    return {"trend": trend, "recent_3y_avg": recent, "earlier_3y_avg": earlier}
+
+
+def _compute_net_debt_stats(yearly_metrics: list, current_year: int) -> dict:
+    """Net debt (total_debt - cash) history over last 5 prior years + count of YoY increases in recent 3 transitions.
+
+    Note: data_adapter exposes field 'cash' (not 'cash_and_equivalents').
+    """
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        td = m.get("total_debt")
+        cash = m.get("cash")
+        if td is None or cash is None:
+            continue
+        valid.append((y, td - cash))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    if len(valid) < 5:
+        return {"history_5y": None, "increases_in_3y": 0}
+    history = [nd for _, nd in valid[:5]]  # index 0 = newest
+    increases = 0
+    # Compare newest vs older (3 transitions max): history[i] vs history[i+1]
+    for i in range(min(3, len(history) - 1)):
+        if history[i] > history[i + 1]:
+            increases += 1
+    return {"history_5y": history, "increases_in_3y": increases}
+
+
+def _compute_interest_coverage_4y_avg(yearly_metrics: list, current_year: int) -> "float | None":
+    """4y average of interest_coverage (excluding current calendar year)."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        ic = m.get("interest_coverage")
+        if ic is None:
+            continue
+        valid.append((y, ic))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    valid = valid[:4]
+    if len(valid) < 4:
+        return None
+    return sum(ic for _, ic in valid) / 4
+
+
+def _compute_eps_cv_10y(yearly_metrics: list, current_year: int) -> dict:
+    """Coefficient of variation (stdev / |mean|) of diluted_eps over up to 10 prior years."""
+    valid = []
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y is None or y >= current_year:
+            continue
+        eps = m.get("diluted_eps")
+        if eps is None:
+            continue
+        valid.append((y, eps))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    valid = valid[:10]
+    if len(valid) < 5:
+        return {"eps_cv_10y": None, "eps_mean_10y": None}
+    eps_values = [eps for _, eps in valid]
+    mean = sum(eps_values) / len(eps_values)
+    if mean == 0:
+        return {"eps_cv_10y": None, "eps_mean_10y": 0}
+    stdev = statistics.pstdev(eps_values)
+    return {"eps_cv_10y": stdev / abs(mean), "eps_mean_10y": mean}
+
+
+def _compute_crisis_drop(yearly_metrics: list, pre_year: int, crisis_year: int,
+                         field: str = "close") -> "float | None":
+    """% change of `field` from pre_year to crisis_year (e.g. close price drop in crisis)."""
+    by_year = {}
+    for m in yearly_metrics:
+        y = _year_int(m)
+        if y in (pre_year, crisis_year):
+            by_year[y] = m
+    pre = (by_year.get(pre_year) or {}).get(field)
+    crisis = (by_year.get(crisis_year) or {}).get(field)
+    if pre is None or crisis is None or pre == 0:
+        return None
+    return (crisis - pre) / pre
+
+
+def _get_ocf_for_year(yearly_metrics: list, year: int) -> "float | None":
+    for m in yearly_metrics:
+        if _year_int(m) == year:
+            return m.get("ocf")
+    return None
+
+
 def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
     """Compute aggregates from yearly_metrics and dividend history.
 
@@ -206,7 +472,7 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
     avg_gross_margin = sum(gm_list) / len(gm_list) if gm_list else None
     avg_operating_margin = sum(om_list) / len(om_list) if om_list else None
 
-    return {
+    aggregates = {
         "revenue_cagr": revenue_cagr,
         "eps_cagr": eps_cagr,
         "dps_cagr": dps_cagr,
@@ -228,6 +494,50 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None):
         "latest_ocf_ni_ratio": latest.get("ocf_ni_ratio"),
         "latest_capital_intensity": latest.get("capital_intensity"),
     }
+
+    # --- Anchor scoring v1.0 — 21 new fields across 4 dimensions ---
+    # Phase 1 dividend (3)
+    aggregates["rising_ratio"] = _compute_rising_ratio(dps_by_year, fy_is_complete)
+    aggregates["avg_yoy_growth"] = _compute_avg_yoy_growth(dps_by_year, fy_is_complete)
+    aggregates["roe_trend"] = _compute_roe_trend(yearly_metrics)
+
+    # Phase 2 cash flow (5)
+    aggregates["ccr_avg_3y"] = _compute_ccr_avg_3y(yearly_metrics, current_year)
+    ocf_stats = _compute_ocf_stats_3y(yearly_metrics, current_year)
+    aggregates["ocf_negative_count_3y"] = ocf_stats["negative_count_3y"]
+    aggregates["ocf_yoy_decline_pct"] = ocf_stats["yoy_decline_pct"]
+    aggregates["ocf_consecutive_declining_years"] = ocf_stats["consecutive_declining"]
+    aggregates["ocf_positive_3y"] = ocf_stats["positive_3y"]
+
+    # Phase 3 moat (7)
+    aggregates["roe_consecutive_15plus_years"] = _compute_roe_consecutive_15plus(
+        yearly_metrics, current_year
+    )
+    gm_stats = _compute_gm_trend_stats(yearly_metrics, current_year)
+    aggregates["gm_trend"] = gm_stats["trend"]
+    aggregates["gm_recent_3y_avg"] = gm_stats["recent_3y_avg"]
+    aggregates["gm_earlier_3y_avg"] = gm_stats["earlier_3y_avg"]
+    aggregates["interest_coverage_4y_avg"] = _compute_interest_coverage_4y_avg(
+        yearly_metrics, current_year
+    )
+    debt_stats = _compute_net_debt_stats(yearly_metrics, current_year)
+    aggregates["net_debt_history_5y"] = debt_stats["history_5y"]
+    aggregates["net_debt_increases_in_3y"] = debt_stats["increases_in_3y"]
+
+    # Phase 4 long_hold (6)
+    eps_stats = _compute_eps_cv_10y(yearly_metrics, current_year)
+    aggregates["eps_cv_10y"] = eps_stats["eps_cv_10y"]
+    aggregates["eps_mean_10y"] = eps_stats["eps_mean_10y"]
+    aggregates["crisis_2011_drop_pct"] = _compute_crisis_drop(
+        yearly_metrics, 2010, 2011, "close"
+    )
+    aggregates["crisis_2020_drop_pct"] = _compute_crisis_drop(
+        yearly_metrics, 2019, 2020, "close"
+    )
+    aggregates["ocf_2011"] = _get_ocf_for_year(yearly_metrics, 2011)
+    aggregates["ocf_2020"] = _get_ocf_for_year(yearly_metrics, 2020)
+
+    return aggregates
 
 
 
