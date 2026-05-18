@@ -73,6 +73,34 @@ function _renderCard(stock) {
   var deltaArrowStyle = (prevScore != null && scoreCurr < prevScore) ? ' style="color:var(--fg-dim)"' : '';
   var ribbon = stock.is_new_this_week ? '<div class="new-ribbon">New</div>' : '';
 
+  // Anchor schema v1.0 — display_score 0.0-10.0 + disqualified + penalty
+  var isDisqualifiedM = stock.disqualified === true;
+  var displayScoreM = stock.display_score != null
+    ? Number(stock.display_score).toFixed(1)
+    : (scoreCurr / 10).toFixed(1);
+  var penaltyValM = stock.penalty || 0;
+  var penaltyMarkHtmlM = '';
+  if (penaltyValM < 0) {
+    var pTagsM = (stock.penalty_tags || []).join(', ');
+    penaltyMarkHtmlM = '<span class="penalty-mark" title="' + esc(pTagsM) + '">' + penaltyValM + '</span>';
+  }
+  var scoreCellHtmlM;
+  if (isDisqualifiedM) {
+    var dqTagsM = (stock.disqualify_tags || []).join(', ');
+    scoreCellHtmlM =
+      '<div class="score-chip disqualified" title="' + esc(dqTagsM) + '">' +
+        '<span class="score-big">DQ</span>' +
+        '<span class="score-max">' + esc(dqTagsM || 'disqualified') + '</span>' +
+      '</div>';
+  } else {
+    scoreCellHtmlM =
+      '<div class="score-chip">' +
+        '<span class="score-big">' + displayScoreM + '</span>' +
+        '<span class="score-max">/ 10</span>' +
+        penaltyMarkHtmlM +
+      '</div>';
+  }
+
   var yieldStr = yieldPct == null ? '—' : window.MMUtils.fmtPercent(yieldPct);
   var peStr = pe == null ? '—' : window.MMUtils.fmtNum(pe, 1);
   var pbStr = pb == null ? '—' : window.MMUtils.fmtNum(pb, 2);
@@ -101,7 +129,7 @@ function _renderCard(stock) {
       '</div>' + starHtml + '</div>' +
       '<div class="card-tags">' + tags + '</div>' +
       '<div class="card-score-row">' +
-        '<div><span class="score-big">' + scoreCurr + '</span><span class="score-max">/100</span></div>' +
+        scoreCellHtmlM +
         '<div class="score-delta"><span class="arrow"' + deltaArrowStyle + '>' + delta.arrow + '</span>' + esc(delta.text) + '</div>' +
       '</div>' +
       '<div class="card-metrics">' +

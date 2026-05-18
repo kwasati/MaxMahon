@@ -1196,3 +1196,103 @@
   border-left-color: var(--c-warn);
   color: var(--c-warn-fg);
 }
+
+/* ==========================================================
+   Anchor Scoring v1.0 — score chip + disqualified state + penalty mark
+   (home.js + home.mobile.js card score cell + report disqualified banner)
+   ========================================================== */
+.score-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.score-chip.disqualified {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-2);
+  background: var(--c-negative-soft);
+  border: 1px solid var(--c-negative-border);
+  color: var(--c-negative);
+}
+
+.score-chip.disqualified .score-big {
+  color: var(--c-negative);
+  font-size: var(--fs-xl);
+  letter-spacing: 0.04em;
+}
+
+.score-chip.disqualified .score-max {
+  color: var(--c-negative);
+  font-size: var(--fs-xs);
+  opacity: 0.85;
+  margin-left: 0;
+}
+
+.penalty-mark {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--c-negative);
+  margin-left: var(--sp-1);
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--c-negative-soft);
+}
+
+/* Disqualified banner for /report/{sym} score section */
+.score-section.disqualified {
+  margin: var(--sp-4) 0;
+}
+
+.dq-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--c-negative-soft);
+  border: 1px solid var(--c-negative-border);
+  border-left: 4px solid var(--c-negative);
+  border-radius: 12px;
+  color: var(--c-negative);
+}
+
+.dq-banner strong {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.dq-banner .dq-reason {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--c-negative);
+  line-height: 1.5;
+}
+
+.penalty-section {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--c-negative);
+}
+
+.penalty-section strong {
+  font-weight: 700;
+  margin-right: var(--sp-1);
+}
+
+/* Pillar grid (if added later) — 4-col layout per anchor schema */
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+}
+
+@media (max-width: 600px) {
+  .pillar-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

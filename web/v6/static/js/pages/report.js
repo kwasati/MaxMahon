@@ -140,27 +140,41 @@ function _wireHeroStar(sym) {
   });
 }
 
+// Anchor scoring v1.0 — 4 pillars (100 pts total)
 var PILLAR_SPEC = [
-  { key: 'dividend', label: 'Dividend Sustainability', max: 50, driver: 'Yield · Streak · Payout · Growth' },
-  { key: 'valuation', label: 'Valuation', max: 25, driver: 'P/E · P/BV · EV/EBITDA' },
-  { key: 'cash_flow', label: 'Cash Flow Strength', max: 10, driver: 'FCF · OCF/NI · Int Coverage' },
-  { key: 'hidden_value', label: 'Hidden Value', max: 5, driver: '' },
-  { key: 'track_record', label: 'Track Record', max: 10, driver: 'Revenue Growth · EPS Growth' }
+  { key: 'dividend', label: 'ปันผล', max: 35, driver: 'Yield · Streak · Payout · Growth' },
+  { key: 'cashflow', label: 'Cash Flow', max: 25, driver: 'FCF · OCF/EBITDA · Coverage' },
+  { key: 'moat', label: 'Moat', max: 25, driver: 'ROE · Margin · Market Share' },
+  { key: 'long_hold', label: 'ถือยาว + ทนวิกฤต', max: 15, driver: 'Stability · Crisis Survival' }
 ];
 
 function _renderScoreBreakdown(stock) {
   var esc = window.MMUtils.escapeHtml;
   var score = stock.quality_score != null ? stock.quality_score : (stock.score || 0);
   var breakdown = stock.score_breakdown || stock.breakdown || {};
-  var mod = breakdown.modifier == null ? (breakdown.modifiers || 0) : breakdown.modifier;
+
+  // Disqualified state — show banner instead of breakdown
+  if (stock.disqualified === true) {
+    var dqTags = (stock.disqualify_tags || []).join(' · ');
+    return (
+      '<div class="v6-section-head"><h2>Score Breakdown</h2><small>Anchor Scoring v1.0 · 4 Pillars</small></div>' +
+      '<section class="score-section disqualified">' +
+        '<div class="dq-banner">' +
+          '<strong>DISQUALIFIED</strong>' +
+          '<span class="dq-reason">' + esc(dqTags || 'ไม่ผ่านเกณฑ์ disqualify') + '</span>' +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  var display = stock.display_score != null
+    ? Number(stock.display_score).toFixed(1)
+    : (score / 10).toFixed(1);
 
   function _getPillarValue(key) {
-    // backward compat: cashflow vs cash_flow / hidden vs hidden_value
-    if (key === 'cash_flow') {
-      return breakdown.cash_flow != null ? breakdown.cash_flow : (breakdown.cashflow || 0);
-    }
-    if (key === 'hidden_value') {
-      return breakdown.hidden_value != null ? breakdown.hidden_value : (breakdown.hidden || 0);
+    // backward compat: cashflow vs cash_flow / long_hold fallback
+    if (key === 'cashflow') {
+      return breakdown.cashflow != null ? breakdown.cashflow : (breakdown.cash_flow || 0);
     }
     return breakdown[key] == null ? 0 : breakdown[key];
   }
@@ -170,26 +184,33 @@ function _renderScoreBreakdown(stock) {
   }
 
   var rows = PILLAR_SPEC.map(function (p) {
-    var driver = p.key === 'hidden_value' ? (breakdown.hidden_value_note || p.driver) : p.driver;
-    return _cell(p.label, p.max, _getPillarValue(p.key), driver);
+    return _cell(p.label, p.max, _getPillarValue(p.key), p.driver);
   }).join('');
 
+  // Penalty section
+  var penalty = stock.penalty || 0;
+  var penaltyRow = '';
+  if (penalty < 0) {
+    var pTags = (stock.penalty_tags || []).join(' · ');
+    penaltyRow = '<tr><td class="sym">Penalty</td><td class="num">—</td><td class="num neg">' + penalty + '</td><td class="dim">' + esc(pTags) + '</td></tr>';
+  }
+
   return (
-    '<div class="v6-section-head"><h2>Score Breakdown</h2><small>Of One Hundred · Per Niwes Dividend-First Schema</small></div>' +
+    '<div class="v6-section-head"><h2>Score Breakdown</h2><small>Anchor Scoring v1.0 · 4 Pillars</small></div>' +
     '<section class="v6-score-block">' +
       '<div class="v6-score-display">' +
-        '<div class="v6-score-huge">' + Math.round(score) + '</div>' +
-        '<div class="v6-score-slash">of one hundred</div>' +
-        '<div class="v6-score-version">niwes-dividend-first · v2</div>' +
+        '<div class="v6-score-huge">' + display + '</div>' +
+        '<div class="v6-score-slash">/ 10.0</div>' +
+        '<div class="v6-score-version">anchor-scoring · v1.0</div>' +
       '</div>' +
       '<div><div class="v6-chart-box" style="position:relative;height:320px"><canvas id="v6-score-chart"></canvas></div></div>' +
     '</section>' +
     '<table class="data-table" style="margin-top:var(--sp-4)">' +
-      '<thead><tr><th style="width:40%">Component</th><th class="num">Max</th><th class="num">Scored</th><th>Driver</th></tr></thead>' +
+      '<thead><tr><th style="width:40%">Pillar</th><th class="num">Max</th><th class="num">Scored</th><th>Driver</th></tr></thead>' +
       '<tbody>' +
         rows +
-        '<tr><td class="sym">Modifier</td><td class="num">—</td><td class="num pos">' + (mod > 0 ? '+' + mod : mod) + '</td><td class="dim">Valuation grade / signals</td></tr>' +
-        '<tr style="border-top:2px solid var(--border-subtle)"><td class="sym">Total</td><td class="num">100</td><td class="num" style="font-size:1.2em">' + Math.round(score) + '</td><td></td></tr>' +
+        penaltyRow +
+        '<tr style="border-top:2px solid var(--border-subtle)"><td class="sym">Total (anchor)</td><td class="num">100</td><td class="num" style="font-size:1.2em">' + Math.round(score) + '</td><td class="dim">Display: ' + display + ' / 10.0</td></tr>' +
       '</tbody>' +
     '</table>'
   );
@@ -568,31 +589,34 @@ function _mountCharts(stock, history) {
   window.Chart.defaults.font.family = 'Inter, sans-serif';
   window.Chart.defaults.color = inkDim;
 
-  // Score donut
+  // Score donut — anchor scoring v1.0 (4 pillars: dividend/cashflow/moat/long_hold)
   var scoreCanvas = document.getElementById('v6-score-chart');
-  if (scoreCanvas) {
+  if (scoreCanvas && stock.disqualified !== true) {
     var bd = stock.score_breakdown || stock.breakdown || {};
-    var div = bd.dividend || 0;
-    var val = bd.valuation || 0;
+    var dvd = bd.dividend || 0;
     var cf  = bd.cashflow != null ? bd.cashflow : (bd.cash_flow || 0);
-    var hv  = bd.hidden_value != null ? bd.hidden_value : (bd.hidden || 0);
-    var mod = bd.modifier != null ? bd.modifier : (bd.modifiers || 0);
-    var score = stock.quality_score != null ? stock.quality_score : (stock.score || 0);
-    var remaining = Math.max(0, 100 - (div + val + cf + hv));
+    var mt  = bd.moat || 0;
+    var lh  = bd.long_hold || 0;
+    var pen = stock.penalty || 0;
+    var remaining = Math.max(0, 100 - (dvd + cf + mt + lh));
+    var labels = ['ปันผล · ' + dvd, 'Cash Flow · ' + cf, 'Moat · ' + mt, 'ถือยาว+ทนวิกฤต · ' + lh];
+    var data = [dvd, cf, mt, Math.max(lh, 0.1)];
+    var colors = [accent, textInk, gray500, gray300];
+    if (pen < 0) {
+      labels.push('Penalty · ' + pen);
+      data.push(Math.abs(pen));
+      colors.push('#5a6072');
+    }
+    labels.push('Remaining · ' + remaining);
+    data.push(remaining);
+    colors.push(getComputedStyle(document.documentElement).getPropertyValue('--chart-fill-soft').trim() || 'rgba(59,64,80,0.15)');
     new window.Chart(scoreCanvas, {
       type: 'doughnut',
       data: {
-        labels: [
-          'Dividend · ' + div,
-          'Valuation · ' + val,
-          'Cash Flow · ' + cf,
-          'Hidden Value · ' + hv,
-          'Modifier · ' + (mod > 0 ? '+' + mod : mod),
-          'Remaining · ' + remaining
-        ],
+        labels: labels,
         datasets: [{
-          data: [div, val, cf, Math.max(hv, 0.1), Math.abs(mod), remaining],
-          backgroundColor: [accent, textInk, gray500, gray300, '#5a6072', (getComputedStyle(document.documentElement).getPropertyValue('--chart-fill-soft').trim() || 'rgba(59,64,80,0.15)')],
+          data: data,
+          backgroundColor: colors,
           borderColor: '#f5f5f0',
           borderWidth: 2,
           spacing: 2,

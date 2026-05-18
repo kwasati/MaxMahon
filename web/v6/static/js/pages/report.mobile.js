@@ -140,15 +140,49 @@ function _wireHeroStar(sym) {
   });
 }
 
+// Anchor scoring v1.0 — 4 pillars (mobile uses same spec as desktop)
+var M_PILLAR_SPEC = [
+  { key: 'dividend', label: 'ปันผล', max: 35 },
+  { key: 'cashflow', label: 'Cash Flow', max: 25 },
+  { key: 'moat', label: 'Moat', max: 25 },
+  { key: 'long_hold', label: 'ถือยาว', max: 15 }
+];
+
 function _renderScore(stock) {
+  var esc = window.MMUtils.escapeHtml;
   var score = stock.quality_score != null ? stock.quality_score : (stock.score || 0);
+
+  // Disqualified state — show banner instead of breakdown
+  if (stock.disqualified === true) {
+    var dqTags = (stock.disqualify_tags || []).join(' · ');
+    return (
+      '<div class="v6-section-head"><h2>Score</h2><small>Anchor v1.0 · 4 Pillars</small></div>' +
+      '<section class="score-section disqualified">' +
+        '<div class="dq-banner">' +
+          '<strong>DISQUALIFIED</strong>' +
+          '<span class="dq-reason">' + esc(dqTags || 'ไม่ผ่านเกณฑ์ disqualify') + '</span>' +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  var display = stock.display_score != null
+    ? Number(stock.display_score).toFixed(1)
+    : (score / 10).toFixed(1);
+  var penalty = stock.penalty || 0;
+  var penaltyHtml = '';
+  if (penalty < 0) {
+    var pTags = (stock.penalty_tags || []).join(' · ');
+    penaltyHtml = '<div class="penalty-section" style="margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--c-negative)"><strong>หักคะแนน:</strong> ' + penalty + (pTags ? ' (' + esc(pTags) + ')' : '') + '</div>';
+  }
   return (
-    '<div class="v6-section-head"><h2>Score</h2><small>Of One Hundred · Niwes Dividend-First</small></div>' +
+    '<div class="v6-section-head"><h2>Score</h2><small>Anchor v1.0 · 4 Pillars</small></div>' +
     '<section class="v6-score-block">' +
       '<div class="v6-score-display">' +
-        '<div class="v6-score-huge">' + Math.round(score) + '</div>' +
-        '<div class="v6-score-slash">of one hundred</div>' +
-        '<div class="v6-score-version">niwes-dividend-first · v2</div>' +
+        '<div class="v6-score-huge">' + display + '</div>' +
+        '<div class="v6-score-slash">/ 10.0</div>' +
+        '<div class="v6-score-version">anchor-scoring · v1.0</div>' +
+        penaltyHtml +
       '</div>' +
       '<div><div class="v6-chart-box" style="height:260px"><canvas id="v6-mscore-chart"></canvas></div></div>' +
     '</section>'
@@ -461,21 +495,29 @@ function _mountCharts(stock, history) {
   window.Chart.defaults.color = inkDim;
 
   var scoreCanvas = document.getElementById('v6-mscore-chart');
-  if (scoreCanvas) {
+  if (scoreCanvas && stock.disqualified !== true) {
+    // Anchor v1.0 — 4 pillars (dividend/cashflow/moat/long_hold) + optional penalty
     var bd = stock.score_breakdown || stock.breakdown || {};
-    var div = bd.dividend || 0;
-    var val = bd.valuation || 0;
-    var cf  = bd.cash_flow != null ? bd.cash_flow : (bd.cashflow || 0);
-    var hv  = bd.hidden_value != null ? bd.hidden_value : (bd.hidden || 0);
-    var tr  = bd.track_record || 0;
-    var mod = bd.modifier != null ? bd.modifier : 0;
+    var dvd = bd.dividend || 0;
+    var cf  = bd.cashflow != null ? bd.cashflow : (bd.cash_flow || 0);
+    var mt  = bd.moat || 0;
+    var lh  = bd.long_hold || 0;
+    var pen = stock.penalty || 0;
+    var labels = ['ปันผล ' + dvd, 'Cash Flow ' + cf, 'Moat ' + mt, 'ถือยาว ' + lh];
+    var data = [dvd, cf, mt, Math.max(lh, 0.1)];
+    var colors = [accent, textInk, '#878d9a', '#b2b6c0'];
+    if (pen < 0) {
+      labels.push('Penalty ' + pen);
+      data.push(Math.abs(pen));
+      colors.push('#5a6072');
+    }
     new window.Chart(scoreCanvas, {
       type: 'doughnut',
       data: {
-        labels: ['Dividend ' + div, 'Valuation ' + val, 'Cash Flow ' + cf, 'Hidden ' + hv, 'Track Rec ' + tr, 'Mod ' + (mod > 0 ? '+' + mod : mod)],
+        labels: labels,
         datasets: [{
-          data: [div, val, cf, Math.max(hv, 0.1), Math.max(tr, 0.1), Math.abs(mod)],
-          backgroundColor: [accent, textInk, '#878d9a', '#b2b6c0', '#9aa1ad', '#5a6072'],
+          data: data,
+          backgroundColor: colors,
           borderColor: '#f5f5f0',
           borderWidth: 2,
         }]

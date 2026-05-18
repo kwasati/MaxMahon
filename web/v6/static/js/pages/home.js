@@ -89,6 +89,34 @@ function _renderCard(stock) {
     streakLine = '<br>first pass';
   }
 
+  // Anchor schema v1.0 — display_score 0.0-10.0 + disqualified state + penalty mark
+  var isDisqualified = stock.disqualified === true;
+  var displayScore = stock.display_score != null
+    ? Number(stock.display_score).toFixed(1)
+    : (scoreCurr / 10).toFixed(1);
+  var penaltyVal = stock.penalty || 0;
+  var penaltyMarkHtml = '';
+  if (penaltyVal < 0) {
+    var pTagsHome = (stock.penalty_tags || []).join(', ');
+    penaltyMarkHtml = '<span class="penalty-mark" title="' + esc(pTagsHome) + '">' + penaltyVal + '</span>';
+  }
+  var scoreCellHtml;
+  if (isDisqualified) {
+    var dqTagsHome = (stock.disqualify_tags || []).join(', ');
+    scoreCellHtml =
+      '<div class="score-chip disqualified" title="' + esc(dqTagsHome) + '">' +
+        '<span class="score-big">DQ</span>' +
+        '<span class="score-max">' + esc(dqTagsHome || 'disqualified') + '</span>' +
+      '</div>';
+  } else {
+    scoreCellHtml =
+      '<div class="score-chip">' +
+        '<span class="score-big">' + displayScore + '</span>' +
+        '<span class="score-max">/ 10</span>' +
+        penaltyMarkHtml +
+      '</div>';
+  }
+
   var ribbon = stock.is_new_this_week
     ? '<div class="new-ribbon">New</div>'
     : '';
@@ -125,7 +153,7 @@ function _renderCard(stock) {
       '</div>' +
       '<div class="card-tags">' + tags + '</div>' +
       '<div class="card-score-row">' +
-        '<div><span class="score-big">' + scoreCurr + '</span><span class="score-max">/100</span></div>' +
+        scoreCellHtml +
         '<div class="score-delta"><span class="arrow"' + deltaArrowStyle + '>' + delta.arrow + '</span>' + esc(delta.text) + streakLine + '</div>' +
       '</div>' +
       '<div class="card-metrics">' +
