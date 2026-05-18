@@ -11,6 +11,11 @@ Pricing source priority (Rule 0 — SETSMART precedence):
   1. SETSMART EOD bulk — primary. 1 request covers ~933 CS symbols, reliable.
   2. yahooquery batch — fallback for symbols SETSMART does not return
      (rare for Thai CS), with sequential retry for transient flake.
+
+Also runs daily ``_retry_flake_queue`` after SETSMART financial cache refresh
+(Plan filter-07 Phase 3) — retries yahoo fetch for symbols stuck in the flake
+queue, marks success/failure, and emits a Telegram alert for entries that have
+been pending ≥ 7 days.
 """
 import json
 import logging
@@ -133,6 +138,96 @@ def _yahoo_fetch_batch(chunk: list[str]) -> dict[str, float]:
     return out
 
 
+def _retry_flake_queue() -> list[dict]:
+    """Retry yahoo fetch for symbols stuck in the flake queue (Plan filter-07 Phase 3).
+
+    For each pending symbol:
+      - Call ``fetch_multi_year(sym)`` to attempt re-fetch.
+      - If returned data has a non-empty ``dividend_history`` → ``mark_retry(sym, success=True)``
+        (which also removes the entry from the queue) and append the data dict to
+        the returned ``recovered`` list.
+      - Otherwise → ``mark_retry(sym, success=False)`` to bump ``retry_count``.
+      - Any unexpected exception is logged and counts as a failed retry.
+
+    After the retry loop, entries that have been pending ≥ 7 days are surfaced
+    via ``list_stale(days=7)``; each stale entry triggers a Telegram alert
+    (best-effort — wrapped in try/except so a failed alert never crashes the
+    refresh) and is marked stale so the same entry is not re-alerted on the
+    following day.
+
+    Recovered stocks are returned for the caller; we deliberately do NOT merge
+    them back into the current ``screener_*.json`` here (schema-mismatch risk).
+    The next weekly scan will pick them up naturally — by then they are no
+    longer in the flake queue.
+
+    Returns:
+        list[dict]: data dicts for symbols successfully recovered this run.
+    """
+    try:
+        from flake_queue import list_pending, list_stale, mark_retry, mark_stale
+        from fetch_data import fetch_multi_year
+    except Exception as e:  # noqa: BLE001
+        logger.warning("flake queue retry skipped — import failed: %s", e)
+        return []
+
+    pending = list_pending()
+    if not pending:
+        logger.info("flake queue empty")
+        return []
+
+    logger.info("retrying %d flake symbols", len(pending))
+    recovered: list[dict] = []
+    for sym in pending:
+        try:
+            data = fetch_multi_year(sym)
+            if data and data.get("dividend_history"):
+                mark_retry(sym, success=True)
+                recovered.append(data)
+                logger.info("recovered: %s", sym)
+            else:
+                mark_retry(sym, success=False)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("retry failed for %s: %s", sym, e)
+            mark_retry(sym, success=False)
+
+    # Stale check — entries pending >= 7 days get a Telegram alert (one-shot).
+    try:
+        stale = list_stale(days=7)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("list_stale failed: %s", e)
+        stale = []
+
+    if stale:
+        try:
+            from telegram_alert import send_exit_alert
+            # Adapt stale entries to the dict shape send_exit_alert expects
+            # (it iterates list of {symbol, type, reason, severity} dicts).
+            alert_payload = []
+            for entry in stale:
+                sym = entry.get("symbol", "?")
+                retry_count = entry.get("retry_count", 0)
+                first = (entry.get("first_flaked_at") or "")[:10] or "unknown"
+                alert_payload.append({
+                    "symbol": sym,
+                    "type": "FLAKE_STALE",
+                    "reason": f"ค้างใน queue {retry_count} retries (ตั้งแต่ {first})",
+                    "severity": "high",
+                })
+            send_exit_alert(alert_payload)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("telegram alert failed: %s", e)
+
+        # Mark stale even if telegram failed — better to skip alerts than to
+        # spam Telegram every single day with the same backlog.
+        for entry in stale:
+            try:
+                mark_stale(entry["symbol"])
+            except Exception as e:  # noqa: BLE001
+                logger.warning("mark_stale failed for %s: %s", entry.get("symbol"), e)
+
+    return recovered
+
+
 def _refresh_setsmart_financial(symbols: list[str]) -> None:
     """Refresh SETSMART per-symbol financial cache (5y quarterly).
 
@@ -236,6 +331,19 @@ def refresh_prices() -> dict:
     # Warm cache for 5y quarterly financial-data-and-ratio-by-symbol so next
     # scan/report can read locally. Runs after EOD refresh completes.
     _refresh_setsmart_financial(symbols)
+
+    # 5. Flake queue retry (Plan filter-07 Phase 3)
+    # Retries yahoo fetch for symbols stuck in the flake queue, marks
+    # success/failure, and emits a Telegram alert for entries ≥ 7 days old.
+    # Recovered stocks are logged here but NOT merged into the current
+    # screener_*.json (schema-mismatch risk) — the next weekly scan will pick
+    # them up since they are removed from the queue on success.
+    try:
+        recovered = _retry_flake_queue()
+        if recovered:
+            logger.info("recovered %d stocks from flake queue", len(recovered))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("flake queue retry crashed: %s", e)
 
     return fetched
 
