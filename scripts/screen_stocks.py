@@ -407,6 +407,45 @@ def assign_signals(data: dict, total_score: int) -> list:
     return signals
 
 
+# v1.1: Banks/Finance/Insurance — Niwes ch4 context (industrial/retail/property) doesn't apply.
+# These sectors have lumpy OCF from lending/investing cycles and structurally lower ROE.
+BANK_FINANCE_SECTORS = {'Banking', 'Finance & Securities', 'Insurance'}
+
+
+def _count_consecutive_roe_above(yearly_metrics: list, threshold: float, current_year: int) -> int:
+    """Count consecutive years where ROE >= threshold (decimal e.g. 0.12 = 12%), newest first.
+
+    Returns int — number of consecutive years starting from most recent complete year.
+    Stops at first year ROE < threshold.
+    """
+    def _year_int_safe(m):
+        y = m.get('year')
+        if y is None:
+            return None
+        try:
+            return int(y)
+        except (TypeError, ValueError):
+            return None
+
+    valid = []
+    for m in yearly_metrics or []:
+        y = _year_int_safe(m)
+        if y is None or y >= current_year:
+            continue
+        roe = m.get('roe')
+        if roe is None:
+            continue
+        valid.append((y, roe))
+    valid.sort(key=lambda t: t[0], reverse=True)
+    count = 0
+    for _, roe in valid:
+        if roe >= threshold:
+            count += 1
+        else:
+            break
+    return count
+
+
 def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
     """Assign Stage 2-5 anchor tags per parent plan niwes-refactor-v2-design.
 
@@ -462,33 +501,58 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
             tags.append('CASHFLOW_OK')
         else:
             tags.append('CASHFLOW_BELOW_PROFIT')
-    if ocf_neg >= 2:
-        # FAKE_PROFIT: OCF negative >=2 of last 3y while NP positive
-        # Niwes ch4 'ขายตั้งแต่ปีที่ 2' = sustained pattern (2+ years),
-        # not one-off — banks have lumpy cash flow with occasional negative years.
+    if ocf_neg >= 2 and sector not in BANK_FINANCE_SECTORS:
+        # FAKE_PROFIT: OCF negative >=2 of last 3y while NP positive — non-financial only.
+        # v1.1: Banks/Finance/Insurance excluded — Niwes ch4 context (industrial/retail/property)
+        # doesn't apply; their OCF is lumpy from lending/investing cycles.
         latest_eps = data.get('eps_trailing') or 0
         if latest_eps > 0:
             tags.append('FAKE_PROFIT')
     if ocf_decline is not None and ocf_decline <= -0.20:
         tags.append('CASHFLOW_DETERIORATING')
 
-    # Stage 4: Moat tier (mutually exclusive — pick first match priority order)
-    roe_15plus = agg.get('roe_consecutive_15plus_years', 0) or 0
+    # Stage 4: Moat tier (mutually exclusive — per-sector ROE threshold v1.1)
+    # General sectors: STRONG ROE >=12% 5y / MODERATE >=8% 3y (loosened from 15%/10%)
+    # Banks/Finance/Insurance: STRONG >=10% 5y / MODERATE >=7% 3y (Thai banks structurally lower ROE)
+    current_year = datetime.now().year
+
     gm_trend = agg.get('gm_trend', 'stable') or 'stable'
     avg_roe = agg.get('avg_roe', 0) or 0
     de = data.get('debt_to_equity') or data.get('de_ratio')
     int_cov = agg.get('interest_coverage_4y_avg')
     net_debt_inc = agg.get('net_debt_increases_in_3y', 0) or 0
+    yearly_metrics = data.get('yearly_metrics', [])
 
-    if avg_roe >= 0.15 and de is not None and de > 2.0 and int_cov is not None and int_cov < 3 and net_debt_inc >= 2:
+    # Per-sector ROE threshold for STRONG/MODERATE
+    if sector in BANK_FINANCE_SECTORS:
+        strong_roe_threshold = 0.10  # Banks/Finance structurally lower ROE
+        moderate_roe_threshold = 0.07
+        strong_avg_min = 0.10
+        moderate_avg_min = 0.07
+    else:
+        strong_roe_threshold = 0.12  # General sectors (v1.1 loosened from 0.15)
+        moderate_roe_threshold = 0.08
+        strong_avg_min = 0.12
+        moderate_avg_min = 0.08
+
+    # Compute per-threshold consecutive counts (inline)
+    roe_strong_consecutive = _count_consecutive_roe_above(yearly_metrics, strong_roe_threshold, current_year)
+    roe_moderate_consecutive = _count_consecutive_roe_above(yearly_metrics, moderate_roe_threshold, current_year)
+
+    # Tier assignment (mutually exclusive)
+    if avg_roe >= strong_avg_min and de is not None and de > 2.0 and int_cov is not None and int_cov < 3 and net_debt_inc >= 2:
         tags.append('ROE_FUELED_BY_DEBT')
-    elif roe_15plus >= 7 and gm_trend in ('stable', 'improving'):
+    elif roe_strong_consecutive >= 5 and gm_trend in ('stable', 'improving'):
+        # STRONG: 5y consecutive above threshold (was 7y of 15%+, now 5y of 12% general / 10% banks)
         tags.append('STRONG_MOAT')
-    elif roe_15plus >= 5 and gm_trend == 'stable' and avg_roe >= 0.10:
+    elif roe_moderate_consecutive >= 3 and gm_trend == 'stable' and avg_roe >= moderate_avg_min:
+        # MODERATE: 3y consecutive above moderate threshold
         tags.append('MODERATE_MOAT')
-    elif gm_trend == 'declining' or avg_roe < 0.10:
+    elif gm_trend == 'declining' or avg_roe < moderate_avg_min:
         tags.append('NO_MOAT')
-        if roe_15plus >= 3:
+        # MOAT_ERODING: had moat history but now declining (uses legacy 15%+ counter)
+        roe_legacy_15plus = agg.get('roe_consecutive_15plus_years', 0) or 0
+        if roe_legacy_15plus >= 3:
             tags.append('MOAT_ERODING')
     else:
         tags.append('NO_MOAT')
@@ -504,13 +568,15 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
     else:
         tags.append('MIXED_STABILITY')
 
-    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive)
+    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive) — v1.1 loosened threshold -50%
+    # Thai market: many quality stocks dropped > 40% intra-year during covid then recovered.
+    # Loosen to -50% to include them.
     drop2011 = agg.get('crisis_2011_drop_pct')
     drop2020 = agg.get('crisis_2020_drop_pct')
     ocf2011 = agg.get('ocf_2011')
     ocf2020 = agg.get('ocf_2020')
-    if (drop2011 is not None and drop2011 >= -0.40 and (ocf2011 or 0) > 0 and
-        drop2020 is not None and drop2020 >= -0.40 and (ocf2020 or 0) > 0):
+    if (drop2011 is not None and drop2011 >= -0.50 and (ocf2011 or 0) > 0 and
+        drop2020 is not None and drop2020 >= -0.50 and (ocf2020 or 0) > 0):
         tags.append('RESILIENT_THROUGH_CRISIS')
 
     return tags
