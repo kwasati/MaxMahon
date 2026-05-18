@@ -885,7 +885,12 @@ def fetch_fundamentals(symbol: str) -> dict:
         elif dy_snapshot is not None:
             dy = dy_snapshot  # SETSMART EOD dividendYield
         else:
-            dy = tf_snap.get("dividend_yield")  # fallback thaifin
+            dy = None
+            logger.warning(
+                "no yahoo DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s) — "
+                "dy unset (SETSMART cold + yahoo DPS unavailable; thaifin DPS approximation NOT used)",
+                symbol, latest_complete_fy, dps_current, price,
+            )
 
         # five_year_avg_yield = avg DPS of last 5 COMPLETE FYs / current price
         current_year = datetime.now().year
