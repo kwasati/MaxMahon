@@ -614,12 +614,47 @@ def _fetch_yahoo_supplement(symbol: str) -> dict:
                 "operating_income_by_year": {}, "interest_expense_by_year": {}}
 
 
+def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
+    """Group 4 quarters into yearly aggregate. Use Q4 accumulated fields.
+
+    Returns: {year: {revenue, net_profit, eps, ocf, icf, fcf, roe, roa, de,
+                      total_assets, shareholder_equity}}
+    """
+    by_year_q4: dict = {}
+    for r in records:
+        y = r.get('year')
+        q = r.get('quarter')
+        if y and q == 4:
+            by_year_q4[int(y)] = {
+                'revenue': r.get('totalRevenueAccum'),
+                'net_profit': r.get('netProfitAccum'),
+                'eps': r.get('epsAccum'),
+                'ocf': r.get('operatingCashFlow'),
+                'icf': r.get('investingCashFlow'),
+                'fcf': r.get('financingCashFlow'),
+                'roe': r.get('roe'),
+                'roa': r.get('roa'),
+                'de': r.get('de'),
+                'total_assets': r.get('totalAssets'),
+                'shareholder_equity': r.get('shareholderEquity'),
+            }
+    return by_year_q4
+
+
 def _fetch_setsmart(symbol: str) -> dict | None:
     """Fetch aggregate data from SETSMART (cached bulk endpoints).
 
-    Returns dict with EOD snapshot (latest day) + financial ratios (latest quarter), or None on failure.
+    Returns dict with EOD snapshot (latest day) + financial 5y quarterly range, or None on failure.
     Reads from data/setsmart_cache/ — populated by daily_price_refresh + weekly scan.
     Lazy import of setsmart_adapter to avoid circular import at module load.
+
+    Return shape:
+        {
+            "eod": dict | None,                           # latest EOD row for symbol
+            "financial": list[dict],                      # 5y × 4q = up to 20 quarterly records
+            "financial_quarterly": dict[(year, q), dict], # indexed lookup
+            "financial_yearly": dict[year, dict],         # Q4 accumulated aggregate per year
+        }
     """
     try:
         sym_no_bk = _to_tf_symbol(symbol)  # 'BBL.BK' → 'BBL' (SETSMART uses no .BK suffix)
@@ -628,6 +663,7 @@ def _fetch_setsmart(symbol: str) -> dict | None:
         if not cache_dir.exists():
             return None
 
+        # EOD walk logic — unchanged (newest→older bulk cache files)
         eod_files = sorted(cache_dir.glob("eod_*.json"), reverse=True)
         # Filter out per-symbol files (eod_by_symbol_*.json) — only bulk files (eod_YYYY-MM-DD.json)
         eod_files = [f for f in eod_files if not f.name.startswith("eod_by_symbol_")]
@@ -644,23 +680,37 @@ def _fetch_setsmart(symbol: str) -> dict | None:
             if eod_row is not None:
                 break
 
-        fin_files = sorted(cache_dir.glob("financial_*.json"), reverse=True)
-        fin_row = None
-        for f in fin_files:
-            rows = json.loads(f.read_text(encoding="utf-8"))
-            if not rows:
-                continue
-            for r in rows:
-                if r.get("symbol") == sym_no_bk:
-                    fin_row = r
-                    break
-            if fin_row is not None:
-                break
+        # NEW: financial 5y quarterly range via cached_financial_by_symbol_range
+        # Lazy import to avoid circular import at module load (per existing pattern)
+        from setsmart_adapter import cached_financial_by_symbol_range
 
-        if eod_row is None and fin_row is None:
+        current_year = datetime.now().year
+        start_y = str(current_year - 5)
+        end_y = str(current_year - 1)
+        try:
+            financial_records = cached_financial_by_symbol_range(
+                sym_no_bk, start_y, '1', end_y, '4'
+            )
+        except Exception as e:
+            logger.warning("SETSMART financial fetch failed for %s: %s", symbol, e)
+            financial_records = []
+
+        financial_quarterly: dict = {}
+        for r in financial_records:
+            y = r.get('year')
+            q = r.get('quarter')
+            if y and q:
+                financial_quarterly[(int(y), int(q))] = r
+
+        if eod_row is None and not financial_records:
             return None
 
-        return {"eod": eod_row, "financial": fin_row}
+        return {
+            "eod": eod_row,
+            "financial": financial_records,
+            "financial_quarterly": financial_quarterly,
+            "financial_yearly": _setsmart_financial_to_yearly(financial_records),
+        }
     except Exception as e:
         logger.warning("SETSMART fetch failed for %s: %s", symbol, e)
         return None
@@ -829,7 +879,16 @@ def fetch_fundamentals(symbol: str) -> dict:
         # OVERRIDE aggregate fields with SETSMART when available (primary layer)
         if use_setsmart:
             ss_eod = ss_data.get("eod") or {}
-            ss_fin = ss_data.get("financial") or {}
+            # After Phase 2 refactor: ss_data["financial"] is list[dict] of 5y × 4q records.
+            # Pick latest record (max by year, then quarter) to preserve legacy override semantics.
+            # Full refactor of this block → Phase 3.
+            ss_fin_records = ss_data.get("financial") or []
+            ss_fin = {}
+            if ss_fin_records:
+                ss_fin = max(
+                    ss_fin_records,
+                    key=lambda r: (r.get("year") or 0, r.get("quarter") or 0),
+                )
 
             # Override realtime price snapshot
             if ss_eod.get("close") is not None:
