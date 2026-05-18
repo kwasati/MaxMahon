@@ -70,7 +70,7 @@ DEFAULT_SCORING_CONFIG = {
             },
             'bonus_metrics': {
                 'eps_cv_10y': {
-                    'steps': [(0.30, 0), (0.24, 1), (0.15, 2)],
+                    'steps': [(0.40, 0), (0.30, 1), (0.20, 2)],   # v1.2: shifted right
                     'lower_is_better': True,
                 },
                 'crisis_drop_avg_pct': {
@@ -88,7 +88,7 @@ DEFAULT_SCORING_CONFIG = {
         'DIVIDEND_SHRINKING': -10,
         'ROE_FUELED_BY_DEBT': -10,
         'CASHFLOW_BELOW_PROFIT': -5,
-        'CYCLICAL_BUSINESS': -5,
+        'CYCLICAL_BUSINESS': -3,   # v1.2: lighter penalty (Thai-pragmatic)
     },
     'no_action_tags': ['MIXED_STABILITY', 'NO_MOAT', 'INTERMITTENT'],
     'display_scale': 10,

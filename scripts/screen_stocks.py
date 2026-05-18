@@ -410,6 +410,9 @@ def assign_signals(data: dict, total_score: int) -> list:
 # v1.1: Banks/Finance/Insurance — Niwes ch4 context (industrial/retail/property) doesn't apply.
 # These sectors have lumpy OCF from lending/investing cycles and structurally lower ROE.
 BANK_FINANCE_SECTORS = {'Banking', 'Finance & Securities', 'Insurance'}
+# v1.2: Property/REIT — legitimate lumpy cash flow from project/lending cycles.
+PROPERTY_REIT_SECTORS = {'Property Development', 'Property Fund & REIT'}
+LUMPY_CASHFLOW_SECTORS = BANK_FINANCE_SECTORS | PROPERTY_REIT_SECTORS
 
 
 def _count_consecutive_roe_above(yearly_metrics: list, threshold: float, current_year: int) -> int:
@@ -501,14 +504,16 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
             tags.append('CASHFLOW_OK')
         else:
             tags.append('CASHFLOW_BELOW_PROFIT')
-    if ocf_neg >= 2 and sector not in BANK_FINANCE_SECTORS:
+    if ocf_neg >= 2 and sector not in LUMPY_CASHFLOW_SECTORS:
         # FAKE_PROFIT: OCF negative >=2 of last 3y while NP positive — non-financial only.
         # v1.1: Banks/Finance/Insurance excluded — Niwes ch4 context (industrial/retail/property)
         # doesn't apply; their OCF is lumpy from lending/investing cycles.
+        # v1.2: Property/REIT also excluded — legitimate lumpy cash flow from project/lending cycles.
         latest_eps = data.get('eps_trailing') or 0
         if latest_eps > 0:
             tags.append('FAKE_PROFIT')
-    if ocf_decline is not None and ocf_decline <= -0.20:
+    if ocf_decline is not None and ocf_decline <= -0.20 and sector not in LUMPY_CASHFLOW_SECTORS:
+        # v1.2: CASHFLOW_DETERIORATING — skip lumpy cash flow sectors (banks/property)
         tags.append('CASHFLOW_DETERIORATING')
 
     # Stage 4: Moat tier (mutually exclusive — per-sector ROE threshold v1.1)
@@ -561,22 +566,22 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
     eps_cv = agg.get('eps_cv_10y')
     stable = is_stable_sector(sector, symbol)
     cyclical = is_cyclical_sector(sector)
-    if stable and eps_cv is not None and eps_cv <= 0.30:
+    if stable and eps_cv is not None and eps_cv <= 0.40:   # v1.2: loosen from 0.30
         tags.append('STABLE_BUSINESS')
     elif cyclical or (eps_cv is not None and eps_cv > 0.50):
         tags.append('CYCLICAL_BUSINESS')
     else:
         tags.append('MIXED_STABILITY')
 
-    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive) — v1.1 loosened threshold -50%
-    # Thai market: many quality stocks dropped > 40% intra-year during covid then recovered.
-    # Loosen to -50% to include them.
+    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive) — v1.2 loosened threshold -55%
+    # Thai market: many quality stocks dropped > 50% intra-year during covid then recovered.
+    # Loosen to -55% to include them.
     drop2011 = agg.get('crisis_2011_drop_pct')
     drop2020 = agg.get('crisis_2020_drop_pct')
     ocf2011 = agg.get('ocf_2011')
     ocf2020 = agg.get('ocf_2020')
-    if (drop2011 is not None and drop2011 >= -0.50 and (ocf2011 or 0) > 0 and
-        drop2020 is not None and drop2020 >= -0.50 and (ocf2020 or 0) > 0):
+    if (drop2011 is not None and drop2011 >= -0.55 and (ocf2011 or 0) > 0 and
+        drop2020 is not None and drop2020 >= -0.55 and (ocf2020 or 0) > 0):
         tags.append('RESILIENT_THROUGH_CRISIS')
 
     return tags
