@@ -133,6 +133,37 @@ def _yahoo_fetch_batch(chunk: list[str]) -> dict[str, float]:
     return out
 
 
+def _refresh_setsmart_financial(symbols: list[str]) -> None:
+    """Refresh SETSMART per-symbol financial cache (5y quarterly).
+
+    Calls ``cached_financial_by_symbol_range`` for each symbol so the next
+    scan/report read can hit warm cache (avoid per-request SETSMART round-trip).
+
+    Strips ``.BK`` suffix to match SETSMART API expectation (consistent with EOD
+    bulk lookup convention in ``refresh_prices``). Handles per-symbol failures
+    gracefully so one bad symbol does not abort the batch.
+    """
+    try:
+        from setsmart_adapter import cached_financial_by_symbol_range
+    except Exception as e:
+        logger.warning("SETSMART adapter import failed (financial refresh): %s", e)
+        return
+
+    current_year = datetime.now().year
+    start_y = str(current_year - 5)
+    end_y = str(current_year - 1)
+    success_count = 0
+    for sym in symbols:
+        sym_no_bk = sym[:-3] if sym.endswith(".BK") else sym
+        try:
+            records = cached_financial_by_symbol_range(sym_no_bk, start_y, "1", end_y, "4")
+            if records:
+                success_count += 1
+        except Exception as e:
+            logger.warning("SETSMART financial refresh failed for %s: %s", sym, e)
+    logger.info("SETSMART financial refresh: %d/%d success", success_count, len(symbols))
+
+
 def refresh_prices() -> dict:
     """Refresh prices for watchlist + PASS candidates.
 
@@ -200,6 +231,12 @@ def refresh_prices() -> dict:
                        [s for s in still_missing if s not in fetched])
 
     logger.info("refreshed %d/%d prices total", len(fetched), len(symbols))
+
+    # 4. SETSMART per-symbol financial refresh (Plan filter-02 Phase 4)
+    # Warm cache for 5y quarterly financial-data-and-ratio-by-symbol so next
+    # scan/report can read locally. Runs after EOD refresh completes.
+    _refresh_setsmart_financial(symbols)
+
     return fetched
 
 
