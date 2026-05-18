@@ -204,7 +204,35 @@ function _buildMobileHomeHtml(screener, trend) {
     '<div class="ornament"></div>' +
     '<div class="text-c" id="v6-mhome-pager" style="padding:20px 0"></div>';
 
-  return lede + summary + trendBox + sectionHdr + filter + (candidates.length ? body : emptyState);
+  var pendingHtml = _renderPending(screener.pending_candidates);
+
+  return lede + summary + trendBox + pendingHtml + sectionHdr + filter + (candidates.length ? body : emptyState);
+}
+
+// ----- Pending (yahoo flake) section (mobile) -----
+function _renderPending(pending) {
+  if (!pending || pending.length === 0) return '';
+  var esc = window.MMUtils.escapeHtml;
+  var items = pending.map(function (p) {
+    var reasons = (p.reasons || []).join('; ');
+    var retries = p.retry_count || 0;
+    var since = (p.first_flaked_at || '').slice(0, 10);
+    return (
+      '<li style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;line-height:1.4">' +
+        '<strong style="font-family:var(--font-mono);color:var(--fg-primary)">' + esc(p.symbol || '') + '</strong>' +
+        ' — ' + esc(reasons) +
+        ' <span style="color:var(--fg-dim);font-size:0.75rem">(' + retries + ' retries ตั้งแต่ ' + esc(since) + ')</span>' +
+      '</li>'
+    );
+  }).join('');
+  return (
+    '<section class="pending-candidates" style="padding:12px 0;border-bottom:1px solid var(--border-subtle)">' +
+      '<h3 style="font-family:var(--font-head);font-weight:700;font-size:0.95rem;margin-bottom:8px;color:var(--fg-primary)">' +
+        'รอข้อมูล (yahoo flake) · ' + pending.length +
+      '</h3>' +
+      '<ul style="list-style:none;padding:0;margin:0">' + items + '</ul>' +
+    '</section>'
+  );
 }
 
 function _mountTrendChart(trend) {
