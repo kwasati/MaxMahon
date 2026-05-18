@@ -894,14 +894,14 @@ def main():
         }
         val = valuation_grade(val_data, sector_medians)
         c["valuation"] = val
-        # Apply valuation modifier + final 0-100 cap (after all signal adjustments)
-        val_modifier = {"A": 5, "B": 2, "C": 0, "D": -3, "F": -8}
-        c["score"] = max(0, min(100, c["score"] + val_modifier.get(val["grade"], 0)))
+        # Anchor v1.0: valuation grade kept for OVERPRICED signal + server enrichment,
+        # but score modifier removed (pillar-legacy — anchor model has its own penalty system)
         # Add OVERPRICED signal
         if "OVERPRICED" in val["signals"] and "OVERPRICED" not in c["signals"]:
             c["signals"].append("OVERPRICED")
 
-    candidates.sort(key=lambda x: x["score"], reverse=True)
+    # Sort by display_score (= anchor_score / 10) — single source of truth for ranking
+    candidates.sort(key=lambda x: x.get("display_score", x["score"] / 10.0), reverse=True)
     new_finds = [c for c in candidates if not c["in_watchlist"]]
 
     today = datetime.now().strftime("%Y-%m-%d")
