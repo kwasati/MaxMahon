@@ -703,8 +703,10 @@ def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
             tags.append('CASHFLOW_OK')
         else:
             tags.append('CASHFLOW_BELOW_PROFIT')
-    if ocf_neg >= 1:
-        # FAKE_PROFIT: OCF negative but NP positive
+    if ocf_neg >= 2:
+        # FAKE_PROFIT: OCF negative >=2 of last 3y while NP positive
+        # Niwes ch4 'ขายตั้งแต่ปีที่ 2' = sustained pattern (2+ years),
+        # not one-off — banks have lumpy cash flow with occasional negative years.
         latest_eps = data.get('eps_trailing') or 0
         if latest_eps > 0:
             tags.append('FAKE_PROFIT')
