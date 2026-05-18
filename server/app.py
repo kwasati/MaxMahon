@@ -271,6 +271,28 @@ async def get_screener(user: dict = Depends(get_current_user)):
         "new_entrants": sum(1 for c in cands if c.get("is_new_in_batch")),
         "sectors": len(sectors),
     }
+
+    # filter-07 Phase 4 — surface pending (yahoo flake) candidates + stale count
+    try:
+        _scripts_dir = str(SCRIPTS_DIR)
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        from flake_queue import load_queue, list_stale
+
+        queue_data = load_queue()
+        pending_entries = [
+            e for e in queue_data.get("queue", []) if not e.get("stale")
+        ]
+        stale_entries = list_stale(days=7)
+        data["pending_candidates"] = pending_entries
+        data["summary"]["pending_count"] = len(pending_entries)
+        data["summary"]["flake_stale_count"] = len(stale_entries)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("flake queue read failed: %s", e)
+        data["pending_candidates"] = []
+        data["summary"]["pending_count"] = 0
+        data["summary"]["flake_stale_count"] = 0
+
     return data
 
 

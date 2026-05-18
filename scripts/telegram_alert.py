@@ -15,6 +15,27 @@ _TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 _CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
+def send_alert(message: str) -> bool:
+    """Generic Telegram alert wrapper — sends a single text message.
+
+    Returns True if sent successfully, False on failure (does not raise).
+    Used by filter-07 for STALE flake alerts + future ad-hoc notifications.
+    Safe to call when env vars missing or message empty (returns False, no send).
+    """
+    if not _TOKEN or not _CHAT_ID or not message:
+        return False
+    try:
+        r = requests.post(
+            f"https://api.telegram.org/bot{_TOKEN}/sendMessage",
+            json={"chat_id": _CHAT_ID, "text": message},
+            timeout=10,
+        )
+        return r.ok
+    except Exception as e:
+        print(f"telegram alert failed: {e}")
+        return False
+
+
 def send_exit_alert(high_triggers: list[dict]) -> bool:
     """Send one Telegram message summarizing N high-severity exit triggers.
 

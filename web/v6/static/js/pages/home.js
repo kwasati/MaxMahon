@@ -274,6 +274,32 @@ function _buildFilterBar(totalCount, candidates) {
   );
 }
 
+// ----- Pending (yahoo flake) section -----
+function _renderPending(pending) {
+  if (!pending || pending.length === 0) return '';
+  var esc = window.MMUtils.escapeHtml;
+  var items = pending.map(function (p) {
+    var reasons = (p.reasons || []).join('; ');
+    var retries = p.retry_count || 0;
+    var since = (p.first_flaked_at || '').slice(0, 10);
+    return (
+      '<li style="padding:6px 0;border-bottom:1px solid var(--rule-hair);font-family:var(--font-body);font-size:var(--fs-sm)">' +
+        '<strong style="font-family:var(--font-mono);color:var(--fg-primary)">' + esc(p.symbol || '') + '</strong>' +
+        ' — ' + esc(reasons) +
+        ' <span style="color:var(--fg-dim);font-size:0.85em">(' + retries + ' retries ตั้งแต่ ' + esc(since) + ')</span>' +
+      '</li>'
+    );
+  }).join('');
+  return (
+    '<section class="pending-candidates" style="padding:var(--sp-5) 0;border-bottom:1px solid var(--rule)">' +
+      '<h3 style="font-family:var(--font-head);font-weight:700;font-size:var(--fs-md);margin-bottom:var(--sp-3);color:var(--fg-primary)">' +
+        'รอข้อมูล (yahoo flake) · ' + pending.length +
+      '</h3>' +
+      '<ul style="list-style:none;padding:0;margin:0">' + items + '</ul>' +
+    '</section>'
+  );
+}
+
 // ----- Top-level assembly -----
 function _buildHomeHtml(screener, trend) {
   var candidates = (screener.candidates || []).slice();
@@ -297,8 +323,11 @@ function _buildHomeHtml(screener, trend) {
     '<section class="card-grid" id="v6-home-grid"></section>' +
     '<section class="text-c" style="padding:var(--sp-5) 0" id="v6-home-pager"></section>';
 
+  var pendingHtml = _renderPending(screener.pending_candidates);
+
   return _buildLedeAndSummary(screener) +
          _buildTrendStrip(screener, trend) +
+         pendingHtml +
          sectionHdr +
          _buildFilterBar(candidates.length, candidates) +
          (candidates.length ? gridHtml : emptyState);

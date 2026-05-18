@@ -199,31 +199,29 @@ def _retry_flake_queue() -> list[dict]:
 
     if stale:
         try:
-            from telegram_alert import send_exit_alert
-            # Adapt stale entries to the dict shape send_exit_alert expects
-            # (it iterates list of {symbol, type, reason, severity} dicts).
-            alert_payload = []
-            for entry in stale:
-                sym = entry.get("symbol", "?")
-                retry_count = entry.get("retry_count", 0)
-                first = (entry.get("first_flaked_at") or "")[:10] or "unknown"
-                alert_payload.append({
-                    "symbol": sym,
-                    "type": "FLAKE_STALE",
-                    "reason": f"ค้างใน queue {retry_count} retries (ตั้งแต่ {first})",
-                    "severity": "high",
-                })
-            send_exit_alert(alert_payload)
+            from telegram_alert import send_alert
         except Exception as e:  # noqa: BLE001
-            logger.warning("telegram alert failed: %s", e)
+            logger.warning("telegram_alert import failed: %s", e)
+            send_alert = None  # type: ignore[assignment]
 
-        # Mark stale even if telegram failed — better to skip alerts than to
-        # spam Telegram every single day with the same backlog.
         for entry in stale:
+            sym = entry.get("symbol", "?")
+            retry_count = entry.get("retry_count", 0)
+            first = (entry.get("first_flaked_at") or "")[:10] or "unknown"
+            if send_alert is not None:
+                try:
+                    send_alert(
+                        f"flake STALE: {sym} ค้างใน queue {retry_count} retries "
+                        f"(ตั้งแต่ {first})"
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("telegram alert failed for %s: %s", sym, e)
+            # Mark stale even if telegram failed — better to skip alerts than
+            # to spam Telegram every single day with the same backlog.
             try:
-                mark_stale(entry["symbol"])
+                mark_stale(sym)
             except Exception as e:  # noqa: BLE001
-                logger.warning("mark_stale failed for %s: %s", entry.get("symbol"), e)
+                logger.warning("mark_stale failed for %s: %s", sym, e)
 
     return recovered
 
