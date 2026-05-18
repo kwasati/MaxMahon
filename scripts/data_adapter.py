@@ -636,7 +636,7 @@ def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
     for r in records:
         y = r.get('year')
         q = r.get('quarter')
-        if y and q == 4:
+        if y and q is not None and int(q) == 4:
             by_year_q4[int(y)] = {
                 'revenue': r.get('totalRevenueAccum'),
                 'net_profit': r.get('netProfitAccum'),
