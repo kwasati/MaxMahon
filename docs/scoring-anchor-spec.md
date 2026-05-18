@@ -1,7 +1,7 @@
 # MaxMahon Anchor Score Spec — Niwes Refactor v2
 
-**Status:** FINAL — All Phases (1-7) ตกผลึก
-**Version:** 1.0
+**Status:** FINAL v1.1 — Thai-realistic threshold + bank exclusion (2026-05-18)
+**Version:** 1.1
 **Created:** 2026-05-16
 **Last Updated:** 2026-05-18
 
@@ -630,3 +630,4 @@ DEFAULT_SCORING_CONFIG = {
 - 2026-05-18: Phase 5 disqualify/penalty list FINAL (3 disqualify + 5 penalty + 3 no-action — อิง Niwes quote audit verbatim) — discussion checkpoint ครบ
 - 2026-05-18: Phase 6 verification light pass FINAL (5 หุ้น Niwes sample = historical reference, 3/5 ตกตาม Niwes invariant + 2/5 anchor ที่ยัง intact — ไม่ปรับ spec) — discussion checkpoint ครบ
 - 2026-05-18: Phase 7 spec finalize FINAL (TOC + Version 1.0 + Reference List + DEFAULT_SCORING_CONFIG dict + Implementation notes + Calculation order + display_scale 10 for UI 0.0-10.0 format) — Spec v1.0 RELEASE
+- 2026-05-18 v1.1: Thai-realistic threshold revision — STRONG_MOAT ROE ≥12% (was 15%) ติด ≥5y (was 7y) for general / ≥10% 5y for Banks-Finance-Insurance. MODERATE_MOAT ROE ≥8% 3y general / ≥7% 3y Banks. RESILIENT crisis drop ≤−50% (was −40%). FAKE_PROFIT exclude Banks/Finance/Insurance sectors (Niwes ch4 context = industrial not banking).
