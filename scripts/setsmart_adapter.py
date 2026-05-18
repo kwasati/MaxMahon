@@ -127,15 +127,30 @@ def cached_eod_history(symbol: str, start_date: str, end_date: str) -> list[dict
     return data
 
 
+def cached_financial_by_symbol_range(symbol: str, start_year: str, start_quarter: str,
+                                      end_year: str, end_quarter: str) -> list[dict]:
+    """Cache SETSMART financial-data-and-ratio-by-symbol for date range.
+
+    SETSMART subscription = 5 years back. To get 5y quarterly:
+        cached_financial_by_symbol_range('BBL', '2021', '1', '2025', '4') -> 20 records
+    """
+    cache_file = CACHE_DIR / f"financial_by_symbol_{symbol}_{start_year}q{start_quarter}_{end_year}q{end_quarter}.json"
+    if cache_file.exists():
+        return json.loads(cache_file.read_text(encoding="utf-8"))
+    data = fetch_financial_by_symbol(symbol, start_year, start_quarter, end_year, end_quarter)
+    cache_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return data
+
+
 if __name__ == "__main__":
     from datetime import datetime, timedelta
 
-    print("[smoke 1/5] fetch_eod_by_symbol BBL 2024-01-01..2024-01-15")
+    print("[smoke 1/6] fetch_eod_by_symbol BBL 2024-01-01..2024-01-15")
     bbl = fetch_eod_by_symbol("BBL", "2024-01-01", "2024-01-15")
     print(f"  rows: {len(bbl)}, first: {bbl[0] if bbl else 'EMPTY'}")
     assert len(bbl) > 0, "BBL EOD fetch returned empty"
 
-    print("[smoke 2/5] fetch_eod_all on most recent trading day")
+    print("[smoke 2/6] fetch_eod_all on most recent trading day")
     test_date = None
     eod_all = []
     for delta in range(1, 8):
@@ -148,12 +163,12 @@ if __name__ == "__main__":
     print(f"  date: {test_date}, rows: {len(eod_all)}, types: {types_sample}")
     assert test_date is not None, "fetch_eod_all returned empty for last 7 days"
 
-    print("[smoke 3/5] fetch_financial_all 2023 Q4")
+    print("[smoke 3/6] fetch_financial_all 2023 Q4")
     fin = fetch_financial_all("2023", "4")
     print(f"  rows: {len(fin)}, first: {fin[0].get('symbol') if fin else 'EMPTY'}")
     assert len(fin) > 0, "fetch_financial_all returned empty"
 
-    print("[smoke 4/5] discover package history coverage (BBL)")
+    print("[smoke 4/6] discover package history coverage (BBL)")
     # SETSMART API returns HTTP 500 (not empty list) for out-of-coverage date ranges,
     # so we treat 500 as "not covered" and continue walking forward.
     def _safe_eod(sym, start, end):
@@ -176,11 +191,17 @@ if __name__ == "__main__":
         else:
             print("  WARN: no BBL data found 2010-2022 — investigate")
 
-    print("[smoke 5/5] cache layer test")
+    print("[smoke 5/6] cache layer test")
     d = cached_eod_bulk(test_date)
     print(f"  cache rows: {len(d)}")
     cache_file = CACHE_DIR / f"eod_{test_date}.json"
     assert cache_file.exists(), f"cache file not created: {cache_file}"
+
+    print("[smoke 6/6] cached_financial_by_symbol_range BBL 2021-2025")
+    records = cached_financial_by_symbol_range('BBL', '2021', '1', '2025', '4')
+    print(f"  -> {len(records)} records")
+    assert len(records) > 0, "expected >0 records from SETSMART"
+    # Note: subscription is 5y, so 5y x 4q = 20 records expected. Some quarters may be missing for recent quarters not yet reported.
 
     print()
     print("ALL SMOKE TESTS PASSED")
