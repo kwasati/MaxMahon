@@ -54,9 +54,44 @@ def _top_pick_md(c: dict) -> str:
     if pbv_v is None:
         pbv_v = "-"
     streak = a.get("dividend_streak", 0)
+
+    # Anchor scoring fields (Plan anchor-refactor-01 Phase 3):
+    #   display_score: float 0.0-10.0 (fallback: score/10 for legacy data)
+    #   breakdown: {dividend, cashflow, moat, long_hold}
+    #   disqualified + disqualify_tags / penalty + penalty_tags
+    display = c.get("display_score")
+    if display is None:
+        display = round((c.get("score", 0) or 0) / 10.0, 1)
+
+    # DISQUALIFIED state — short-circuit, skip breakdown
+    if c.get("disqualified"):
+        dq_tags = ", ".join(c.get("disqualify_tags", []))
+        return (
+            f"### {c['symbol']} — {c.get('name','')}\n"
+            f"Sector: {c.get('sector','N/A')} · **DISQUALIFIED** ({dq_tags})\n\n"
+            f"- Yield {yield_v:.2f}% · PE {pe_v} · PBV {pbv_v} · Streak {streak}y\n"
+            + sig_lines
+            + "\n"
+        )
+
+    # 4-pillar anchor breakdown: D + C + M + L
+    bd = c.get("breakdown", {}) or {}
+    parts = (
+        f"D{bd.get('dividend', 0)}"
+        f"+C{bd.get('cashflow', 0)}"
+        f"+M{bd.get('moat', 0)}"
+        f"+L{bd.get('long_hold', 0)}"
+    )
+
+    # Penalty (negative or 0)
+    penalty = c.get("penalty", 0) or 0
+    if penalty < 0:
+        penalty_tags = ", ".join(c.get("penalty_tags", []))
+        parts += f" P{penalty}({penalty_tags})" if penalty_tags else f" P{penalty}"
+
     return (
         f"### {c['symbol']} — {c.get('name','')}\n"
-        f"Sector: {c.get('sector','N/A')} · Score {c.get('score',0)}/100\n\n"
+        f"Sector: {c.get('sector','N/A')} · Score {display:.1f}/10.0 ({parts})\n\n"
         f"- Yield {yield_v:.2f}% · PE {pe_v} · PBV {pbv_v} · Streak {streak}y\n"
         + sig_lines
         + "\n\n**Reasons:** " + "; ".join(c.get("reasons", [])[:5]) + "\n"
