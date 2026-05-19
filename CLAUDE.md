@@ -23,9 +23,10 @@
 
 ### Data Sources
 - **Layer 0 (after Plan 02 merge):** SETSMART API — primary source ของ aggregate snapshot (yield, P/E, P/BV, market cap, ROE, ROA, EPS, ratios). 4 endpoints: `eod-price-by-symbol`, `eod-price-by-security-type` (bulk all-CS, ~933 rows/day), `financial-data-and-ratio-by-symbol`, `financial-data-and-ratio` (bulk all-companies). Cache: `data/setsmart_cache/eod_{date}.json` + `financial_{year}_q{N}.json` + `eod_by_symbol_{SYM}_{start}_{end}.json` — refresh ทุกวัน 19:00 ผ่าน daily_price_refresh. **Package coverage:** smoke test BBL พบ history ≥ 2022 (~3 ปี) — thaifin ยังจำเป็นสำหรับ history ก่อน 2022. **Adapter:** `scripts/setsmart_adapter.py`
+- **Layer 0.5 (DPS history):** set.or.th public JSON API — `https://www.set.or.th/api/set/stock/{SYM}/corporate-action?lang=en` via Playwright Cloudflare bootstrap. Returns dividend events with `beginOperation`/`endOperation` (fiscal year period) directly — no heuristic needed. Replaces yahoo as primary DPS source (yahoo split-adjusts retroactively, producing wrong historical DPS for stocks with stock split/dividend history). Cache: `data/set_dividend_cache/{SYMBOL}.json`, TTL 7 days, refreshed by `weekly_dividend_refresh` cron (Sun 06:00 Asia/Bangkok). Adapter: `scripts/set_official_adapter.py`. **Yahoo retained as fallback** — if set.or.th fails (Cloudflare block, missing data, etc.), falls back to yahoo + warning tag `DPS_SOURCE_YAHOO`.
 - **Layer 1 (history):** thaifin — 10-16 ปี financial statements + ratios (ใช้สำหรับ history beyond SETSMART package)
-- **Layer 2 (supplement):** yahooquery — realtime price (fallback), 52w range, forward PE, market cap (fallback), **DPS event-by-event** (SETSMART ไม่มี), capex, interest_expense
-- **DPS = Source of Truth** — ปันผลต่อหุ้นใช้จาก yahooquery dividends history โดยตรง, yield% override จาก SETSMART (ถ้ามี cache) ไม่งั้น compute จาก DPS/price
+- **Layer 2 (supplement):** yahooquery — realtime price (fallback), 52w range, forward PE, market cap (fallback), **DPS fallback** (เมื่อ set.or.th fail), capex, interest_expense
+- **DPS = Source of Truth** — ปันผลต่อหุ้นใช้จาก set.or.th corporate-action API โดยตรง (event-by-event ตาม fiscal year, ไม่ split-adjust), yahoo เป็น fallback เมื่อ set.or.th fail (warning tag `DPS_SOURCE_YAHOO`). yield% override จาก SETSMART (ถ้ามี cache) ไม่งั้น compute จาก DPS/price
 - **FCF = OCF - capex** — ไม่ใช้ total investing activities
 - **Universe:** 933 stocks (SET 704 + mai 229) via thaifin
 
@@ -33,8 +34,9 @@
 
 **Rule 0 — SETSMART precedence (after Plan 02 merge):**
 - SETSMART = primary สำหรับ realtime aggregate (yield, P/E, P/BV, market cap, EPS, ROE, ROA, D/E) — override snapshot fields ใน fetch_fundamentals + `/api/stock/{sym}` ถ้ามี cache
+- set.or.th = primary สำหรับ DPS event history (Layer 0.5 — `scripts/set_official_adapter.py` via Playwright)
 - thaifin = fallback / history beyond SETSMART package (~3 ปี coverage จาก smoke test)
-- yahooquery = DPS events + 52w range + capex + interest_expense (SETSMART ไม่มี)
+- yahooquery = DPS fallback (เมื่อ set.or.th fail, tag `DPS_SOURCE_YAHOO`) + 52w range + capex + interest_expense
 
 **Rule 1 — Historical/yearly data:**
 - ใช้ **thaifin เท่านั้น** สำหรับ field ที่เป็นต่อปี (close, dividend_yield, mkt_cap, bvps, payout_ratio, pe_ratio, pb_ratio, roe, net_margin, revenue, earnings, etc.)
@@ -43,7 +45,7 @@
 **Rule 2 — yahooquery ใช้ได้เฉพาะ:**
 - Realtime price (current close)
 - 52-week range + 50d/200d moving average
-- Raw dividends history (DPS events timestamp + amount — source of truth สำหรับ DPS)
+- Raw dividends history (DPS events timestamp + amount — **fallback only** เมื่อ set.or.th fail; set.or.th = primary source of truth สำหรับ DPS)
 - Capex + Operating Income + Interest Expense per year (thaifin ไม่แยกจาก investing_activities / gross-sga)
 - DCA simulator granular monthly price (backtest — ผ่าน `/api/stock/{sym}/price-history?granularity=monthly`)
 
@@ -187,6 +189,7 @@
 | **YIELD_SPIKE_FROM_PRICE_DROP** (NEW) | yield_now / 5y_avg > 1.8x — ราคาตกทำ yield ดีด, เช็ค trap |
 | **DATA_INCOMPLETE** (NEW) | yield > 0 + streak == 0 + dividend_history ว่าง — yahoo flake (filter guard ตัด FAIL อยู่แล้ว — tag เพื่อ visibility) |
 | DATA_WARNING | ข้อมูลผิดปกติ (yield >20%, growth >300%) |
+| **DPS_SOURCE_YAHOO** (NEW) | DPS fallback ใช้ yahoo (set.or.th fail — Cloudflare block หรือไม่มีข้อมูล) — เตือนว่าค่าอาจ split-adjust ไม่ตรง history จริง |
 | OVERPRICED | จาก valuation_grade F |
 
 ## Frontend (web/v6/)
