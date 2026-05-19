@@ -20,6 +20,7 @@ Public API:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from playwright.sync_api import BrowserContext, sync_playwright
@@ -99,8 +100,56 @@ def fetch_dividends(symbol: str) -> list[dict]:
     Returns list of {xdate, payment_date, begin_operation, end_operation, dps,
     dividend_type, source_of_dividend}. Filters caType=='XD' AND
     dividendType=='Cash Dividend'. Skips events with null endOperation.
+    Raises RuntimeError on non-200 status.
     """
-    raise NotImplementedError
+    ctx = _get_browser_context()
+    url = f'{BASE_URL}/{symbol}/corporate-action?lang=en'
+    resp = ctx.request.get(
+        url,
+        headers={
+            'Referer': (
+                f'https://www.set.or.th/en/market/product/stock/quote/'
+                f'{symbol}/rights-benefits'
+            ),
+            'Accept': 'application/json',
+        },
+    )
+    if resp.status != 200:
+        raise RuntimeError(
+            f'set.or.th API returned {resp.status} for {symbol}'
+        )
+    try:
+        data = json.loads(resp.body().decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise RuntimeError(
+            f'set.or.th API returned invalid JSON for {symbol}: {e}'
+        )
+    if not isinstance(data, list):
+        raise RuntimeError(
+            f'set.or.th API returned unexpected payload type '
+            f'{type(data).__name__} for {symbol} (expected list)'
+        )
+    events: list[dict] = []
+    for ev in data:
+        if not isinstance(ev, dict):
+            continue
+        if ev.get('caType') != 'XD':
+            continue
+        if ev.get('dividendType') != 'Cash Dividend':
+            continue
+        end_op = ev.get('endOperation')
+        if not end_op:
+            continue
+        events.append({
+            'xdate': (ev.get('xdate') or '')[:10],
+            'payment_date': (ev.get('paymentDate') or '')[:10],
+            'begin_operation': (ev.get('beginOperation') or '')[:10],
+            'end_operation': end_op[:10],
+            'dps': float(ev.get('dividend') or 0),
+            'dividend_type': ev.get('dividendType'),
+            'source_of_dividend': ev.get('sourceOfDividend'),
+        })
+    return events
 
 
 def cached_dividends(symbol: str, max_age_days: int = 7) -> list[dict]:
