@@ -16,3 +16,4 @@ anthropic>=0.34
 thaifin>=0.6
 yahooquery>=2.3
 pyjwt[crypto]>=2.8.0
+playwright>=1.40

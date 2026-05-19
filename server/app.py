@@ -1088,6 +1088,65 @@ def scheduled_price_refresh_job():
         raise
 
 
+def scheduled_dividend_refresh_job():
+    """Weekly Sunday 06:00 Asia/Bangkok — refresh set.or.th DPS cache for full universe.
+
+    Runs 3 hours before the weekly scan (09:00) so the scan reads warm DPS cache.
+    Loads universe from ``data/set_universe.json`` (key: ``symbols`` = list of
+    ``"<SYM>.BK"``). For each symbol, calls ``set_official_adapter.cached_dividends``
+    which fetches via Playwright + Cloudflare bootstrap and writes
+    ``data/set_dividend_cache/{SYMBOL}.json`` (TTL 7 days). Sleeps 1.5s between
+    stocks. Per-stock failures are logged and skipped — the loop never aborts.
+    """
+    universe_path = DATA_DIR / "set_universe.json"
+    if not universe_path.exists():
+        logging.error(
+            f"[scheduler] dividend refresh aborted: {universe_path} not found"
+        )
+        return
+
+    _scripts_dir = str(PROJECT_DIR / "scripts")
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+
+    try:
+        from set_official_adapter import cached_dividends
+    except ImportError as e:
+        logging.error(
+            f"[scheduler] dividend refresh aborted: set_official_adapter "
+            f"import failed ({e})"
+        )
+        return
+
+    try:
+        universe = json.loads(universe_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        logging.error(f"[scheduler] dividend refresh aborted: failed to read universe ({e})")
+        return
+
+    symbols = universe.get("symbols", [])
+    total = len(symbols)
+    logging.info(f"[scheduler] dividend refresh started for {total} stocks")
+
+    success = 0
+    fail = 0
+    for raw_sym in symbols:
+        sym_clean = str(raw_sym).replace(".BK", "").upper()
+        try:
+            cached_dividends(sym_clean)
+            success += 1
+        except Exception as e:
+            fail += 1
+            logging.warning(
+                f"[scheduler] dividend refresh failed for {sym_clean}: {e}"
+            )
+        time.sleep(1.5)
+
+    logging.info(
+        f"[scheduler] dividend refresh done (success={success}, fail={fail}, total={total})"
+    )
+
+
 scheduler = BackgroundScheduler()
 
 
@@ -1129,6 +1188,22 @@ def apply_schedule(config: dict):
         timezone="Asia/Bangkok",
     )
     logging.info("[scheduler] daily_price_refresh scheduled: 19:00 Asia/Bangkok")
+
+    # Weekly dividend refresh — Sunday 06:00 Asia/Bangkok (3hr before weekly scan).
+    try:
+        scheduler.remove_job("weekly_dividend_refresh")
+    except Exception:
+        pass
+    scheduler.add_job(
+        scheduled_dividend_refresh_job,
+        "cron",
+        id="weekly_dividend_refresh",
+        day_of_week="sun",
+        hour=6,
+        minute=0,
+        timezone="Asia/Bangkok",
+    )
+    logging.info("[scheduler] weekly_dividend_refresh scheduled: sun 06:00 Asia/Bangkok")
 
 
 @app.on_event("startup")
