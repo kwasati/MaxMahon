@@ -410,13 +410,17 @@ fetch_fundamentals(symbol):
 |   +- try set.or.th dps_by_fiscal_year(sym) -> dividend_source = "set_official"
 |   +- if empty / fails: fallback yahoo dps_by_fiscal_year -> dividend_source = "yahoo", warnings += ["DPS_SOURCE_YAHOO"]
 |
-+- 6. Snapshot fields (price/PE/PBV/mcap/dividend_yield):
++- 6. Snapshot fields (price/PE/PBV/mcap):
 |   +- if use_ss_snapshot: SETSMART EOD -> fallback thaifin snapshot
 |   +- else:               yahoo info  -> fallback thaifin snapshot
 |
-+- 7. Compute dividend_yield = (current_FY_DPS / price) * 100
-    +- fallback SETSMART EOD dividendYield
-    +- fallback None
++- 7. Compute dividend_yield + dps_current + five_year_avg_yield:
+    +- dps_current = yahoo dps_by_fiscal_year[latest_complete_fy]   # <-- yahoo only, NOT set.or.th
+    +- dividend_yield = (dps_current / price) * 100  if dps_current is not None
+    +- elif dy_snapshot (SETSMART EOD dividendYield) is not None: dy = dy_snapshot
+    +- else: dy = None
+    +- five_year_avg_yield = mean(yahoo dps_by_fiscal_year[last 5 complete FYs]) / price * 100
+                            fallback yahoo summary_detail.fiveYearAvgDividendYield
 ```
 
 ## Cache Strategy
@@ -468,6 +472,7 @@ All three jobs are registered unconditionally in `apply_schedule(config)` except
 
 ## Surprises / Findings During Audit
 
+0. **Top-level snapshot DPS ignores `dividend_source`:** when set.or.th succeeds, `dividend_history` is built from set.or.th — but the snapshot fields `dps`, `dividend_rate`, `dividend_yield` (computed), and `five_year_avg_yield` read from **yahoo's** `dps_by_fiscal_year` regardless (`scripts/data_adapter.py:904, 923`). The values typically agree, but for stocks with stock splits the yahoo DPS is split-adjusted and the set.or.th `dividend_history` is not — so a downstream UI showing both will see mismatched numbers. Fix: change line 904/923 to read from set.or.th's `dps_by_fiscal_year` when `dividend_source == "set_official"`.
 1. **Dead code in thaifin branch:** `_fetch_thaifin` computes a `dividend_history` dict from yearly `dy% * close / 100` (`scripts/data_adapter.py:294-301`) and returns it inside the `tf_data` dict. But `fetch_fundamentals` unconditionally rebuilds `dividend_history` from set.or.th (or yahoo fallback) before the return statement, so the thaifin-derived DPS is never surfaced. Worth removing or wiring back as a tertiary fallback when both set.or.th and yahoo fail.
 2. **Naming collision in SETSMART aggregation:** `_setsmart_financial_to_yearly` stores `financingCashFlow` under the dict key `"fcf"` (`scripts/data_adapter.py:655`). The real free cash flow (OCF - capex) is computed elsewhere. The collision is harmless because this dict is only consumed for `roe/roa/de/eps` overrides, but a future maintainer overlaying `fcf` from `ss_fin_yearly` would silently use financing cash flow instead.
 3. **`eps_setsmart` is intentionally not overwriting `diluted_eps`:** the SETSMART overlay block writes `m["eps_setsmart"]` (a new key) instead of overwriting `m["diluted_eps"]` (`scripts/data_adapter.py:868-869`). This preserves thaifin EPS for streak / CAGR calculations. Document this so callers don't reach for `eps_setsmart` thinking it's the official EPS.
