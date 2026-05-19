@@ -20,6 +20,15 @@ Public API:
 
 from __future__ import annotations
 
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+CACHE_DIR = ROOT / 'data' / 'set_dividend_cache'
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+BASE_URL = 'https://www.set.or.th/api/set/stock'
+CACHE_TTL_DAYS = 7
+REQUEST_DELAY_SEC = 1.5
+
 
 def fetch_dividends(symbol: str) -> list[dict]:
     """Fetch raw Cash Dividend events for symbol from set.or.th API.
