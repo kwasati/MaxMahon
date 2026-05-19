@@ -22,12 +22,75 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from playwright.sync_api import BrowserContext, sync_playwright
+
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / 'data' / 'set_dividend_cache'
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 BASE_URL = 'https://www.set.or.th/api/set/stock'
 CACHE_TTL_DAYS = 7
 REQUEST_DELAY_SEC = 1.5
+
+# Module-level singletons — reused across calls so the Cloudflare cookie
+# bootstrap (page.goto) happens only once per process.
+_playwright = None
+_browser = None
+_context: BrowserContext | None = None
+
+
+def _get_browser_context() -> BrowserContext:
+    """Lazy-init Playwright Chromium + bootstrap Cloudflare cookies.
+
+    On first call: start Playwright, launch headless Chromium, create a
+    context with a desktop UA, then visit https://www.set.or.th/en/market
+    once so Cloudflare drops its clearance cookies into the context. The
+    same context is reused for every subsequent API call (its cookie jar
+    is shared with APIRequestContext via ctx.request).
+    """
+    global _playwright, _browser, _context
+    if _context is not None:
+        return _context
+    _playwright = sync_playwright().start()
+    _browser = _playwright.chromium.launch(headless=True)
+    _context = _browser.new_context(
+        user_agent=(
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/120.0.0.0 Safari/537.36'
+        ),
+    )
+    page = _context.new_page()
+    page.goto(
+        'https://www.set.or.th/en/market',
+        wait_until='domcontentloaded',
+        timeout=30000,
+    )
+    page.wait_for_timeout(2000)
+    page.close()
+    return _context
+
+
+def _close_browser() -> None:
+    """Tear down Playwright resources. Safe to call multiple times."""
+    global _playwright, _browser, _context
+    if _context is not None:
+        try:
+            _context.close()
+        except Exception:
+            pass
+        _context = None
+    if _browser is not None:
+        try:
+            _browser.close()
+        except Exception:
+            pass
+        _browser = None
+    if _playwright is not None:
+        try:
+            _playwright.stop()
+        except Exception:
+            pass
+        _playwright = None
 
 
 def fetch_dividends(symbol: str) -> list[dict]:
