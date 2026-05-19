@@ -21,6 +21,9 @@ Public API:
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from playwright.sync_api import BrowserContext, sync_playwright
@@ -152,6 +155,51 @@ def fetch_dividends(symbol: str) -> list[dict]:
     return events
 
 
+def _read_cache(cache_path: Path, max_age_days: int) -> list[dict] | None:
+    """Return cached events if file exists, parses OK, and is fresh."""
+    if not cache_path.exists():
+        return None
+    try:
+        with cache_path.open('r', encoding='utf-8') as f:
+            payload = json.load(f)
+        fetched_at_raw = payload['fetched_at']
+        events = payload['events']
+        if not isinstance(events, list):
+            return None
+        fetched_at = datetime.fromisoformat(fetched_at_raw)
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - fetched_at
+        if age.total_seconds() >= max_age_days * 86400:
+            return None
+        return events
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _write_cache_atomic(cache_path: Path, symbol: str, events: list[dict]) -> None:
+    """Write cache JSON atomically (temp file in same dir + os.replace)."""
+    payload = {
+        'symbol': symbol,
+        'fetched_at': datetime.now(timezone.utc).isoformat(),
+        'events': events,
+    }
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f'.{symbol}.', suffix='.json.tmp', dir=str(cache_path.parent)
+    )
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, cache_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def cached_dividends(symbol: str, max_age_days: int = 7) -> list[dict]:
     """Cache-aware dividend events read.
 
@@ -159,7 +207,13 @@ def cached_dividends(symbol: str, max_age_days: int = 7) -> list[dict]:
     returns cached events. Otherwise calls fetch_dividends() and writes cache
     atomically (temp file + os.replace). Corrupt/missing keys -> re-fetch.
     """
-    raise NotImplementedError
+    cache_path = CACHE_DIR / f'{symbol}.json'
+    cached = _read_cache(cache_path, max_age_days)
+    if cached is not None:
+        return cached
+    events = fetch_dividends(symbol)
+    _write_cache_atomic(cache_path, symbol, events)
+    return events
 
 
 def dps_by_fiscal_year(symbol: str) -> dict[int, float]:
