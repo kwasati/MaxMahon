@@ -1189,6 +1189,22 @@ def apply_schedule(config: dict):
     )
     logging.info("[scheduler] daily_price_refresh scheduled: 19:00 Asia/Bangkok")
 
+    # Weekly dividend refresh — Sunday 06:00 Asia/Bangkok (3hr before weekly scan).
+    try:
+        scheduler.remove_job("weekly_dividend_refresh")
+    except Exception:
+        pass
+    scheduler.add_job(
+        scheduled_dividend_refresh_job,
+        "cron",
+        id="weekly_dividend_refresh",
+        day_of_week="sun",
+        hour=6,
+        minute=0,
+        timezone="Asia/Bangkok",
+    )
+    logging.info("[scheduler] weekly_dividend_refresh scheduled: sun 06:00 Asia/Bangkok")
+
 
 @app.on_event("startup")
 async def on_startup():
