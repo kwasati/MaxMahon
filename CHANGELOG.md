@@ -1,5 +1,56 @@
 # Max Mahon Changelog
 
+## v6.6.0 — 2026-05-19 · set.or.th Dividend Source — Replace Yahoo (split-adjust fix)
+
+**ปัญหา: Yahoo dividend_history split-adjusts ย้อนหลังให้ DPS pre-split เป็น 50% ของจริง — HTC ที่มี stock split ปี 2023-2024 → DPS 2018-2023 ที่ yahoo report = ครึ่งหนึ่งของจริง → Niwes "ปันผลเพิ่มทุกปี" check ผิด, 5y avg yield ผิด.**
+
+### Root cause
+
+Yahoo Finance ปรับ DPS retroactively หลัง stock split เพื่อ keep total return continuous — ถูกต้องสำหรับ TR/CAGR calculation แต่ผิดสำหรับ Niwes "ปันผลเพิ่มทุกปี" ที่ดู nominal DPS per period ตามจริง. SETSMART subscription ปัจจุบัน (Company Fundamental Data 4 endpoints) ไม่มี dividend endpoint ขายแยก แต่ **set.or.th public API** มี free.
+
+### Fix
+
+ใช้ **set.or.th public JSON API** (`https://www.set.or.th/api/set/stock/{SYM}/corporate-action?lang=en`) แทน yahoo เป็น primary source ของ DPS history:
+
+- **New adapter:** `scripts/set_official_adapter.py` — Playwright Cloudflare cookie bootstrap (ครั้งแรก visit set.or.th page) → APIRequestContext reuse cookies + Referer header → fetch dividend events พร้อม `beginOperation`/`endOperation` (fiscal year period) ตรงๆ
+- **Cache:** `data/set_dividend_cache/{SYM}.json` (gitignored), TTL 7 วัน, atomic write
+- **FY attribution:** ใช้ `endOperation.year` ตรงๆ เมื่อ field มี — fallback heuristic Jan-Jun→prev FY / Jul-Dec→curr FY เมื่อ null (case Retained Earnings dividends ของแบงก์/big corp)
+- **Integration:** `data_adapter.py:fetch_fundamentals()` ใช้ set.or.th primary → yahoo fallback (tag `DPS_SOURCE_YAHOO` ใน warnings ถ้า fallback)
+
+### Cron job ใหม่
+
+`weekly_dividend_refresh` — APScheduler cron Sun 06:00 Asia/Bangkok (3 ชม. ก่อน weekly scan 09:00) — loop universe 933 ตัว เรียก `cached_dividends()` + sleep 1.5s/sym → first run ~30-40 นาที, subsequent ใช้ cache 7 วัน
+
+### Verify
+
+`scripts/_verify_dps_set_fix.py` — เทียบ FY DPS กับ SETSMART ground truth:
+- **HTC** FY 2022-2025 = 1.52/1.52/1.05/0.99 → PASS 4/4 (ตรง SETSMART screenshot 100%)
+- **BBL** FY 2020-2025 = 2.5/3.5/4.5/7.0/8.5/10.0 (ก่อน fix endOperation hotfix = 0 events เพราะ Retained Earnings null period)
+- **KBANK** FY 2020-2025 = 2.5/3.25/4.0/6.5/12.0/14.0
+- **PTT** FY 2020-2025 = 0.82/2.0/2.0/2.0/2.1/2.3
+- **AMATA** FY 2020-2025 = 0.20/0.40/0.60/0.65/0.80/1.10 (Retained Earnings interim ถูกนับด้วย — เพิ่มจาก 7 events เป็น 11)
+
+### Coverage limit
+
+set.or.th API จำกัด ~11 events ต่อ symbol = **~5-6 ปี ย้อนหลัง** (ทดสอบ 9 query params ไม่ bypass ได้). พอสำหรับ Niwes 3-5 ปี window + 5y CAGR projection. **ไม่พอ** สำหรับ 20+ year elite streak — ใช้ `thaifin.yearly_dataframe.dividend_yield > 0` count streak แทน
+
+### Reference doc
+
+`docs/data-sources-guide.md` (502 บรรทัด) — comprehensive guide field-by-field source map (38 top-level fields + 39 yearly_metrics fields), priority chain, fallback behavior, cache strategy, 11 surprises uncovered during audit
+
+### Breaking? ไม่
+
+- Yahoo retained as fallback (auto-trigger ถ้า set.or.th fail)
+- ค่า DPS หลัง FY 2024 ตรงกันทั้ง 2 source (split ปี 2023-2024 ของ HTC = ทุก event หลังนั้นไม่ adjusted)
+- ตัวเลข pre-2024 จะเปลี่ยน (จริงขึ้น) — กระทบ Niwes ranking + 5y avg yield
+
+### Pending (BACKLOG)
+
+- (#0) Snapshot DPS ใน `data_adapter.py:904,923` ยังอ่าน yahoo `dps_by_fiscal_year` แม้ `dividend_history` build จาก set.or.th — 5y avg yield สำหรับหุ้นที่มี split ยังผิด ต้อง patch ก่อน re-run weekly scan
+- 10 surprises อื่นๆ จาก audit (dead code / naming collision / unused exports) — ดู `docs/data-sources-guide.md` section "Surprises"
+
+---
+
 ## v6.5.1 — 2026-05-08 · Daily Price Refresh — SETSMART Primary
 
 **Hotfix: ราคาที่ refresh ทุกวัน 19:00 (และตอนกด trigger เอง) ดึงไม่ครบ — บางตัวค้าง 1-7 วัน เพราะ yahoo rate-limit/flake แล้ว code เดิม `continue` เงียบๆ → cache เก่าไม่ถูกเขียนทับ → UI แสดงราคาเก่า**
