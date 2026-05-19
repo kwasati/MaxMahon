@@ -1012,6 +1012,8 @@ def fetch_fundamentals(symbol: str) -> dict:
         "yearly_metrics": yearly_metrics,
         "dividend_history": dividend_history,
         "fy_is_complete": yf_fy_complete,
+        "dividend_source": dividend_source,
+        "warnings": (['DPS_SOURCE_YAHOO'] if _dps_fallback_to_yahoo else []),
     }
 
 
