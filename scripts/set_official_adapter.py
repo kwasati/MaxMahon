@@ -9,8 +9,10 @@ Cloudflare blocks direct requests (403). Workaround: Playwright Chromium headles
 visits any set.or.th page first to obtain Cloudflare cookies, then uses
 APIRequestContext (cookies + headers persisted) for subsequent API calls.
 
-Returns DPS events with explicit fiscal-year period (beginOperation, endOperation)
-so callers can group by FY without heuristics. Cache local JSON, 7-day TTL.
+Returns DPS events with fiscal-year period — uses SET's explicit
+beginOperation/endOperation when available (Net Profit dividends), falls back
+to xdate-based heuristic when null (Retained Earnings dividends from banks +
+interim payouts). Cache local JSON, 7-day TTL.
 
 Public API:
     fetch_dividends(symbol)        -> list[dict]   raw events from set.or.th
@@ -101,9 +103,19 @@ def fetch_dividends(symbol: str) -> list[dict]:
     """Fetch raw Cash Dividend events for symbol from set.or.th API.
 
     Returns list of {xdate, payment_date, begin_operation, end_operation, dps,
-    dividend_type, source_of_dividend}. Filters caType=='XD' AND
-    dividendType=='Cash Dividend'. Skips events with null endOperation.
-    Raises RuntimeError on non-200 status.
+    dividend_type, source_of_dividend, period_inferred}. Filters caType=='XD'
+    AND dividendType=='Cash Dividend'.
+
+    When `endOperation` is null (common for Retained Earnings dividends from
+    banks + interim payouts), infers fiscal year from xdate using the same
+    heuristic as data_adapter._attribute_dividends_to_fiscal_years:
+        xdate Jan-Jun -> final of previous FY (end_op = Dec 31 of prev year)
+        xdate Jul-Dec -> interim of current FY (end_op = Dec 31 of curr year)
+    Sets `period_inferred=True` when this fallback is used; False when SET's
+    explicit endOperation is available.
+
+    Skips events with no usable xdate AND no endOperation. Raises RuntimeError
+    on non-200 status.
     """
     ctx = _get_browser_context()
     url = f'{BASE_URL}/{symbol}/corporate-action?lang=en'
@@ -140,14 +152,30 @@ def fetch_dividends(symbol: str) -> list[dict]:
             continue
         if ev.get('dividendType') != 'Cash Dividend':
             continue
-        end_op = ev.get('endOperation')
-        if not end_op:
-            continue
+        end_op_raw = ev.get('endOperation')
+        xdate_raw = (ev.get('xdate') or '')[:10]
+        period_inferred = False
+        if end_op_raw:
+            end_op = end_op_raw[:10]
+        else:
+            # Retained Earnings / interim payouts have null endOperation —
+            # fall back to xdate-based fiscal year heuristic.
+            if not xdate_raw or len(xdate_raw) < 7:
+                continue
+            try:
+                xdate_year = int(xdate_raw[:4])
+                xdate_month = int(xdate_raw[5:7])
+            except (ValueError, TypeError):
+                continue
+            fy_year = xdate_year - 1 if xdate_month <= 6 else xdate_year
+            end_op = f'{fy_year}-12-31'
+            period_inferred = True
         events.append({
-            'xdate': (ev.get('xdate') or '')[:10],
+            'xdate': xdate_raw,
             'payment_date': (ev.get('paymentDate') or '')[:10],
             'begin_operation': (ev.get('beginOperation') or '')[:10],
-            'end_operation': end_op[:10],
+            'end_operation': end_op,
+            'period_inferred': period_inferred,
             'dps': float(ev.get('dividend') or 0),
             'dividend_type': ev.get('dividendType'),
             'source_of_dividend': ev.get('sourceOfDividend'),
