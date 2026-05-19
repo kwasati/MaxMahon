@@ -797,8 +797,24 @@ def fetch_fundamentals(symbol: str) -> dict:
         yf_oi_by_year = yf_supp.get("operating_income_by_year", {})
         yf_ie_by_year = yf_supp.get("interest_expense_by_year", {})
 
-        # Build dividend_history from Yahoo DPS attributed to fiscal year (SET DIY methodology)
-        dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
+        # Build dividend_history — set.or.th primary, yahoo fallback
+        sym_clean = symbol.replace('.BK', '').upper()
+        dividend_source = 'unknown'
+        _dps_fallback_to_yahoo = False
+        try:
+            if not _SET_OFFICIAL_AVAILABLE:
+                raise RuntimeError('set_official_adapter import failed at module load')
+            set_fy_dps = _set_dps_by_fy(sym_clean)
+            if set_fy_dps:
+                dividend_history = {y: round(dps, 4) for y, dps in set_fy_dps.items()}
+                dividend_source = 'set_official'
+            else:
+                raise ValueError('set.or.th returned empty')
+        except Exception as e:
+            logger.warning(f'set.or.th DPS fetch failed for {symbol}: {e}; falling back to yahoo')
+            dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
+            dividend_source = 'yahoo'
+            _dps_fallback_to_yahoo = True
 
         # Patch yearly_metrics with capex, operating_income, interest data from Yahoo
         for m in yearly_metrics:
