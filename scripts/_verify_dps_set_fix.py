@@ -21,7 +21,7 @@ from set_official_adapter import dps_by_fiscal_year  # noqa: E402
 
 
 GROUND_TRUTH: dict[str, dict[int, float]] = {
-    'HTC':   {},  # pending manual verify from setsmart.com
+    'HTC':   {2022: 1.52, 2023: 1.52, 2024: 1.05, 2025: 0.99},  # from SETSMART screenshot 2026-05-19
     'BBL':   {},  # pending manual verify from setsmart.com
     'ILM':   {},  # pending manual verify from setsmart.com
     'KBANK': {},  # pending manual verify from setsmart.com
