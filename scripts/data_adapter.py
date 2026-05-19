@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# set.or.th official dividend adapter (Phase 2 — set.or.th primary, yahoo fallback).
+# Playwright may not be installed in some envs → log warning + fallback to yahoo.
+try:
+    from set_official_adapter import dps_by_fiscal_year as _set_dps_by_fy
+    _SET_OFFICIAL_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"set_official_adapter not available (Playwright?): {e}; will use yahoo for DPS")
+    _SET_OFFICIAL_AVAILABLE = False
+
 
 # Cache for holding mcap lookups (symbol → int | None). Per-process memoization.
 _HOLDING_MCAP_CACHE: dict[str, "int | None"] = {}
@@ -788,8 +797,24 @@ def fetch_fundamentals(symbol: str) -> dict:
         yf_oi_by_year = yf_supp.get("operating_income_by_year", {})
         yf_ie_by_year = yf_supp.get("interest_expense_by_year", {})
 
-        # Build dividend_history from Yahoo DPS attributed to fiscal year (SET DIY methodology)
-        dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
+        # Build dividend_history — set.or.th primary, yahoo fallback
+        sym_clean = symbol.replace('.BK', '').upper()
+        dividend_source = 'unknown'
+        _dps_fallback_to_yahoo = False
+        try:
+            if not _SET_OFFICIAL_AVAILABLE:
+                raise RuntimeError('set_official_adapter import failed at module load')
+            set_fy_dps = _set_dps_by_fy(sym_clean)
+            if set_fy_dps:
+                dividend_history = {y: round(dps, 4) for y, dps in set_fy_dps.items()}
+                dividend_source = 'set_official'
+            else:
+                raise ValueError('set.or.th returned empty')
+        except Exception as e:
+            logger.warning(f'set.or.th DPS fetch failed for {symbol}: {e}; falling back to yahoo')
+            dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
+            dividend_source = 'yahoo'
+            _dps_fallback_to_yahoo = True
 
         # Patch yearly_metrics with capex, operating_income, interest data from Yahoo
         for m in yearly_metrics:
@@ -987,6 +1012,8 @@ def fetch_fundamentals(symbol: str) -> dict:
         "yearly_metrics": yearly_metrics,
         "dividend_history": dividend_history,
         "fy_is_complete": yf_fy_complete,
+        "dividend_source": dividend_source,
+        "warnings": (['DPS_SOURCE_YAHOO'] if _dps_fallback_to_yahoo else []),
     }
 
 
