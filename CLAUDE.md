@@ -17,48 +17,67 @@
 - **Reference files:** `data/case_study_patterns.json` (8 patterns: RETAIL_DEFENSIVE_MOAT/BANK_VALUE_PBV1/HOLDING_CO_HIDDEN/VIETNAM_GROWTH_EXPOSURE[disabled]/ENERGY_CYCLICAL_EXIT + UTILITY_DEFENSIVE/HOSPITAL_AGING/F&B_CONSUMER_BRAND), `data/exit_baselines.json`, `data/history.json` (v2 schema: top_candidates/watchlist_status/entry_thesis/dividend_paid_since_entry/price_snapshot), `user_data.json` (`transactions[]` portfolio tracking)
 - **Alerting:** Telegram high-severity exit alerts via `scripts/telegram_alert.py` (uses `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` from root `.env`)
 - **Server:** FastAPI on port 50089, Cloudflare Tunnel → max.intensivetrader.com
-- **Schedule:** APScheduler ใน server — **2 cron jobs**: (1) อาทิตย์ 09:00 Asia/Bangkok → weekly scan 933 หุ้น, (2) ทุกวัน 19:00 Asia/Bangkok → daily price refresh (watchlist + PASS candidates → `data/price_cache/{sym}.json`)
+- **Schedule:** APScheduler ใน server — **3 cron jobs**: (1) อาทิตย์ 09:00 Asia/Bangkok → weekly scan 933 หุ้น, (2) ทุกวัน 19:00 Asia/Bangkok → daily price refresh (watchlist + PASS candidates → `data/price_cache/{sym}.json`), (3) อาทิตย์ 06:00 Asia/Bangkok → weekly dividend refresh (`set.or.th` DPS cache for full universe, 3hr before weekly scan)
 - **Philosophy:** Dr.Niwes Way: VI ฉบับ ดร.นิเวศน์ — Dividend-First + Hidden Value + 5-5-5-5
 - **Goal:** คัดหุ้นสำหรับ DCA 10-20 ปี ปันผลคือผลตอบแทนหลัก + safety จาก PE/PBV ต่ำ + hidden value
 
 ### Data Sources
-- **Layer 0 (after Plan 02 merge):** SETSMART API — primary source ของ aggregate snapshot (yield, P/E, P/BV, market cap, ROE, ROA, EPS, ratios). 4 endpoints: `eod-price-by-symbol`, `eod-price-by-security-type` (bulk all-CS, ~933 rows/day), `financial-data-and-ratio-by-symbol`, `financial-data-and-ratio` (bulk all-companies). Cache: `data/setsmart_cache/eod_{date}.json` + `financial_{year}_q{N}.json` + `eod_by_symbol_{SYM}_{start}_{end}.json` — refresh ทุกวัน 19:00 ผ่าน daily_price_refresh. **Package coverage:** smoke test BBL พบ history ≥ 2022 (~3 ปี) — thaifin ยังจำเป็นสำหรับ history ก่อน 2022. **Adapter:** `scripts/setsmart_adapter.py`
-- **Layer 0.5 (DPS history):** set.or.th public JSON API — `https://www.set.or.th/api/set/stock/{SYM}/corporate-action?lang=en` via Playwright Cloudflare bootstrap. Returns dividend events with `beginOperation`/`endOperation` (fiscal year period) directly — no heuristic needed. Replaces yahoo as primary DPS source (yahoo split-adjusts retroactively, producing wrong historical DPS for stocks with stock split/dividend history). Cache: `data/set_dividend_cache/{SYMBOL}.json`, TTL 7 days, refreshed by `weekly_dividend_refresh` cron (Sun 06:00 Asia/Bangkok). Adapter: `scripts/set_official_adapter.py`. **Yahoo retained as fallback** — if set.or.th fails (Cloudflare block, missing data, etc.), falls back to yahoo + warning tag `DPS_SOURCE_YAHOO`.
-- **Layer 1 (history):** thaifin — 10-16 ปี financial statements + ratios (ใช้สำหรับ history beyond SETSMART package)
-- **Layer 2 (supplement):** yahooquery — realtime price (fallback), 52w range, forward PE, market cap (fallback), **DPS fallback** (เมื่อ set.or.th fail), capex, interest_expense
-- **DPS = Source of Truth** — ปันผลต่อหุ้นใช้จาก set.or.th corporate-action API โดยตรง (event-by-event ตาม fiscal year, ไม่ split-adjust), yahoo เป็น fallback เมื่อ set.or.th fail (warning tag `DPS_SOURCE_YAHOO`). yield% override จาก SETSMART (ถ้ามี cache) ไม่งั้น compute จาก DPS/price
-- **FCF = OCF - capex** — ไม่ใช้ total investing activities
-- **Universe:** 933 stocks (SET 704 + mai 229) via thaifin
+
+**Detailed reference:** `docs/data-sources-guide.md` — field-by-field source map, fallback chains, cache strategy, refresh cron, audit surprises. Read this before adding/changing any data flow.
+
+**4-layer overview:**
+- **Layer 0 — SETSMART API** (paid subscription) — primary realtime aggregate (price, P/E, P/BV, market cap, dividend yield) + 5y quarterly financials (ROE/ROA/D-E/EPS overrides). 4 endpoints, no dividend-detail. Adapter: `scripts/setsmart_adapter.py`
+- **Layer 0.5 — set.or.th** public JSON via Playwright Cloudflare bootstrap — PRIMARY for DPS event history (~6y, exact FY values, no split-adjust). Adapter: `scripts/set_official_adapter.py`
+- **Layer 1 — thaifin** (open-source pip) — 10-16y yearly financial history. Single source of truth for `yearly_metrics` base; if thaifin fails = stock delisted (no fallback).
+- **Layer 2 — yahooquery** (open-source pip) — supplement only: 52w range, capex per year, interest expense per year, operating income per year, DPS fallback (tags `DPS_SOURCE_YAHOO` in warnings when used)
+
+**Priority chain (per `fetch_fundamentals` call):**
+1. SETSMART cache → snapshot override for **price / PE / PBV / mcap**. SETSMART `dividendYield` is fallback only — computed `dps_current / price * 100` (with yahoo DPS) wins when available.
+2. thaifin REQUIRED → yearly_metrics base + delisted check
+3. yahoo patches yearly_metrics → capex, operating_income, interest_expense, FCF recomputed = OCF - abs(capex). Yahoo also produces the `dps_by_fiscal_year` series consumed by snapshot DPS/yield/5y-avg-yield (lines 904, 923) regardless of `dividend_source`.
+4. SETSMART financial_yearly overrides → ROE / ROA / D-E + adds `eps_setsmart` (does NOT overwrite `diluted_eps`) for years in 5y range
+5. set.or.th `dps_by_fiscal_year` → `dividend_history` only; yahoo `dps_by_fiscal_year` fallback + tag if set.or.th empty/fails
+
+**FCF convention:** `FCF = OCF - abs(capex)` (yahoo `CapitalExpenditure`) — not `OCF + investing_activities`. Falls back to thaifin's `ocf + investing` if yahoo capex absent.
+
+**Universe:** 933 stocks (SET 704 + mai 229) via thaifin.
 
 ### Data Source Invariants
 
-**Rule 0 — SETSMART precedence (after Plan 02 merge):**
-- SETSMART = primary สำหรับ realtime aggregate (yield, P/E, P/BV, market cap, EPS, ROE, ROA, D/E) — override snapshot fields ใน fetch_fundamentals + `/api/stock/{sym}` ถ้ามี cache
-- set.or.th = primary สำหรับ DPS event history (Layer 0.5 — `scripts/set_official_adapter.py` via Playwright)
-- thaifin = fallback / history beyond SETSMART package (~3 ปี coverage จาก smoke test)
-- yahooquery = DPS fallback (เมื่อ set.or.th fail, tag `DPS_SOURCE_YAHOO`) + 52w range + capex + interest_expense
+> Full field-by-field map + surprises live in `docs/data-sources-guide.md`. The rules below are the short invariants — keep editing them in sync with the guide.
+
+**Rule 0 — SETSMART precedence:**
+- SETSMART = primary for realtime aggregate snapshot — **price, P/E, P/BV, market cap** (lines 878-881). For `dividend_yield`, SETSMART EOD `dividendYield` is only a **secondary fallback**; primary is computed `dps_current / price * 100` where `dps_current` = yahoo `dps_by_fiscal_year[latest_complete_fy]` (data_adapter.py:903-913).
+- SETSMART also overrides 5y yearly ROE/ROA/D-E in `yearly_metrics` (sets `m["roe"]`, `m["roa"]`, `m["de_ratio"]` where year matches; adds `m["eps_setsmart"]` as new key — does NOT overwrite `diluted_eps`)
+- set.or.th = primary for `dividend_history` FY event totals (Layer 0.5, Playwright-bootstrapped)
+- **NOTE — known inconsistency:** `dividend_history` is built from set.or.th, but `dps_current`/`dividend_rate`/`five_year_avg_yield`/computed `dividend_yield` all read from **yahoo's** `dps_by_fiscal_year` regardless of `dividend_source` (lines 904, 923). When `DPS_SOURCE_YAHOO` is tagged the two are consistent; otherwise the snapshot DPS does NOT match `dividend_history`. See `docs/data-sources-guide.md` Surprises section.
+- thaifin = required yearly base + historical coverage beyond SETSMART's ~3y EOD / 5y financial range
+- yahooquery = DPS fallback for `dividend_history` (tag `DPS_SOURCE_YAHOO`) + 52w range + capex / OI / IE per year + the FY-attributed DPS series consumed by snapshot fields above
 
 **Rule 1 — Historical/yearly data:**
-- ใช้ **thaifin เท่านั้น** สำหรับ field ที่เป็นต่อปี (close, dividend_yield, mkt_cap, bvps, payout_ratio, pe_ratio, pb_ratio, roe, net_margin, revenue, earnings, etc.)
-- thaifin เป็น single source of truth ไม่มี fallback — ถ้า thaifin fail = stock delisted.
+- thaifin = single source of truth for yearly_metrics base. No fallback — thaifin fail = stock delisted (`fetch_fundamentals` returns None).
+- thaifin yearly columns owned: revenue, gross_profit, net_profit, EPS, equity, total_debt, assets, OCF, investing, financing, close, dividend_yield, mkt_cap, bvps, ROE, ROA, GPM, NPM, D/E, cash, YoY growth rates, EV/EBITDA, cash_cycle, da
 
-**Rule 2 — yahooquery ใช้ได้เฉพาะ:**
-- Realtime price (current close)
-- 52-week range + 50d/200d moving average
-- Raw dividends history (DPS events timestamp + amount — **fallback only** เมื่อ set.or.th fail; set.or.th = primary source of truth สำหรับ DPS)
-- Capex + Operating Income + Interest Expense per year (thaifin ไม่แยกจาก investing_activities / gross-sga)
-- DCA simulator granular monthly price (backtest — ผ่าน `/api/stock/{sym}/price-history?granularity=monthly`)
+**Rule 2 — yahooquery used ONLY for:**
+- Realtime price (fallback when SETSMART cold)
+- 52-week range + 50d/200d moving average (only source)
+- DPS history fallback (when set.or.th fails)
+- Capex per year (thaifin lumps into `investing_activities`)
+- Operating Income per year (thaifin only derives `gross_profit - sga`)
+- Interest Expense per year (thaifin doesn't break out)
+- Current ratio (not in thaifin)
+- DCA simulator monthly history (only source for granular intra-year)
 
-**Rule 3 — ก่อนเพิ่ม field ใหม่ใน yearly_metrics:**
-- Cross-check `_fetch_thaifin` column list ก่อนเสมอ (data_adapter.py บรรทัด 107-146 reads)
-- ถ้า thaifin มี column นั้น → expose ตรงๆ ใน yearly_metrics dict (build at line 176-203) ห้ามเรียก yahooquery
-- ถ้า thaifin ไม่มี → document reason ใน code comment (เช่น `interest_expense` ไม่มีใน thaifin → yahooquery supplement)
+**Rule 3 — Before adding a new field to yearly_metrics:**
+- Cross-check `_fetch_thaifin` column list first (`scripts/data_adapter.py:145-271`)
+- If thaifin has the column → expose directly, do NOT call yahooquery
+- If thaifin doesn't have it → document reason in code comment + add patch step in `fetch_fundamentals` like the capex/OI/IE pattern (`scripts/data_adapter.py:819-846`)
 
-**ตัวอย่าง:**
-- ❌ เรียก `yahooquery.Ticker(sym).history(period='10y', interval='1mo')` เพื่อ compute `price_avg` — thaifin มี `close` per year อยู่แล้ว
-- ❌ เรียก `yahooquery.Ticker(sym).price[sym]['marketCap']` เพื่อ historical mcap — thaifin มี `mkt_cap` per year
-- ✅ เรียก `yahooquery.Ticker(sym).history(period='10y', interval='1mo')` เฉพาะ DCA simulator endpoint
-- ✅ เรียก `yahooquery.Ticker(sym).summary_detail[sym]['fiftyTwoWeekHigh']` เพราะ thaifin ไม่มี 52w range
+**Examples:**
+- BAD: call `yahooquery.Ticker(sym).history(period='10y', interval='1mo')` to compute `price_avg` — thaifin already has yearly `close`
+- BAD: call `yahooquery.Ticker(sym).price[sym]['marketCap']` for historical mcap — thaifin has `mkt_cap` per year
+- OK: call `yahooquery.Ticker(sym).history(period='10y', interval='1mo')` only for DCA simulator endpoint
+- OK: call `yahooquery.Ticker(sym).summary_detail[sym]['fiftyTwoWeekHigh']` — thaifin doesn't have 52w range
 
 ### Auth + User System
 - **Provider:** Supabase Hub (`zmscqylztzvzeyxwamzp`) Google OAuth — ES256-signed JWT
