@@ -222,4 +222,30 @@ def dps_by_fiscal_year(symbol: str) -> dict[int, float]:
     Returns {FY: total_dps_rounded_4} like {2022: 1.52, 2023: 1.52, ...}.
     Events whose end_operation year cannot be parsed to int are skipped.
     """
-    raise NotImplementedError
+    events = cached_dividends(symbol)
+    totals: dict[int, float] = {}
+    for ev in events:
+        end_op = ev.get('end_operation') or ''
+        try:
+            fy = int(end_op[:4])
+        except (ValueError, TypeError):
+            continue
+        totals[fy] = totals.get(fy, 0.0) + float(ev.get('dps') or 0)
+    return {fy: round(v, 4) for fy, v in totals.items()}
+
+
+if __name__ == '__main__':
+    try:
+        print('=== set_official_adapter smoke test: HTC ===')
+        events = cached_dividends('HTC')
+        print(f'events count: {len(events)}')
+        for ev in events:
+            print(
+                f"  xdate={ev['xdate']}  dps={ev['dps']:>6}  "
+                f"end_operation={ev['end_operation']}"
+            )
+        print()
+        fy_dps = dps_by_fiscal_year('HTC')
+        print(f'dps_by_fiscal_year(HTC) = {fy_dps}')
+    finally:
+        _close_browser()
