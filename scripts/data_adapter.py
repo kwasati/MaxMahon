@@ -1143,3 +1143,35 @@ if __name__ == '__main__':
     assert r2['is_complete'][2025] is True, "METCO FY2025 should be complete (annual-pay, 1 event = full year)"
 
     print('FY attribution OK')
+
+    # Smoke test: snapshot DPS source-aware fix (2026-05-20)
+    # Runs real fetch — verifies snapshot dps matches dividend_history[latest_complete_fy]
+    import json
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    for sym in ('HTC.BK', 'BBL.BK'):
+        print(f'\n=== smoke test: {sym} ===')
+        data = fetch_fundamentals(sym)
+        if data is None:
+            print(f'  fetch_fundamentals returned None (delisted or fetch failure)')
+            continue
+        if 'error' in data:
+            print(f'  error: {data["error"]}')
+            continue
+        snapshot = {
+            'dps': data.get('dps'),
+            'dividend_rate': data.get('dividend_rate'),
+            'dividend_yield': data.get('dividend_yield'),
+            'five_year_avg_yield': data.get('five_year_avg_yield'),
+            'payout_ratio': data.get('payout_ratio'),
+        }
+        print(f'  dividend_source: {data.get("dividend_source")}')
+        print(f'  dividend_history: {json.dumps(data.get("dividend_history", {}), sort_keys=True)}')
+        print(f'  snapshot (5 fields): {json.dumps(snapshot, indent=2, default=str)}')
+        # Sanity: dps should match dividend_history[latest_complete_fy]
+        fy_complete = data.get('fy_is_complete', {})
+        complete_fys = sorted([int(y) for y, ok in fy_complete.items() if ok])
+        if complete_fys:
+            latest_fy = complete_fys[-1]
+            div_hist = data.get('dividend_history', {})
+            hist_dps = div_hist.get(latest_fy) or div_hist.get(str(latest_fy))
+            print(f'  cross-check: dps={snapshot["dps"]} vs dividend_history[{latest_fy}]={hist_dps} → {"MATCH" if snapshot["dps"] == hist_dps else "MISMATCH"}')
