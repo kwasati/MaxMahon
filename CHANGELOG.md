@@ -1,5 +1,50 @@
 # Max Mahon Changelog
 
+## v6.6.1 — 2026-05-20 · Snapshot DPS Source-Aware Fix
+
+**ปัญหา (สืบเนื่องจาก v6.6.0): หลังเปลี่ยน dividend_history มาใช้ set.or.th แล้ว แต่ snapshot fields (dps, dividend_rate, dividend_yield, five_year_avg_yield) ยังอ่านจาก `yf_dps_by_fy` (yahoo split-adjusted) ตรงๆ — snapshot ไม่ตรงกับ history สำหรับหุ้นที่มี split (HTC/BBL/KBANK/AMATA).**
+
+### Fix
+
+- `data_adapter.py:899-930` snapshot DPS block — เปลี่ยนให้อ่านจาก `dividend_history` dict (source-resolved แล้วใน lines 800-817) แทน `yf_dps_by_fy` ที่ yahoo ผูกไว้ตรงๆ
+- `yf_fy_complete` ยังคงเป็น timing gate ของ `latest_complete_fy` (set.or.th ไม่มี completeness dict)
+- เพิ่ม `snapshot_dps_source` variable + logger info เพื่อ trace source ที่ snapshot ใช้ตอน fetch แต่ละครั้ง
+
+### Implicit cascade (โบนัส)
+
+`payout_ratio` (lines 932-942) คำนวณจาก `dps_current / yearly_eps` — เมื่อ `dps_current` เปลี่ยน source, payout ตามไปด้วยอัตโนมัติ → tag `QUALITY_DIVIDEND` (payout < 70%) recomputes ตามค่าจริง
+
+### Verify (smoke test ใหม่ใน `__main__`)
+
+```
+HTC.BK: dps=0.99 vs dividend_history[2025]=0.99 -> MATCH
+  dividend_source: set_official
+  dividend_history: {2020: 1.12, 2021: 1.79, 2022: 1.52, 2023: 1.52, 2024: 1.05, 2025: 0.99}
+  payout_ratio: 0.6991
+
+BBL.BK: dps=10.0 vs dividend_history[2025]=10.0 -> MATCH
+  dividend_source: set_official
+  dividend_history: {2020: 2.5, 2021: 3.5, 2022: 4.5, 2023: 7.0, 2024: 8.5, 2025: 10.0}
+  payout_ratio: 0.4151
+```
+
+### Doc sync
+
+- `CLAUDE.md` Rule 0 — ลบ "known inconsistency" note + reflect source-resolved snapshot
+- `docs/data-sources-guide.md` Surprises #0 — mark `[FIXED 2026-05-20]` + cascade note
+
+### Breaking? ไม่
+
+- Schema return เดิม — field names + types ไม่เปลี่ยน
+- Value เปลี่ยนสำหรับ split stocks เท่านั้น — HTC/BBL/KBANK/AMATA snapshot DPS จาก yahoo (split-adjusted) → set.or.th (ของจริง). กระทบ Niwes ranking → ต้อง re-rank 55 ตัว (แยก BACKLOG)
+- ตัว non-split = ค่าเดิม
+
+### Plan
+
+`.claude/plans/4-MaxMahon/_archive/snapshot-dps-source-aware.md`
+
+---
+
 ## v6.6.0 — 2026-05-19 · set.or.th Dividend Source — Replace Yahoo (split-adjust fix)
 
 **ปัญหา: Yahoo dividend_history split-adjusts ย้อนหลังให้ DPS pre-split เป็น 50% ของจริง — HTC ที่มี stock split ปี 2023-2024 → DPS 2018-2023 ที่ yahoo report = ครึ่งหนึ่งของจริง → Niwes "ปันผลเพิ่มทุกปี" check ผิด, 5y avg yield ผิด.**
@@ -46,7 +91,7 @@ set.or.th API จำกัด ~11 events ต่อ symbol = **~5-6 ปี ย้
 
 ### Pending (BACKLOG)
 
-- (#0) Snapshot DPS ใน `data_adapter.py:904,923` ยังอ่าน yahoo `dps_by_fiscal_year` แม้ `dividend_history` build จาก set.or.th — 5y avg yield สำหรับหุ้นที่มี split ยังผิด ต้อง patch ก่อน re-run weekly scan
+- ~~(#0) Snapshot DPS ใน `data_adapter.py:904,923` ยังอ่าน yahoo `dps_by_fiscal_year`~~ → **FIXED in v6.6.1 (2026-05-20)**
 - 10 surprises อื่นๆ จาก audit (dead code / naming collision / unused exports) — ดู `docs/data-sources-guide.md` section "Surprises"
 
 ---
