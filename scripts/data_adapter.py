@@ -897,13 +897,22 @@ def fetch_fundamentals(symbol: str) -> dict:
         forward_pe = yf_info.get("forwardPE")
 
         # --- Dividend: DPS-first, yield = DPS/price (Fiscal Year Attribution per SET methodology) ---
+        # Source-resolved: read from dividend_history (set.or.th primary, yahoo fallback)
+        # — yf_fy_complete still gates timing (set.or.th has no completeness dict)
         complete_fys = sorted([y for y, ok in yf_fy_complete.items() if ok])
         latest_complete_fy = complete_fys[-1] if complete_fys else None
 
         if latest_complete_fy is not None:
-            dps_current = yf_dps_by_fy.get(latest_complete_fy)
+            dps_current = dividend_history.get(latest_complete_fy)
+            snapshot_dps_source = dividend_source if dps_current is not None else None
         else:
             dps_current = None
+            snapshot_dps_source = None
+
+        logger.info(
+            "snapshot DPS for %s: dps_current=%s snapshot_dps_source=%s (dividend_source=%s, latest_complete_fy=%s)",
+            symbol, dps_current, snapshot_dps_source, dividend_source, latest_complete_fy,
+        )
 
         if dps_current is not None and price is not None and price > 0:
             dy = dps_current / price * 100
@@ -912,15 +921,16 @@ def fetch_fundamentals(symbol: str) -> dict:
         else:
             dy = None
             logger.warning(
-                "no yahoo DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s) — "
-                "dy unset (SETSMART cold + yahoo DPS unavailable; thaifin DPS approximation NOT used)",
-                symbol, latest_complete_fy, dps_current, price,
+                "no DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s, dps_source=%s) — "
+                "dy unset (no DPS in dividend_history for latest complete FY; thaifin DPS approximation NOT used)",
+                symbol, latest_complete_fy, dps_current, price, snapshot_dps_source,
             )
 
         # five_year_avg_yield = avg DPS of last 5 COMPLETE FYs / current price
+        # Source-resolved: read from dividend_history (matches dps_current source)
         current_year = datetime.now().year
         recent_complete_fys = complete_fys[-5:] if len(complete_fys) >= 5 else complete_fys
-        recent_dps = [yf_dps_by_fy.get(y) for y in recent_complete_fys if yf_dps_by_fy.get(y) is not None]
+        recent_dps = [dividend_history.get(y) for y in recent_complete_fys if dividend_history.get(y) is not None]
         if recent_dps and price is not None and price > 0:
             avg_dps = sum(recent_dps) / len(recent_dps)
             five_year_avg_yield = avg_dps / price * 100
@@ -1133,3 +1143,35 @@ if __name__ == '__main__':
     assert r2['is_complete'][2025] is True, "METCO FY2025 should be complete (annual-pay, 1 event = full year)"
 
     print('FY attribution OK')
+
+    # Smoke test: snapshot DPS source-aware fix (2026-05-20)
+    # Runs real fetch — verifies snapshot dps matches dividend_history[latest_complete_fy]
+    import json
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    for sym in ('HTC.BK', 'BBL.BK'):
+        print(f'\n=== smoke test: {sym} ===')
+        data = fetch_fundamentals(sym)
+        if data is None:
+            print(f'  fetch_fundamentals returned None (delisted or fetch failure)')
+            continue
+        if 'error' in data:
+            print(f'  error: {data["error"]}')
+            continue
+        snapshot = {
+            'dps': data.get('dps'),
+            'dividend_rate': data.get('dividend_rate'),
+            'dividend_yield': data.get('dividend_yield'),
+            'five_year_avg_yield': data.get('five_year_avg_yield'),
+            'payout_ratio': data.get('payout_ratio'),
+        }
+        print(f'  dividend_source: {data.get("dividend_source")}')
+        print(f'  dividend_history: {json.dumps(data.get("dividend_history", {}), sort_keys=True)}')
+        print(f'  snapshot (5 fields): {json.dumps(snapshot, indent=2, default=str)}')
+        # Sanity: dps should match dividend_history[latest_complete_fy]
+        fy_complete = data.get('fy_is_complete', {})
+        complete_fys = sorted([int(y) for y, ok in fy_complete.items() if ok])
+        if complete_fys:
+            latest_fy = complete_fys[-1]
+            div_hist = data.get('dividend_history', {})
+            hist_dps = div_hist.get(latest_fy) or div_hist.get(str(latest_fy))
+            print(f'  cross-check: dps={snapshot["dps"]} vs dividend_history[{latest_fy}]={hist_dps} → {"MATCH" if snapshot["dps"] == hist_dps else "MISMATCH"}')

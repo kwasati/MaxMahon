@@ -47,10 +47,10 @@
 > Full field-by-field map + surprises live in `docs/data-sources-guide.md`. The rules below are the short invariants — keep editing them in sync with the guide.
 
 **Rule 0 — SETSMART precedence:**
-- SETSMART = primary for realtime aggregate snapshot — **price, P/E, P/BV, market cap** (lines 878-881). For `dividend_yield`, SETSMART EOD `dividendYield` is only a **secondary fallback**; primary is computed `dps_current / price * 100` where `dps_current` = yahoo `dps_by_fiscal_year[latest_complete_fy]` (data_adapter.py:903-913).
+- SETSMART = primary for realtime aggregate snapshot — **price, P/E, P/BV, market cap** (lines 878-881). For `dividend_yield`, SETSMART EOD `dividendYield` is only a **secondary fallback**; primary is computed `dps_current / price * 100` where `dps_current` = `dividend_history[latest_complete_fy]` (source-resolved: set.or.th primary, yahoo fallback per `dividend_source`).
 - SETSMART also overrides 5y yearly ROE/ROA/D-E in `yearly_metrics` (sets `m["roe"]`, `m["roa"]`, `m["de_ratio"]` where year matches; adds `m["eps_setsmart"]` as new key — does NOT overwrite `diluted_eps`)
-- set.or.th = primary for `dividend_history` FY event totals (Layer 0.5, Playwright-bootstrapped)
-- **NOTE — known inconsistency:** `dividend_history` is built from set.or.th, but `dps_current`/`dividend_rate`/`five_year_avg_yield`/computed `dividend_yield` all read from **yahoo's** `dps_by_fiscal_year` regardless of `dividend_source` (lines 904, 923). When `DPS_SOURCE_YAHOO` is tagged the two are consistent; otherwise the snapshot DPS does NOT match `dividend_history`. See `docs/data-sources-guide.md` Surprises section.
+- set.or.th = primary for `dividend_history` FY event totals (Layer 0.5, Playwright-bootstrapped) — snapshot `dps_current`/`dividend_rate`/`five_year_avg_yield`/computed `dividend_yield` all read from this same `dividend_history` dict (source-aware fix 2026-05-20)
+- `yf_fy_complete` still gates timing for `latest_complete_fy` (set.or.th has no completeness dict — keys = FY paid, not FY closed)
 - thaifin = required yearly base + historical coverage beyond SETSMART's ~3y EOD / 5y financial range
 - yahooquery = DPS fallback for `dividend_history` (tag `DPS_SOURCE_YAHOO`) + 52w range + capex / OI / IE per year + the FY-attributed DPS series consumed by snapshot fields above
 
