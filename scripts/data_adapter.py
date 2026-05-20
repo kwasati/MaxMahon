@@ -1174,4 +1174,4 @@ if __name__ == '__main__':
             latest_fy = complete_fys[-1]
             div_hist = data.get('dividend_history', {})
             hist_dps = div_hist.get(latest_fy) or div_hist.get(str(latest_fy))
-            print(f'  cross-check: dps={snapshot["dps"]} vs dividend_history[{latest_fy}]={hist_dps} → {"MATCH" if snapshot["dps"] == hist_dps else "MISMATCH"}')
+            print(f'  cross-check: dps={snapshot["dps"]} vs dividend_history[{latest_fy}]={hist_dps} -> {"MATCH" if snapshot["dps"] == hist_dps else "MISMATCH"}')
