@@ -897,13 +897,22 @@ def fetch_fundamentals(symbol: str) -> dict:
         forward_pe = yf_info.get("forwardPE")
 
         # --- Dividend: DPS-first, yield = DPS/price (Fiscal Year Attribution per SET methodology) ---
+        # Source-resolved: read from dividend_history (set.or.th primary, yahoo fallback)
+        # — yf_fy_complete still gates timing (set.or.th has no completeness dict)
         complete_fys = sorted([y for y, ok in yf_fy_complete.items() if ok])
         latest_complete_fy = complete_fys[-1] if complete_fys else None
 
         if latest_complete_fy is not None:
-            dps_current = yf_dps_by_fy.get(latest_complete_fy)
+            dps_current = dividend_history.get(latest_complete_fy)
+            snapshot_dps_source = dividend_source if dps_current is not None else None
         else:
             dps_current = None
+            snapshot_dps_source = None
+
+        logger.info(
+            "snapshot DPS for %s: dps_current=%s snapshot_dps_source=%s (dividend_source=%s, latest_complete_fy=%s)",
+            symbol, dps_current, snapshot_dps_source, dividend_source, latest_complete_fy,
+        )
 
         if dps_current is not None and price is not None and price > 0:
             dy = dps_current / price * 100
@@ -912,9 +921,9 @@ def fetch_fundamentals(symbol: str) -> dict:
         else:
             dy = None
             logger.warning(
-                "no yahoo DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s) — "
-                "dy unset (SETSMART cold + yahoo DPS unavailable; thaifin DPS approximation NOT used)",
-                symbol, latest_complete_fy, dps_current, price,
+                "no DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s, dps_source=%s) — "
+                "dy unset (no DPS in dividend_history for latest complete FY; thaifin DPS approximation NOT used)",
+                symbol, latest_complete_fy, dps_current, price, snapshot_dps_source,
             )
 
         # five_year_avg_yield = avg DPS of last 5 COMPLETE FYs / current price
