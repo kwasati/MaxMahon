@@ -927,9 +927,10 @@ def fetch_fundamentals(symbol: str) -> dict:
             )
 
         # five_year_avg_yield = avg DPS of last 5 COMPLETE FYs / current price
+        # Source-resolved: read from dividend_history (matches dps_current source)
         current_year = datetime.now().year
         recent_complete_fys = complete_fys[-5:] if len(complete_fys) >= 5 else complete_fys
-        recent_dps = [yf_dps_by_fy.get(y) for y in recent_complete_fys if yf_dps_by_fy.get(y) is not None]
+        recent_dps = [dividend_history.get(y) for y in recent_complete_fys if dividend_history.get(y) is not None]
         if recent_dps and price is not None and price > 0:
             avg_dps = sum(recent_dps) / len(recent_dps)
             five_year_avg_yield = avg_dps / price * 100
