@@ -10,3 +10,6 @@ data/setsmart_cache/
 data/set_dividend_cache/
 _archive/*
 !_archive/portfolio-simulator-builder-2026-04-25/
+
+# Scratch space
+tmp/
