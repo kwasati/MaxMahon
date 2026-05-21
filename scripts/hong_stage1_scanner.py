@@ -6,7 +6,13 @@ Versions:
   v1 — legacy: D/E ≤ 1.0 for all sectors, 6 criteria all-or-nothing
   v2 — sector-aware solvency, 6 criteria all-or-nothing
   v3 — alias for v2 logic + full SET+mai universe
-  v4 — **Full philosophy: 7 hard gates + Sweet Spot composite score**
+  v4 — Full philosophy: 7 hard gates + Sweet Spot composite score
+  v5 — **Same as v4 minus Gate 2 (cash adequacy). 6 hard gates only.**
+        Cash adequacy needs short_term_debt + annual dividends paid per FY which
+        are NOT in cache. v4 used proxies (0.3 * total_debt + dps * shares) which
+        we no longer trust. v5 simply skips this gate and emits
+        "MANUAL_CHECK_NEEDED: cash_adequacy" for every survivor so the analyst
+        knows it is still pending verification.
 
 v4 — 7 Hard Gates (all must pass to enter pool):
   1. Solvency (sector-aware):
@@ -19,6 +25,15 @@ v4 — 7 Hard Gates (all must pass to enter pool):
   5. ROE relative — ROE 3y avg ≥ max(industry_median, 12%)
   6. กำไร new high — latest profit = max of last 5y
   7. Forward PE ≤ 15 (trailing fallback ok)
+
+v5 — 6 Hard Gates (skip Gate 2 — manual review needed):
+  1. Solvency (same as v4)
+  3. Margin slope
+  4. CFO / NP
+  5. ROE relative
+  6. New high profit
+  7. Forward PE
+  (Gate 2 cash adequacy removed — flagged for manual review in Stage 2)
 
 v4 — Sweet Spot Composite Score (rank survivors):
   8. Earnings CAGR 3y     — linear 0%→0, 26%→100 (capped)
@@ -911,6 +926,410 @@ def evaluate_v4(stock: dict, sector_class: str, industry_roe_med: float | None) 
     }
 
 
+def evaluate_v5(stock: dict, sector_class: str, industry_roe_med: float | None) -> dict:
+    """v5 — Same as v4 but Gate 2 (cash adequacy) is REMOVED.
+
+    Cache has no `short_term_debt` and no `dividends_paid` per FY — v4 used proxies
+    (0.3 * total_debt + dps * shares) which we no longer trust. v5 skips this
+    gate entirely. Every survivor is flagged `manual_cash_check = "PENDING"` so
+    Stage 2 manual review still happens.
+
+    Returns dict with the same shape as evaluate_v4() except:
+      - `gate_pass` has 6 keys (no `g2_cash_adequacy`)
+      - `gate_info` has 6 keys (no `g2`)
+      - `manual_cash_check` = "PENDING" (literal string for every result)
+    """
+    # Gate 1 — solvency
+    c1_pass, c1_info = criterion_1_solvency(stock, sector_class, version="v2")
+
+    # Gate 3 — margin slope (strict ≥ 0)
+    ym = _drop_partial_latest(stock.get("yearly_metrics") or [])
+    last3 = _last_n_years(ym, 3)
+    g3_info = {"gm_slope": None, "nm_slope": None}
+    if len(last3) < 3:
+        c3_pass = None
+    else:
+        gms = [_safe(r.get("gross_margin")) for r in last3]
+        nms = [_safe(r.get("net_margin")) for r in last3]
+        if any(v is None for v in gms) or any(v is None for v in nms):
+            c3_pass = None
+        else:
+            def _slope(vals):
+                x_mean = 1.0
+                num = sum((i - x_mean) * (vals[i] - sum(vals) / 3) for i in range(3))
+                den = sum((i - x_mean) ** 2 for i in range(3))
+                return num / den if den else 0.0
+            g3_info["gm_slope"] = _slope(gms)
+            g3_info["nm_slope"] = _slope(nms)
+            tol = -0.001
+            c3_pass = g3_info["gm_slope"] >= tol and g3_info["nm_slope"] >= tol
+
+    # Gate 4 — CFO/NP
+    c4_pass, c4_info = criterion_4_cfo_np(stock)
+
+    # Gate 5 — ROE relative
+    last3_roe = _last_n_years(_drop_partial_latest(stock.get("yearly_metrics") or []), 3)
+    if len(last3_roe) < 3:
+        c5_pass = None
+        c5_info = {"roe_3y_avg": None, "threshold": None}
+    else:
+        roes = [_safe(r.get("roe")) for r in last3_roe]
+        if any(r is None for r in roes):
+            c5_pass = None
+            c5_info = {"roe_3y_avg": None, "threshold": None}
+        else:
+            roe_avg = sum(roes) / 3
+            threshold = max(industry_roe_med or 0.0, 0.12)
+            c5_pass = roe_avg >= threshold
+            c5_info = {"roe_3y_avg": roe_avg, "threshold": threshold,
+                       "industry_median": industry_roe_med}
+
+    # Gate 6 — new high profit
+    c6_pass, c6_info = criterion_3_profit_new_high(stock)
+
+    # Gate 7 — Forward PE ≤ 15
+    c7_pass, fwd_pe, fwd_pe_source = criterion_5_fwd_pe(stock)
+
+    # 6 hard gates — Gate 2 removed
+    gates = [c1_pass, c3_pass, c4_pass, c5_pass, c6_pass, c7_pass]
+    all_pass = all(g is True for g in gates)
+
+    # Sweet spot scores (unchanged from v4)
+    cagr = earnings_cagr_3y(stock)
+    div_y = dividend_yield_pct(stock)
+
+    growth_dec = _safe(stock.get("earnings_growth"))
+    if growth_dec is None or growth_dec <= 0:
+        growth_dec = cagr if (cagr is not None and cagr > 0) else None
+    growth_pct = (growth_dec * 100.0) if growth_dec is not None else None
+
+    peg = peg_ratio(growth_pct, fwd_pe)
+
+    s_cagr = cagr_score(cagr)
+    s_yield = yield_score(div_y)
+    s_peg = peg_score(peg)
+    s_comp = composite_score(s_cagr, s_yield, s_peg)
+
+    return {
+        "all_pass": all_pass,
+        "manual_cash_check": "PENDING",  # Gate 2 removed — always pending Stage 2
+        "gate_pass": {
+            "g1_solvency": c1_pass,
+            "g3_margin_slope": c3_pass,
+            "g4_cfo_np": c4_pass,
+            "g5_roe_relative": c5_pass,
+            "g6_new_high": c6_pass,
+            "g7_fwd_pe": c7_pass,
+        },
+        "gate_info": {
+            "g1": c1_info,
+            "g3": g3_info,
+            "g4": c4_info,
+            "g5": c5_info,
+            "g6": c6_info,
+            "g7": {"fwd_pe": fwd_pe, "source": fwd_pe_source},
+        },
+        "metrics": {
+            "cagr_3y": cagr,
+            "dividend_yield_pct": div_y,
+            "peg": peg,
+            "growth_used_pct": growth_pct,
+            "fwd_pe": fwd_pe,
+            "roe_3y_avg": c5_info.get("roe_3y_avg"),
+        },
+        "scores": {
+            "cagr_score": s_cagr,
+            "yield_score": s_yield,
+            "peg_score": s_peg,
+            "composite": s_comp,
+        },
+    }
+
+
+def scan_v5(universe: list[str], cache_date: str) -> dict:
+    """v5 scan — 6 hard gates (no cash adequacy) + composite score ranking."""
+    print(f"[v5 scan] universe size = {len(universe)}")
+    print(f"[v5 scan] cache date    = {cache_date}")
+
+    all_stocks: dict[str, dict] = {}
+    cache_dir = ROOT / "data" / "screener_cache" / cache_date
+    if cache_dir.exists():
+        for p in cache_dir.glob("*.json"):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                sym_clean = (data.get("symbol") or p.stem).replace(".BK", "")
+                all_stocks[sym_clean] = data
+            except Exception:
+                continue
+    print(f"[v5 scan] loaded {len(all_stocks)} stocks from cache")
+
+    industry_medians = compute_industry_roe_medians(all_stocks)
+    print(f"[v5 scan] industry-median ROE computed for {len(industry_medians)} sectors")
+
+    results = []
+    missing = []
+    gate_fail_counts = defaultdict(int)
+    t0 = time.time()
+
+    for i, sym in enumerate(universe, 1):
+        stock = all_stocks.get(sym)
+        if stock is None:
+            missing.append(sym)
+            results.append({"symbol": sym, "status": "missing"})
+            continue
+
+        sec = stock.get("sector") or "N/A"
+        sector_class = classify_sector(sec)
+        ind_med = industry_medians.get(sec)
+
+        ev = evaluate_v5(stock, sector_class, ind_med)
+        for g, v in ev["gate_pass"].items():
+            if v is False:
+                gate_fail_counts[g] += 1
+            elif v is None:
+                gate_fail_counts[g + "_na"] += 1
+
+        results.append({
+            "symbol": sym,
+            "name": stock.get("name", ""),
+            "sector": sec,
+            "sector_class": sector_class,
+            "status": "scanned",
+            "all_pass": ev["all_pass"],
+            "manual_cash_check": ev["manual_cash_check"],
+            "gate_pass": ev["gate_pass"],
+            "gate_info": ev["gate_info"],
+            "metrics": ev["metrics"],
+            "scores": ev["scores"],
+            "price": _safe(stock.get("price")),
+            "mcap": _safe(stock.get("market_cap")),
+        })
+
+    elapsed = time.time() - t0
+    print(f"[v5 scan] done in {elapsed:.1f}s")
+
+    return {
+        "results": results,
+        "missing": missing,
+        "industry_medians": industry_medians,
+        "gate_fail_counts": dict(gate_fail_counts),
+        "elapsed_sec": elapsed,
+        "cache_date": cache_date,
+        "scan_date": datetime.now().strftime("%Y-%m-%d"),
+        "universe_size": len(universe),
+        "version": "v5",
+    }
+
+
+def print_v5_report(result: dict, top_n: int = 30) -> None:
+    """Print v5 report to stdout — 6 gates + manual cash check warning."""
+    rows = result["results"]
+    scanned = [r for r in rows if r.get("status") == "scanned"]
+    passed = [r for r in scanned if r.get("all_pass") is True]
+    passed_sorted = sorted(passed, key=lambda r: -(r["scores"]["composite"]))
+
+    print()
+    print("=" * 80)
+    print("Hong Scanner v5 (Skip Gate 2 — Cash Adequacy needs Manual Review)")
+    print("=" * 80)
+    print()
+    print(f"Universe: {result['universe_size']} stocks")
+    print(f"Scanned with data: {len(scanned)}")
+    print(f"Passed 6 hard gates: {len(passed)} stocks")
+    print()
+    print("Gate failure breakdown (6 gates):")
+    gate_labels = {
+        "g1_solvency": "Gate 1 (Solvency D/E or bank ROA)",
+        "g3_margin_slope": "Gate 3 (Margin slope GM+NM)",
+        "g4_cfo_np": "Gate 4 (CFO/NP >= 0.8)",
+        "g5_roe_relative": "Gate 5 (ROE >= max(industry, 12%))",
+        "g6_new_high": "Gate 6 (Profit new high 5y)",
+        "g7_fwd_pe": "Gate 7 (Fwd PE <= 15)",
+    }
+    gfc = result["gate_fail_counts"]
+    for k, label in gate_labels.items():
+        failed = gfc.get(k, 0)
+        na = gfc.get(k + "_na", 0)
+        print(f"- {label}: {failed} failed, {na} no-data")
+    print("(Gate 2 removed — manual review needed for cash adequacy)")
+    print()
+    print(f"Top {top_n} by Composite Score:")
+    print("=" * 80)
+    print()
+    print(f"{'Rank':>4} | {'Symbol':<8} | {'Name':<28} | {'Sector':<22} | {'Comp':>5} | {'CAGR':>6} | {'Yield':>6} | {'PEG':>5} | {'ROE':>6} | {'FwdPE':>6} | {'Cash':<8}")
+    print("-" * 140)
+    for i, r in enumerate(passed_sorted[:top_n], 1):
+        m = r["metrics"]
+        s = r["scores"]
+        cagr_str = f"{m['cagr_3y']*100:.1f}%" if m['cagr_3y'] is not None else "n/a"
+        y_str = f"{m['dividend_yield_pct']:.1f}%" if m['dividend_yield_pct'] is not None else "n/a"
+        peg_str = f"{m['peg']:.2f}" if m['peg'] is not None else "n/a"
+        roe_str = f"{m['roe_3y_avg']*100:.1f}%" if m['roe_3y_avg'] is not None else "n/a"
+        fpe_str = f"{m['fwd_pe']:.1f}" if m['fwd_pe'] is not None else "n/a"
+        name = (r['name'] or '')[:28]
+        sector = (r['sector'] or '')[:22]
+        cash_str = r.get("manual_cash_check", "PENDING")
+        print(f"{i:>4} | {r['symbol']:<8} | {name:<28} | {sector:<22} | {s['composite']:>5.1f} | {cagr_str:>6} | {y_str:>6} | {peg_str:>5} | {roe_str:>6} | {fpe_str:>6} | {cash_str:<8}")
+    print()
+    print("NOTE: 'Cash' column = MANUAL_CHECK_NEEDED for cash adequacy (Stage 2).")
+    print()
+
+
+def write_v5_csv(result: dict, out_path: Path) -> None:
+    """Write v5 CSV with 6 gates + manual_cash_check column."""
+    rows = result["results"]
+    if not rows:
+        out_path.write_text("", encoding="utf-8")
+        return
+
+    columns = [
+        "symbol", "name", "sector", "sector_class", "status",
+        "all_pass", "manual_cash_check",
+        "g1_solvency", "g3_margin_slope", "g4_cfo_np",
+        "g5_roe_relative", "g6_new_high", "g7_fwd_pe",
+        "composite", "cagr_score", "yield_score", "peg_score",
+        "cagr_3y_pct", "dividend_yield_pct", "peg",
+        "roe_3y_avg_pct", "fwd_pe",
+        "price", "mcap",
+    ]
+
+    def _bool_str(v):
+        if v is True: return "YES"
+        if v is False: return "NO"
+        return "NA"
+
+    with out_path.open("w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            if r.get("status") != "scanned":
+                w.writerow({"symbol": r.get("symbol"), "status": r.get("status")})
+                continue
+            gp = r["gate_pass"]
+            m = r["metrics"]
+            s = r["scores"]
+            row = {
+                "symbol": r["symbol"],
+                "name": r.get("name", ""),
+                "sector": r.get("sector", ""),
+                "sector_class": r.get("sector_class", ""),
+                "status": "scanned",
+                "all_pass": _bool_str(r.get("all_pass")),
+                "manual_cash_check": r.get("manual_cash_check", "PENDING") if r.get("all_pass") is True else "N/A",
+                "g1_solvency": _bool_str(gp.get("g1_solvency")),
+                "g3_margin_slope": _bool_str(gp.get("g3_margin_slope")),
+                "g4_cfo_np": _bool_str(gp.get("g4_cfo_np")),
+                "g5_roe_relative": _bool_str(gp.get("g5_roe_relative")),
+                "g6_new_high": _bool_str(gp.get("g6_new_high")),
+                "g7_fwd_pe": _bool_str(gp.get("g7_fwd_pe")),
+                "composite": round(s["composite"], 2),
+                "cagr_score": round(s["cagr_score"], 2),
+                "yield_score": round(s["yield_score"], 2),
+                "peg_score": round(s["peg_score"], 2),
+                "cagr_3y_pct": round(m["cagr_3y"] * 100, 2) if m.get("cagr_3y") is not None else None,
+                "dividend_yield_pct": round(m["dividend_yield_pct"], 2) if m.get("dividend_yield_pct") is not None else None,
+                "peg": round(m["peg"], 3) if m.get("peg") is not None else None,
+                "roe_3y_avg_pct": round(m["roe_3y_avg"] * 100, 2) if m.get("roe_3y_avg") is not None else None,
+                "fwd_pe": round(m["fwd_pe"], 2) if m.get("fwd_pe") is not None else None,
+                "price": r.get("price"),
+                "mcap": r.get("mcap"),
+            }
+            w.writerow(row)
+
+
+def write_v5_md(result: dict, out_path: Path) -> None:
+    """Write v5 markdown report."""
+    rows = result["results"]
+    scanned = [r for r in rows if r.get("status") == "scanned"]
+    passed = [r for r in scanned if r.get("all_pass") is True]
+    passed_sorted = sorted(passed, key=lambda r: -(r["scores"]["composite"]))
+
+    lines = []
+    lines.append(f"# Hong Stage 1 Scan — v5 (Skip Gate 2) — {result['scan_date']}\n")
+    lines.append(f"> **Scan date:** {result['scan_date']}  ")
+    lines.append(f"> **Data cache date:** {result['cache_date']}  ")
+    lines.append(f"> **Universe:** {result['universe_size']}  ")
+    lines.append(f"> **Scanned:** {len(scanned)}  ")
+    lines.append(f"> **Passed 6 hard gates:** **{len(passed)}**  ")
+    lines.append(f"> **Elapsed:** {result['elapsed_sec']:.1f}s  ")
+    lines.append("")
+    lines.append("> **WARNING:** Gate 2 (Cash Adequacy) removed in v5 because cache has no")
+    lines.append("> `short_term_debt` and no `dividends_paid` per FY — v4 proxies were unreliable.")
+    lines.append("> Every survivor below is flagged `MANUAL_CHECK_NEEDED: cash_adequacy` and must be")
+    lines.append("> verified in Stage 2 manual review (annual report — short-term debt + dividends paid).")
+    lines.append("")
+    lines.append("## 6 Hard Gates\n")
+    lines.append("| # | Gate | Threshold |")
+    lines.append("|---|------|-----------|")
+    lines.append("| 1 | Solvency (sector-aware) | default D/E ≤ 1.0, retail ≤ 2.5, bank ROA 3y ≥ 1% |")
+    lines.append("| 3 | Margin slope | gm 3y slope ≥ 0 AND nm 3y slope ≥ 0 |")
+    lines.append("| 4 | CFO / Net profit | 3y avg ≥ 0.8 |")
+    lines.append("| 5 | ROE relative | 3y avg ≥ max(industry median, 12%) |")
+    lines.append("| 6 | Profit new high | latest = max of last 5y |")
+    lines.append("| 7 | Forward PE | ≤ 15 (trailing fallback) |")
+    lines.append("")
+    lines.append("**Gate 2 (Cash adequacy) REMOVED** — manual review required.")
+    lines.append("")
+    lines.append("## Sweet Spot Composite (rank survivors)\n")
+    lines.append("Composite = CAGR_score × 0.4 + Yield_score × 0.3 + PEG_score × 0.3\n")
+    lines.append("- **CAGR 3y:** 0%→0, 26%+→100 capped")
+    lines.append("- **Dividend yield:** 0→0, 4%→70, 7%+→100")
+    lines.append("- **PEG (Fwd PE / growth%):** 0→0, 1.0→50, 1.5+→100")
+    lines.append("")
+
+    # Gate failure breakdown
+    lines.append("## Gate failure breakdown (6 gates)\n")
+    gate_labels = {
+        "g1_solvency": "Gate 1 Solvency",
+        "g3_margin_slope": "Gate 3 Margin slope",
+        "g4_cfo_np": "Gate 4 CFO/NP",
+        "g5_roe_relative": "Gate 5 ROE relative",
+        "g6_new_high": "Gate 6 New high",
+        "g7_fwd_pe": "Gate 7 Fwd PE",
+    }
+    gfc = result["gate_fail_counts"]
+    lines.append("| Gate | Failed | No-data |")
+    lines.append("|------|--------|---------|")
+    for k, label in gate_labels.items():
+        lines.append(f"| {label} | {gfc.get(k, 0)} | {gfc.get(k + '_na', 0)} |")
+    lines.append("")
+
+    # Top 30
+    lines.append(f"## Top 30 by Composite Score ({len(passed_sorted)} survivors)\n")
+    if passed_sorted:
+        lines.append("| Rank | Sym | Name | Sector | Composite | CAGR3y | Yield | PEG | ROE | FwdPE | Manual_Cash_Check |")
+        lines.append("|------|-----|------|--------|-----------|--------|-------|-----|-----|-------|-------------------|")
+        for i, r in enumerate(passed_sorted[:30], 1):
+            m = r["metrics"]
+            s = r["scores"]
+            cagr_str = f"{m['cagr_3y']*100:.1f}%" if m['cagr_3y'] is not None else "n/a"
+            y_str = f"{m['dividend_yield_pct']:.1f}%" if m['dividend_yield_pct'] is not None else "n/a"
+            peg_str = f"{m['peg']:.2f}" if m['peg'] is not None else "n/a"
+            roe_str = f"{m['roe_3y_avg']*100:.1f}%" if m['roe_3y_avg'] is not None else "n/a"
+            fpe_str = f"{m['fwd_pe']:.1f}" if m['fwd_pe'] is not None else "n/a"
+            name = (r.get('name') or '')[:25]
+            sector = (r.get('sector') or '')[:18]
+            cash_str = r.get("manual_cash_check", "PENDING")
+            lines.append(
+                f"| {i} | {r['symbol']} | {name} | {sector} | {s['composite']:.1f} | "
+                f"{cagr_str} | {y_str} | {peg_str} | {roe_str} | {fpe_str} | {cash_str} |"
+            )
+    else:
+        lines.append("_No stocks passed all 6 hard gates._")
+    lines.append("")
+
+    lines.append("## Limitations & Notes\n")
+    lines.append("- **Gate 2 removed:** Cache has no `short_term_debt` (only `total_debt`) and no `dividends_paid` per FY. v4 proxies (0.3 * total_debt + dps * shares) were unreliable. Every survivor is flagged `MANUAL_CHECK_NEEDED: cash_adequacy` — Stage 2 must verify from annual report.")
+    lines.append("- **CAGR 3y:** computed from net_income series (3 intervals → 4 data points). Returns -100% if latest year unprofitable, None if 3y-ago year ≤ 0.")
+    lines.append("- **PEG growth source:** prefers `earnings_growth` (yfinance fwd), falls back to 3y CAGR.")
+    lines.append("- **Bank gate 1:** banks evaluated by ROA 3y ≥ 1% instead of D/E.")
+    lines.append("- **Industry-median ROE:** only sectors with ≥3 valid samples; otherwise gate 5 threshold = 12% absolute floor.")
+    lines.append("- **Stage 1 only:** quantitative pass — Stage 2 manual (management, moat, governance, **cash adequacy**) still required.")
+    lines.append("")
+
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def scan_v4(universe: list[str], cache_date: str) -> dict:
     """v4 scan — 7 hard gates + composite score ranking."""
     print(f"[v4 scan] universe size = {len(universe)}")
@@ -1440,10 +1859,11 @@ def main():
     parser.add_argument("--universe", default="SET100",
                         help="Universe: SET100 (default 97 syms) | all (~840 SET+mai common stocks from cache) | "
                              "path to .txt file with symbols (one per line, no .BK suffix).")
-    parser.add_argument("--version", default="v2", choices=["v1", "v2", "v3", "v4"],
+    parser.add_argument("--version", default="v2", choices=["v1", "v2", "v3", "v4", "v5"],
                         help="Scoring version: v1 (legacy D/E≤1 all) | v2 (sector-aware, SET100 default) | "
                              "v3 (alias for v2 logic — used with --universe all for full SET+mai) | "
-                             "v4 (Hong full philosophy: 7 hard gates + Sweet Spot composite score).")
+                             "v4 (Hong full philosophy: 7 hard gates + Sweet Spot composite score) | "
+                             "v5 (v4 minus Gate 2 cash adequacy — flag survivors for manual review).")
     args = parser.parse_args()
 
     # Resolve cache date
@@ -1496,6 +1916,27 @@ def main():
 
         # Stdout report (Top 30 + gate breakdown)
         print_v4_report(result, top_n=30)
+        print(f"CSV: {csv_path}")
+        print(f"MD:  {md_path}")
+        return
+
+    # v5 — same as v4 but skip Gate 2 (cash adequacy needs manual review)
+    if output_version == "v5":
+        result = scan_v5(universe, cache_date)
+        result["universe_label"] = universe_label
+        result["universe_filter_stats"] = universe_filter_stats
+
+        today = result["scan_date"]
+        out_prefix = args.out_prefix or str(ROOT / "research" / f"hong-v5-scan-{today}")
+        csv_path = Path(out_prefix + ".csv")
+        md_path = Path(out_prefix + ".md")
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+        write_v5_csv(result, csv_path)
+        write_v5_md(result, md_path)
+
+        # Stdout report (Top 30 + gate breakdown)
+        print_v5_report(result, top_n=30)
         print(f"CSV: {csv_path}")
         print(f"MD:  {md_path}")
         return
