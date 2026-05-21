@@ -1,5 +1,42 @@
 # Max Mahon Changelog
 
+## Hong Lens — 2026-05-21 · New sub-project
+
+**Purpose:** คัดหุ้นไทยแนวเซียนฮง สถาพร งามเรืองพงศ์ สำหรับ 25% portfolio allocation (เสริม Niwes 70%)
+
+### Added
+
+- **`scripts/hong_stage1_scanner.py`** — Hong Lens Stage 1 auto scanner (v1→v5 iterations)
+  - 7 hard gates: D/E sector-aware / margin slope / CFO-NP / ROE relative / new high / fwd PE (cash adequacy = SKIP, manual via SET balance sheet)
+  - Sweet Spot composite score (CAGR 40% + Yield 30% + PEG 30%)
+  - CLI flags `--universe all|set100` + `--version v1|v2|v3|v4|v5`
+  - Standalone — ไม่กระทบ Niwes scoring/ranking module
+
+- **`hong-lens/` sub-folder** — archive ของ Hong Lens sub-project
+  - `CLAUDE.md` — AI session context (Hong philosophy + workflow + critical lessons)
+  - `MEMORY.md` — decisions + lessons accumulated
+  - `README.md` — human-readable overview
+  - `set-factsheets/` (14 ไฟล์) + `set-companyprofiles/` (14 ไฟล์) — SET official source files
+  - `research/stage2-12-stocks-2026-05-21.md` — Stage 2 mini-cards extraction (12 verified)
+
+### Stage 1+2 Results (2026-05-21)
+
+- Universe: 841 ตัว (SET+mai common) → SET-only 703 ตัว
+- Stage 1 pass: 29 ตัว SET-only
+- Audit vs SET official → cut TKN + MASTER (MaxMahon ไม่มี data 2025 = false positive)
+- Stage 2 review → cut ICHI/NSL/KCG (real red flags)
+- **Final 9 verified:** COM7, MOSHI, PSP, TFM, OSP, TOA, SISB, KDH, TSC
+- Pending Stage 3: คัดเหลือ 4 ตัว + position sizing (Hong 30:30:30:10)
+
+### Critical Lessons
+
+- MaxMahon thaifin data lag — บางตัว latest year = 2024 → false positive ที่ filter "กำไร new high"
+- ROE early-IPO distortion (> 50-100% — equity ต่ำ ทำ ratio เพี้ยน)
+- Cash adequacy: data layer ไม่มี short-term debt แยก → ห้ามใช้ proxy → SKIP gate + manual ดู SET balance sheet
+- Audit SET official ก่อน trust MaxMahon เสมอ
+
+---
+
 ## v6.6.1 — 2026-05-20 · Snapshot DPS Source-Aware Fix
 
 **ปัญหา (สืบเนื่องจาก v6.6.0): หลังเปลี่ยน dividend_history มาใช้ set.or.th แล้ว แต่ snapshot fields (dps, dividend_rate, dividend_yield, five_year_avg_yield) ยังอ่านจาก `yf_dps_by_fy` (yahoo split-adjusted) ตรงๆ — snapshot ไม่ตรงกับ history สำหรับหุ้นที่มี split (HTC/BBL/KBANK/AMATA).**

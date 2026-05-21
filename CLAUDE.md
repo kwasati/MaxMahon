@@ -9,6 +9,10 @@
 - ทุก page route → ต้องมี 2 module: `pages/{route}.js` + `pages/{route}.mobile.js`
 - ดู section 15 "กฎเหล็ก" ใน DESIGN.md สำหรับ rule list
 
+## Sub-projects
+
+- **`hong-lens/`** — คัดหุ้นแนวเซียนฮง สำหรับ 25% portfolio allocation (เสริม Niwes 70%). Standalone sub-folder + scanner script `scripts/hong_stage1_scanner.py`. อ่าน `hong-lens/CLAUDE.md` ก่อนทำงานเรื่อง Hong Lens. **ห้ามแก้ Niwes scoring/ranking module จาก Hong Lens code**.
+
 ## Architecture
 - **Agent:** Max Mahon — Thai stock analyst, Niwes Dividend-First style
 - **Stack:** Python + SETSMART API (primary aggregate) + thaifin (history) + yahooquery (DPS events + 52w/capex/IE) + Anthropic SDK (claude-opus-4-7)

@@ -36,9 +36,21 @@ NSL / KCG / MOSHI / PSP / TFM / COM7 / ICHI / OSP / TOA / SISB
 ### ⚠️ NEEDS_2025_OK 2 — MaxMahon ล้าหลัง 1 ปี แต่ SET 2025 ยังโต
 KDH (NP +8%) / TSC (NP +17%)
 
-### 🚨 CUT — MASTER-like (MaxMahon data หาย 2025, ของจริง fail)
+### 🚨 CUT batch 1 — MASTER-like (MaxMahon data หาย 2025, ของจริง fail)
 - **TKN** — MaxMahon 2024 NP 836MB → SET 2025 NP 409MB (-51%) / ROE 36% → 18%
 - **MASTER** — MaxMahon ROE 2022 distort 105% / SET 2025 ROE 5.70% / กำไรลด
+
+### 🚨 CUT batch 2 — Real red flags (Stage 2 review 2026-05-21)
+- **ICHI** — PEG 7.72 (analyst forward expect growth ชะลอ — ตรงข้าม Hong sweet spot)
+- **NSL** — Family concentration 72.7% (control extreme — too risky for minority)
+- **KCG** — Cash 0.07x (liquidity weak ผิดปกติแม้สำหรับ F&B retailer)
+
+### ✅ FINAL 9 — Verified pass Stage 1+2 ของ Hong Lens (2026-05-21)
+**COM7 / MOSHI / PSP / TFM / OSP / TOA / SISB / KDH / TSC**
+
+### Stage 3 — คัดเหลือ 4 ตัว (อาร์ทตัดสินใจ 2026-05-21)
+จาก 9 ตัว → คัดให้เหลือ **4 ตัวสุดท้าย** สำหรับ 25% portfolio allocation
+Position sizing Hong 30:30:30:10 ต่อตัว ในกรอบ 25% (= ~6.25% ต่อตัว)
 
 ## Critical Lessons
 
