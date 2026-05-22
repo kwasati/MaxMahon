@@ -262,6 +262,30 @@ def dps_by_fiscal_year(symbol: str) -> dict[int, float]:
     return {fy: round(v, 4) for fy, v in totals.items()}
 
 
+def fy_is_complete_by_year(symbol: str) -> dict[int, bool]:
+    """Synthesize fy_is_complete dict from set.or.th events.
+
+    Logic: every FY present in cached events is marked complete (True),
+    except the current calendar year (False — fiscal year not yet closed).
+    This mirrors yahoo's yf_fy_complete dict so downstream count_dividend_streak
+    and snapshot DPS picker work uniformly when dividend_source='set_official'.
+
+    Returns {FY: True/False} like {2022: True, 2023: True, 2024: True, 2025: False}.
+    Empty dict if no events cached.
+    """
+    events = cached_dividends(symbol)
+    current_year = datetime.now().year
+    fys = set()
+    for ev in events:
+        end_op = ev.get('end_operation') or ''
+        try:
+            fy = int(end_op[:4])
+            fys.add(fy)
+        except (ValueError, TypeError):
+            continue
+    return {fy: (fy < current_year) for fy in fys}
+
+
 if __name__ == '__main__':
     try:
         print('=== set_official_adapter smoke test: HTC ===')
@@ -275,5 +299,6 @@ if __name__ == '__main__':
         print()
         fy_dps = dps_by_fiscal_year('HTC')
         print(f'dps_by_fiscal_year(HTC) = {fy_dps}')
+        print(f'fy_is_complete_by_year(HTC) = {fy_is_complete_by_year("HTC")}')
     finally:
         _close_browser()
