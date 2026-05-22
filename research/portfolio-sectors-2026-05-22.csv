@@ -1,0 +1,9 @@
+rank,sector,allocation_pct,stock,risk_type
+1,Industrial Estate,35.0,AMATA,Cyclical (property + commodity)
+2,Banking,22.5,BBL,Cyclical (rate cycle)
+3,Financial Holding,12.5,TCAP,Defensive (NPA counter-cyclical)
+4,Construction Materials,7.5,TOA,Cyclical (real estate)
+5,Education,7.5,SISB,Defensive (essential service)
+6,IT Cybersecurity,6.25,SECURE,Defensive (mandate-driven compliance)
+7,Retail Lifestyle,3.75,MOSHI,Cyclical (discretionary spending)
+8,Cash,5.0,Cash,Liquidity

@@ -48,9 +48,11 @@ KDH (NP +8%) / TSC (NP +17%)
 ### ✅ FINAL 9 — Verified pass Stage 1+2 ของ Hong Lens (2026-05-21)
 **COM7 / MOSHI / PSP / TFM / OSP / TOA / SISB / KDH / TSC**
 
-### Stage 3 — คัดเหลือ 4 ตัว (อาร์ทตัดสินใจ 2026-05-21)
+### Stage 3 — คัดเหลือ 4 ตัว (อาร์ทตัดสินใจ 2026-05-21 / sizing final 2026-05-22)
 จาก 9 ตัว → คัดให้เหลือ **4 ตัวสุดท้าย** สำหรับ 25% portfolio allocation
-Position sizing Hong 30:30:30:10 ต่อตัว ในกรอบ 25% (= ~6.25% ต่อตัว)
+- **Final 4 = TOA(30%) + SISB(30%) + SECURE(25%) + MOSHI(15%)** ของ Hong = **7.5/7.5/6.25/3.75% ของพอร์ตหลัก** (weighted ตาม master report)
+- เคยลอง equal weight 25% each (revised 2026-05-22) แต่ revert กลับ weighted เพราะ conviction ต่างกัน (TOA value anchor + SISB moat สูงสุด ควรหนักกว่า MOSHI tail position)
+- Entry framework: เซียนฮง 30:30:30:10 รายตัว (4 รอบเข้าซื้อ) + cut loss -8% mechanical
 
 ## Critical Lessons
 
