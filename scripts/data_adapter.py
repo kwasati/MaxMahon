@@ -291,15 +291,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
         five_year_yields = [dividend_yields[y] for y in recent_years if dividend_yields[y] is not None]
         five_year_avg_yield = (sum(five_year_yields) / len(five_year_yields)) if five_year_yields else None
 
-        # Dividend history: DPS per year (dy% * close / 100)
-        dividend_history = {}
-        for y in dividend_yields:
-            dy_val = dividend_yields[y]
-            close_val = closes.get(y)
-            if dy_val is not None and close_val is not None and close_val > 0:
-                dps = dy_val * close_val / 100.0
-                dividend_history[y] = round(dps, 4)
-
         # EPS trailing from latest year
         eps_trailing = _safe(latest_row.get("earning_per_share")) if latest_year else None
 
@@ -344,7 +335,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
         return {
             "info": info,
             "yearly_metrics": yearly_metrics,
-            "dividend_history": dividend_history,
             "snapshot": {
                 "pe_ratio": pe_ratio,
                 "pb_ratio": pb_ratio,
