@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # set.or.th official dividend adapter (Phase 2 — set.or.th primary, yahoo fallback).
 # Playwright may not be installed in some envs → log warning + fallback to yahoo.
 try:
-    from set_official_adapter import dps_by_fiscal_year as _set_dps_by_fy
+    from set_official_adapter import dps_by_fiscal_year as _set_dps_by_fy, fy_is_complete_by_year as _set_fy_complete
     _SET_OFFICIAL_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"set_official_adapter not available (Playwright?): {e}; will use yahoo for DPS")
@@ -291,15 +291,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
         five_year_yields = [dividend_yields[y] for y in recent_years if dividend_yields[y] is not None]
         five_year_avg_yield = (sum(five_year_yields) / len(five_year_yields)) if five_year_yields else None
 
-        # Dividend history: DPS per year (dy% * close / 100)
-        dividend_history = {}
-        for y in dividend_yields:
-            dy_val = dividend_yields[y]
-            close_val = closes.get(y)
-            if dy_val is not None and close_val is not None and close_val > 0:
-                dps = dy_val * close_val / 100.0
-                dividend_history[y] = round(dps, 4)
-
         # EPS trailing from latest year
         eps_trailing = _safe(latest_row.get("earning_per_share")) if latest_year else None
 
@@ -344,7 +335,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
         return {
             "info": info,
             "yearly_metrics": yearly_metrics,
-            "dividend_history": dividend_history,
             "snapshot": {
                 "pe_ratio": pe_ratio,
                 "pb_ratio": pb_ratio,
@@ -638,8 +628,11 @@ def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
 def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
     """Group 4 quarters into yearly aggregate. Use Q4 accumulated fields.
 
-    Returns: {year: {revenue, net_profit, eps, ocf, icf, fcf, roe, roa, de,
+    Returns: {year: {revenue, net_profit, eps, ocf, icf, financing_cf, roe, roa, de,
                       total_assets, shareholder_equity}}
+
+    Note: 'financing_cf' = financingCashFlow (debt/equity activity), NOT free cash flow.
+    True FCF = OCF - abs(capex) computed in fetch_fundamentals (line 828).
     """
     by_year_q4: dict = {}
     for r in records:
@@ -652,7 +645,7 @@ def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
                 'eps': r.get('epsAccum'),
                 'ocf': r.get('operatingCashFlow'),
                 'icf': r.get('investingCashFlow'),
-                'fcf': r.get('financingCashFlow'),
+                'financing_cf': r.get('financingCashFlow'),
                 'roe': r.get('roe'),
                 'roa': r.get('roa'),
                 'de': r.get('de'),
@@ -797,10 +790,11 @@ def fetch_fundamentals(symbol: str) -> dict:
         yf_oi_by_year = yf_supp.get("operating_income_by_year", {})
         yf_ie_by_year = yf_supp.get("interest_expense_by_year", {})
 
-        # Build dividend_history — set.or.th primary, yahoo fallback
+        # Build dividend_history + fy_is_complete — set.or.th primary, yahoo fallback
         sym_clean = symbol.replace('.BK', '').upper()
         dividend_source = 'unknown'
         _dps_fallback_to_yahoo = False
+        set_fy_complete_dict: dict = {}
         try:
             if not _SET_OFFICIAL_AVAILABLE:
                 raise RuntimeError('set_official_adapter import failed at module load')
@@ -808,6 +802,7 @@ def fetch_fundamentals(symbol: str) -> dict:
             if set_fy_dps:
                 dividend_history = {y: round(dps, 4) for y, dps in set_fy_dps.items()}
                 dividend_source = 'set_official'
+                set_fy_complete_dict = _set_fy_complete(sym_clean)
             else:
                 raise ValueError('set.or.th returned empty')
         except Exception as e:
@@ -815,6 +810,10 @@ def fetch_fundamentals(symbol: str) -> dict:
             dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
             dividend_source = 'yahoo'
             _dps_fallback_to_yahoo = True
+
+        # Source-resolved fy_is_complete: use set.or.th synthesis when set_official wins,
+        # fall back to yahoo's calendar-based dict otherwise.
+        fy_is_complete = set_fy_complete_dict if (dividend_source == 'set_official' and set_fy_complete_dict) else yf_fy_complete
 
         # Patch yearly_metrics with capex, operating_income, interest data from Yahoo
         for m in yearly_metrics:
@@ -898,8 +897,8 @@ def fetch_fundamentals(symbol: str) -> dict:
 
         # --- Dividend: DPS-first, yield = DPS/price (Fiscal Year Attribution per SET methodology) ---
         # Source-resolved: read from dividend_history (set.or.th primary, yahoo fallback)
-        # — yf_fy_complete still gates timing (set.or.th has no completeness dict)
-        complete_fys = sorted([y for y, ok in yf_fy_complete.items() if ok])
+        # — fy_is_complete is source-resolved (set.or.th synthesis primary, yahoo calendar fallback)
+        complete_fys = sorted([y for y, ok in fy_is_complete.items() if ok])
         latest_complete_fy = complete_fys[-1] if complete_fys else None
 
         if latest_complete_fy is not None:
@@ -1021,7 +1020,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         "200d_avg": d200_avg,
         "yearly_metrics": yearly_metrics,
         "dividend_history": dividend_history,
-        "fy_is_complete": yf_fy_complete,
+        "fy_is_complete": fy_is_complete,
         "dividend_source": dividend_source,
         "warnings": (['DPS_SOURCE_YAHOO'] if _dps_fallback_to_yahoo else []),
     }
