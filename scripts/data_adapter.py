@@ -628,8 +628,11 @@ def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
 def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
     """Group 4 quarters into yearly aggregate. Use Q4 accumulated fields.
 
-    Returns: {year: {revenue, net_profit, eps, ocf, icf, fcf, roe, roa, de,
+    Returns: {year: {revenue, net_profit, eps, ocf, icf, financing_cf, roe, roa, de,
                       total_assets, shareholder_equity}}
+
+    Note: 'financing_cf' = financingCashFlow (debt/equity activity), NOT free cash flow.
+    True FCF = OCF - abs(capex) computed in fetch_fundamentals (line 828).
     """
     by_year_q4: dict = {}
     for r in records:
@@ -642,7 +645,7 @@ def _setsmart_financial_to_yearly(records: list[dict]) -> dict:
                 'eps': r.get('epsAccum'),
                 'ocf': r.get('operatingCashFlow'),
                 'icf': r.get('investingCashFlow'),
-                'fcf': r.get('financingCashFlow'),
+                'financing_cf': r.get('financingCashFlow'),
                 'roe': r.get('roe'),
                 'roa': r.get('roa'),
                 'de': r.get('de'),
