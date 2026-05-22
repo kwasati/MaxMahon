@@ -73,6 +73,10 @@ def _request(path: str, params: dict, timeout: int = 30, retries: int = 3) -> li
     return []
 
 
+# NOTE: adjustedPriceFlag='Y' default is intentional. SETSMART adjusted close is
+# compatible with set.or.th DPS (which is also split-adjusted) — yield = DPS/price
+# and DPS x price calculations work consistently across both sources. For raw
+# historical price comparisons (back-testing), pass adjusted='N' explicitly.
 def fetch_eod_by_symbol(symbol: str, start_date: str, end_date: str | None = None,
                          adjusted: str = "Y") -> list[dict]:
     params = {"symbol": symbol, "startDate": start_date, "adjustedPriceFlag": adjusted}
@@ -81,6 +85,7 @@ def fetch_eod_by_symbol(symbol: str, start_date: str, end_date: str | None = Non
     return _request("eod-price-by-symbol", params)
 
 
+# NOTE: adjustedPriceFlag='Y' default is intentional — see fetch_eod_by_symbol above.
 def fetch_eod_all(date: str, security_type: str = "CS", adjusted: str = "Y") -> list[dict]:
     return _request("eod-price-by-security-type",
                     {"securityType": security_type, "date": date, "adjustedPriceFlag": adjusted})
