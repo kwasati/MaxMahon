@@ -17,7 +17,7 @@
 | **SISB** | Education | 7.5% | 10.10 | 5.05% | 9.87 | 2.40 | 26.3% | **7 ปีติด** | 42% | 0.56 | โรงเรียนนานาชาติเครือสิงคโปร์ / margin 38% / ราคา -42% จาก peak |
 | **SECURE** | IT Cybersecurity | 6.25% | 11.30 | 7.20% | 9.14 | 1.44 | 16.3% | 4 ปีติด | 53% | 0.50 | Compliance-driven defensive growth / cash ≥ short-debt / PEG 0.31 |
 | **MOSHI** | Retail Lifestyle | 3.75% | 35.25 | 3.46% | 16.50 | 3.98 | 26.5% | 3 ปีติด | 41% | 0.85 | Japanese-style retail / DPS โต 12× ใน 3 ปี / PEG 0.57 growth catalyst |
-| Cash | — | 5.0% | — | — | — | — | — | — | — | — | Dry powder + รอบ 4 (10%) ของ entry framework เซียนฮง 30:30:30:10 |
+| Cash | — | 5.0% | — | — | — | — | — | — | — | — | Dry powder — เก็บไว้ช้อนเฉพาะตอนเจอหุ้นเข้าเงื่อนไข (ราคาตกแรงทั้งที่ thesis ยังอยู่) |
 
 ---
 
@@ -58,15 +58,19 @@
 
 ---
 
-## Entry framework — เซียนฮง 30:30:30:10 (per stock)
+## Entry framework — DCA equal-portion + dry powder
 
-- **รอบ 1 = 30%** ลงตอนนี้ (Phase 1 entry)
-- **รอบ 2 = 30%** ลงเมื่อราคาตก >10% หรือผ่าน 3 เดือนยังนิ่ง
-- **รอบ 3 = 30%** ลงเมื่อตกอีก 10% หรือผ่าน 6 เดือน
-- **รอบ 4 = 10%** เก็บสำรองเผื่อ market shock ใหญ่ (style 2020 COVID)
-- **Cut loss:** -8% จาก average cost mechanical
+**กฎหลัก (ทุกตัวใช้เหมือนกัน — Niwes + Hong รวม):**
 
-**Phase 1 entry รอบ 1 รวมพอร์ต = ~28.5% ของพอร์ตหลัก** (= 30% × 95% non-cash) — ลงเริ่มต้นชุดแรกพร้อมกันทุกตัว
+- **DCA แบบเท่าๆกัน ไปเรื่อยๆ** — เงินใหม่ที่เข้าพอร์ต 100% ก็แบ่งตามสัดส่วน allocation นี้เลย (AMATA 35 / BBL 22.5 / TCAP 12.5 / TOA 7.5 / SISB 7.5 / SECURE 6.25 / MOSHI 3.75 / Cash 5)
+- **ไม่แบ่งรอบ 30:30:30:10** — ไม่ทำ multi-round entry, ไม่ทำ price-based add
+- **ไม่ cut loss** — Niwes side ถือยาว 10-20 ปี (กฎเดิม), Hong side ก็ไม่ cut เพราะคัดมาดีแล้ว + อยู่ในพอร์ตยาว ไม่ใช่ trade รอบ
+- **Cash 5% = dry powder** — เก็บแยกไว้ ไม่อยู่ใน DCA cycle ปกติ ใช้เฉพาะตอนเจอหุ้นในพอร์ตเข้าเงื่อนไข "ของถูก" (ราคาตกแรงทั้งที่ thesis ยังอยู่) → เอาเงินตรงนี้ไปช้อน
+
+**เงื่อนไขใช้ dry powder (trigger ช้อน):**
+- ราคาตก ≥20% จาก high ล่าสุด **และ** thesis หลักยังไม่เสีย (อ่าน thesis ในตารางหลัก — ยังจริงอยู่ไหม)
+- หรือ event-driven crash (sector-wide / market-wide style 2020 COVID) ที่ทำให้ทุกตัวถูกพร้อมกัน
+- เลือกตัวที่ thesis แข็งที่สุด + ตกแรงสุดก่อน
 
 ---
 

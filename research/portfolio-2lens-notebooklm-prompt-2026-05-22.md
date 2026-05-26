@@ -33,19 +33,20 @@
 |---|:---:|:---:|---|
 | **Niwes Lens** (ปันผลปั้นยาว) | 70% | 3 ตัว | Dividend-first + DCA 10-20 ปี |
 | **Hong Lens** (Sweet Spot growth) | 25% | 4 ตัว | Growth + Value + ROE สูง |
-| **Cash** (สำรอง) | 5% | — | ไว้ DCA จังหวะตลาดตก |
+| **Cash** (Dry powder) | 5% | — | เก็บแยก ไว้ช้อนตอนหุ้นในพอร์ตตกแรง thesis ยังอยู่ |
 
 ### ปรัชญาของพอร์ตนี้
 
 **ทำไม 2 lens?**
 - **Niwes Lens** = เน้นปันผลสูง stable + valuation ถูก + ตัวใหญ่ไม่ตาย → กิน dividend yield compound ยาว 10-20 ปี (DCA)
 - **Hong Lens** = เน้นหุ้นเล็ก-กลางที่ pattern Sweet Spot (โตเร็ว + ROE สูง + PEG ต่ำ) → เสริม growth ให้พอร์ต พร้อม diversify sector ที่ Niwes ไม่ครอบคลุม
-- **Cash 5%** = สำรองไว้เติมจังหวะตลาด crash
+- **Cash 5%** = dry powder แยกจาก DCA cycle ปกติ ใช้เฉพาะ trigger "ของถูก"
 
-**กฎทอง:**
-- Niwes side ห้าม cut loss — ถือยาว ปันผลทบต้น
-- Hong side cut loss -8% mechanical (ตามสไตล์เซียนฮง)
-- Entry framework Hong = 30:30:30:10 (แบ่งเข้าซื้อ 4 รอบ)
+**กฎทอง — Entry framework:**
+- **DCA equal-portion** — เงินใหม่เข้าพอร์ต 100% → แบ่งตาม % allocation ของแต่ละตัวเลย (AMATA 35 / BBL 22.5 / TCAP 12.5 / TOA 7.5 / SISB 7.5 / SECURE 6.25 / MOSHI 3.75 / Cash 5)
+- **ไม่แบ่งเข้าหลายรอบ** — ไม่ทำ 30:30:30:10, ไม่ทำ price-based add — ลงตามสัดส่วนแล้วจบ
+- **ไม่ cut loss ทั้ง 2 side** — Niwes ถือยาว 10-20 ปี / Hong คัดมาดีแล้ว ก็อยู่ในพอร์ตยาวเช่นกัน (ไม่ใช่ trade รอบ)
+- **Dry powder trigger** — หุ้นในพอร์ตตก ≥20% จาก high ล่าสุด + thesis ยังอยู่ → ช้อนจาก Cash 5%
 
 ---
 
@@ -167,7 +168,7 @@
 - **Concept สำคัญ:** PEG ≤ 0.67 (growth/PE ratio ≥ 1.5) — ราคายังไม่สะท้อน growth
 - **Composite weight:** CAGR 40% + Yield 30% + PEG 30%
 - **เป้า:** หาตัวเล็ก-กลางที่ "ถูก + โต + คุณภาพดี" — upside สูงกว่า Niwes แต่ volatile กว่า
-- **Entry framework:** 30:30:30:10 (แบ่งซื้อ 4 รอบ) + Cut loss -8% mechanical
+- **Entry framework:** DCA equal-portion (เงินเข้าพอร์ตแบ่งตาม % allocation ทันที — ไม่ทำ multi-round, ไม่ cut loss)
 
 ### ตาราง Hong 4 ตัว — Fundamentals ครบ
 
@@ -286,7 +287,6 @@
 - Track record IPO สั้นทุกตัว (3-8 ปี) ยกเว้น TOA — ยังไม่ผ่านวิกฤตหนัก
 - Market Cap เล็กกว่า Niwes มาก (1-24B vs 24-314B) = liquidity ต่ำ + volatile กว่า
 - Yield เฉลี่ยต่ำกว่า Niwes (3.37-7.20% vs 5.31-6.08%)
-- Cut loss -8% mechanical ต้องมีวินัย (ไม่เหมือน Niwes ที่ถือยาว)
 - ส่วนใหญ่เป็น small-cap = sensitive ต่อ sentiment ของรายย่อย
 
 ---
