@@ -3,10 +3,10 @@
 ## Codex Adapter [AUTO]
 
 - ไฟล์นี้ sync มาจาก `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\CLAUDE.md` — CLAUDE.md คือกฎต้นฉบับ, AGENTS.md คือสำเนาสำหรับ Codex
-- ก่อนทำงานจริง ต้องอ่าน Claude memory ตัวจริง: `C:\Users\kwasa\.claude\projects\C--WORKSPACE\memory\MEMORY.md`
+- ก่อนทำงานจริง ต้องอ่าน Claude memory ตัวจริง/runtime หลัก: `C:\Users\kwasa\.claude\projects\C--WORKSPACE\memory\MEMORY.md`
 - ถ้า memory ชี้ไปไฟล์ย่อย ให้ resolve จาก `C:\Users\kwasa\.claude\projects\C--WORKSPACE\memory`
 - ถ้าระหว่างงานมีบทเรียน/กฎ/บริบทใหม่ ต้อง merge กลับเข้า CLAUDE.md + Claude MEMORY.md ตัวจริง ไม่เก็บไว้แค่ฝั่ง Codex
-- ห้ามถือไฟล์ใต้ `C:\WORKSPACE\.claude\memory-backpack\` เป็นตัวจริง ถ้ายังไม่เทียบกับ path memory ด้านบน
+- `C:\WORKSPACE\.claude\memory-backpack\` เป็น backup สำหรับขึ้น git เท่านั้น ไม่ใช่ runtime memory หลัก
 
 ## Purpose
 
