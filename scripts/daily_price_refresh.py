@@ -66,6 +66,21 @@ def _load_symbols() -> list[str]:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"could not read {screeners[0].name}: {e}")
 
+    # Portfolio symbols — ALWAYS refresh price for held names (portfolio-redesign),
+    # regardless of watchlist/screener membership. Covers the 7 plan names + off-plan.
+    try:
+        pf = json.loads((DATA_DIR / "portfolio.json").read_text(encoding="utf-8"))
+        pf_syms = (
+            set(pf.get("targets", {}).keys())
+            | set(pf.get("holdings", {}).keys())
+            | set(pf.get("off_plan", {}).keys())
+        )
+        for sym in pf_syms:
+            if sym and sym != "cash":
+                symbols.add(sym if sym.endswith(".BK") else f"{sym}.BK")
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"could not read portfolio.json: {e}")
+
     return sorted(symbols)
 
 
