@@ -108,11 +108,18 @@
     host.innerHTML = MMComponents.renderMobileNav(mappedActive);
   }
 
+  // Route -> page-module alias. "/m" (route "home") now serves the real
+  // portfolio page (pillar-1 dividend). Other routes load their own module.
+  function pageModuleFor(route) {
+    if (route === 'home') return 'portfolio-home';
+    return route;
+  }
+
   async function bootPage() {
     var route = routeFromPath();
     var app = document.getElementById('app');
     try {
-      var mod = await import('/static/v6/js/pages/' + route + '.mobile.js?v={{CACHEBUST}}');
+      var mod = await import('/static/v6/js/pages/' + pageModuleFor(route) + '.mobile.js?v={{CACHEBUST}}');
       if (mod && typeof mod.mount === 'function') {
         mod.mount(app);
       } else {

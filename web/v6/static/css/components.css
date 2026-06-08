@@ -1296,3 +1296,347 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ==========================================================
+   PORTFOLIO HOME — / + /m  (real-portfolio redesign, pillar 1)
+   Single source of truth = mockup maxmahon-portfolio-redesign-mockup.html
+   ALL selectors scoped under .pf-home to avoid clobbering existing
+   .summary-strip / .summary-cell / .section-title / .pill rules.
+   Every value is a var(--xxx) token (no hardcoded hex/px).
+   ========================================================== */
+.pf-home .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.pf-home .serif { font-family: var(--font-head); }
+.pf-home .uppercase { text-transform: uppercase; letter-spacing: 0.16em; }
+.pf-home .dim { color: var(--fg-dim); }
+.pf-home .pos { color: var(--c-positive-strong); }
+.pf-home .neg { color: var(--c-negative); }
+.pf-home .pf-container {
+  max-width: var(--col-max);
+  margin: 0 auto;
+  padding: 0 var(--sp-6);
+}
+
+/* ----- HERO — สรุปพอร์ตรวม ----- */
+.pf-home .pf-hero {
+  background: linear-gradient(var(--bg-elevated-start), var(--bg-elevated-end));
+  border-bottom: 1px solid var(--bg-elevated-border);
+}
+.pf-home .pf-hero .inner {
+  max-width: var(--col-max);
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-6) var(--sp-6);
+}
+.pf-home .hero-eyebrow { font-size: var(--fs-xs); color: var(--fg-dim); font-weight: 600; }
+.pf-home .hero-value {
+  font-size: var(--fs-3xl);
+  font-weight: 900;
+  line-height: 1.05;
+  margin-top: var(--sp-2);
+}
+.pf-home .hero-value .cur {
+  font-size: var(--fs-lg);
+  color: var(--fg-dim);
+  font-weight: 600;
+  margin-left: var(--sp-2);
+}
+.pf-home .hero-sub {
+  color: var(--fg-secondary);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+.pf-home .pf-summary-strip {
+  display: flex;
+  gap: var(--sp-6);
+  margin-top: var(--sp-5);
+  flex-wrap: wrap;
+}
+.pf-home .pf-summary-cell .label {
+  font-size: var(--fs-xs);
+  color: var(--fg-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.pf-home .pf-summary-cell .val {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: var(--fs-lg);
+  margin-top: var(--r-1);
+}
+
+/* ----- SECTION ----- */
+.pf-home .pf-section { padding-top: var(--sp-7); }
+.pf-home .pf-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+.pf-home .pf-section-title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.pf-home .pf-section-note { font-size: var(--fs-sm); color: var(--fg-dim); }
+
+/* ----- CALCULATOR — ดึงกลับเป้า ----- */
+.pf-home .calc {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-5);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.pf-home .calc-top {
+  padding: var(--sp-5);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-5);
+  align-items: center;
+  background: var(--c-positive-tint);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pf-home .calc-label { font-size: var(--fs-sm); color: var(--fg-secondary); font-weight: 600; }
+.pf-home .calc-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.pf-home .calc-input {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: var(--fs-2xl);
+  border: none;
+  background: transparent;
+  color: var(--fg-primary);
+  width: 260px;
+  border-bottom: 2px solid var(--c-positive);
+}
+.pf-home .calc-input:focus { outline: none; }
+.pf-home .calc-btn {
+  background: var(--c-positive);
+  color: var(--role-anchor-fg);
+  border: none;
+  border-radius: var(--r-3);
+  padding: var(--sp-3) var(--sp-5);
+  font-weight: 700;
+  font-size: var(--fs-base);
+  cursor: pointer;
+  box-shadow: var(--shadow-accent-positive);
+}
+.pf-home .calc-hint {
+  font-size: var(--fs-xs);
+  color: var(--fg-dim);
+  max-width: 240px;
+  text-align: right;
+}
+.pf-home .calc-table { width: 100%; border-collapse: collapse; }
+.pf-home .calc-table th {
+  font-size: var(--fs-xs);
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  text-align: right;
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pf-home .calc-table th:first-child { text-align: left; }
+.pf-home .calc-table td {
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.pf-home .calc-table td:first-child {
+  text-align: left;
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+.pf-home .calc-table tr:last-child td { border-bottom: none; }
+.pf-home .calc-table .add { color: var(--c-positive-strong); font-weight: 800; }
+.pf-home .calc-table .skip { color: var(--fg-mute); }
+.pf-home .pf-pill {
+  display: inline-block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: var(--r-1) var(--sp-2);
+  border-radius: var(--r-2);
+}
+.pf-home .pf-pill.under { background: var(--c-warn-soft); color: var(--c-warn-fg); }
+.pf-home .pf-pill.over { background: var(--c-positive-soft); color: var(--c-positive-strong); }
+.pf-home .pf-pill.ok { background: var(--bg-surface-2); color: var(--fg-dim); }
+
+/* ----- HOLDINGS — พอร์ตหลัก ----- */
+.pf-home .group-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-5) 0 var(--sp-3);
+}
+.pf-home .group-label .tag {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: var(--r-2) var(--sp-3);
+  border-radius: var(--r-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pf-home .group-label .tag.niwes { background: var(--role-anchor-bg); color: var(--role-anchor-fg); }
+.pf-home .group-label .tag.hong { background: var(--c-purple-soft); color: var(--c-purple-fg); }
+.pf-home .group-label .tag.cash { background: var(--c-info-soft); color: var(--c-info-fg); }
+.pf-home .group-label .gl-note { font-size: var(--fs-xs); color: var(--fg-dim); }
+.pf-home .group-label .gl-line { flex: 1; height: 1px; background: var(--border-subtle); }
+
+.pf-home .holding {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-4);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-3);
+  display: grid;
+  grid-template-columns: 170px 1fr 150px 110px;
+  gap: var(--sp-5);
+  align-items: center;
+  transition: all 120ms ease;
+  cursor: pointer;
+}
+.pf-home .holding.static { cursor: default; }
+.pf-home .holding:hover { border-color: var(--c-positive-border); box-shadow: var(--shadow-card); }
+.pf-home .h-sym { font-weight: 800; font-size: var(--fs-md); }
+.pf-home .h-name { font-size: var(--fs-xs); color: var(--fg-dim); font-weight: 500; }
+.pf-home .h-sector { font-size: var(--fs-xs); color: var(--fg-mute); margin-top: var(--r-2); }
+.pf-home .h-thesis { font-size: var(--fs-sm); color: var(--fg-secondary); line-height: 1.45; }
+.pf-home .h-metrics { display: flex; gap: var(--sp-4); margin-top: var(--sp-2); flex-wrap: wrap; }
+.pf-home .h-metric { font-size: var(--fs-xs); color: var(--fg-dim); }
+.pf-home .h-metric b {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-primary);
+  font-weight: 700;
+  margin-left: var(--r-2);
+}
+
+/* allocation bar — จริง vs เป้า */
+.pf-home .alloc { text-align: right; }
+.pf-home .alloc-nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-sm); }
+.pf-home .alloc-nums .cur-pct { font-weight: 800; font-size: var(--fs-md); }
+.pf-home .alloc-nums .cur-pct.under { color: var(--c-warn-fg); }
+.pf-home .alloc-nums .tgt { color: var(--fg-dim); }
+.pf-home .alloc-bar {
+  height: 6px;
+  background: var(--bg-surface-2);
+  border-radius: 99px;
+  margin-top: 6px;
+  position: relative;
+  overflow: visible;
+}
+.pf-home .alloc-bar .fill { height: 100%; border-radius: 99px; background: var(--c-positive); }
+.pf-home .alloc-bar .fill.over { background: var(--c-positive-strong); }
+.pf-home .alloc-bar .fill.under { background: var(--c-warn); }
+.pf-home .alloc-bar .target-mark {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  background: var(--fg-primary);
+  opacity: 0.45;
+}
+.pf-home .h-right { text-align: right; }
+.pf-home .h-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; }
+.pf-home .h-shares { font-size: var(--fs-xs); color: var(--fg-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: var(--r-2); }
+.pf-home .h-view { font-size: var(--fs-xs); color: var(--c-positive-strong); font-weight: 600; margin-top: var(--sp-2); }
+.pf-home .h-edit {
+  font-size: var(--fs-xs);
+  color: var(--fg-dim);
+  font-weight: 600;
+  margin-top: var(--sp-2);
+  cursor: pointer;
+}
+.pf-home .h-edit:hover { color: var(--c-positive-strong); }
+
+/* ----- OFF-PLAN — นอกแผน ----- */
+.pf-home .offplan { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.pf-home .op-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-4);
+  padding: var(--sp-5);
+}
+.pf-home .op-card.watch { border-left: 3px solid var(--c-warn); }
+.pf-home .op-card.hold { border-left: 3px solid var(--c-info); }
+.pf-home .op-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--sp-3);
+}
+.pf-home .op-sym { font-weight: 800; font-size: var(--fs-lg); }
+.pf-home .op-status {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: var(--r-2) var(--sp-3);
+  border-radius: var(--r-2);
+}
+.pf-home .op-status.watch { background: var(--c-warn-soft); color: var(--c-warn-fg); }
+.pf-home .op-status.hold { background: var(--c-info-soft); color: var(--c-info-fg); }
+.pf-home .op-pl { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 800; }
+.pf-home .op-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-sm);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pf-home .op-row .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+.pf-home .op-note {
+  font-size: var(--fs-sm);
+  color: var(--fg-secondary);
+  margin-top: var(--sp-3);
+  line-height: 1.6;
+}
+.pf-home .signals { margin-top: var(--sp-3); }
+.pf-home .signal {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  font-size: var(--fs-sm);
+}
+.pf-home .signal .dot { width: 8px; height: 8px; border-radius: 99px; flex-shrink: 0; }
+.pf-home .signal .dot.off { background: var(--fg-mute); }
+.pf-home .signal .dot.warn { background: var(--c-warn); }
+.pf-home .signal .dot.danger { background: var(--c-negative); }
+.pf-home .signal .s-label { flex: 1; }
+.pf-home .signal .s-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-xs); color: var(--fg-dim); }
+
+/* ----- PLAN ----- */
+.pf-home .plan-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-4);
+  padding: var(--sp-5);
+}
+.pf-home .plan-card h4 { font-size: var(--fs-base); font-weight: 800; margin-bottom: var(--sp-2); }
+.pf-home .plan-card p { font-size: var(--fs-sm); color: var(--fg-secondary); line-height: 1.6; }
+.pf-home .plan-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--sp-4); }
+.pf-home .struct-bar {
+  display: flex;
+  height: 38px;
+  border-radius: var(--r-3);
+  overflow: hidden;
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+.pf-home .struct-bar div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--role-anchor-fg);
+}
+.pf-home .struct-bar .niwes { background: var(--c-positive); }
+.pf-home .struct-bar .hong { background: var(--c-purple); }
+.pf-home .struct-bar .cash { background: var(--c-info); }
