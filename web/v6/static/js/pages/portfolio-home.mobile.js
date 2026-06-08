@@ -360,4 +360,18 @@ function _bindEvents(root) {
     if (e.target.id === 'ph-calc-input') { e.preventDefault(); _runCalc(root); return; }
     if (e.target.classList && e.target.classList.contains('qty')) { e.preventDefault(); _saveAll(root); }
   });
+  // เลือกทั้งหมดตอน focus — พิมพ์ทับเลขเดิม/0 ได้เลย ไม่ต้องลบก่อน
+  root.addEventListener('focusin', function (e) {
+    if (_isNumField(e.target)) e.target.select();
+  });
+  // กรองเฉพาะตัวเลข + ใส่ comma คั่นหลักสดๆ ตอนพิมพ์
+  root.addEventListener('input', function (e) {
+    if (!_isNumField(e.target)) return;
+    const raw = e.target.value.replace(/[^\d]/g, '');
+    e.target.value = raw ? parseInt(raw, 10).toLocaleString('en-US') : '';
+  });
+}
+
+function _isNumField(t) {
+  return !!(t && t.classList && (t.classList.contains('qty') || t.id === 'ph-calc-input'));
 }
