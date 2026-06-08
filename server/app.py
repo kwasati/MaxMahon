@@ -2927,6 +2927,136 @@ async def explain_portfolio(
     return payload_out
 
 
+# ---------------------------------------------------------------------------
+# Real portfolio (pillar-1) — state / holdings / top-up / LH signals
+# Backed by scripts.portfolio_state + data/portfolio.json (single source).
+# ---------------------------------------------------------------------------
+# Lazy import: scripts/ is reachable via PROJECT_DIR on sys.path (injected for
+# user_data_io above). Import once so all portfolio endpoints share the refs.
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+from scripts.portfolio_state import (  # noqa: E402
+    load_portfolio,
+    save_portfolio,
+    build_state,
+    rebalance_topup,
+    read_price,
+)
+
+
+@app.get("/api/portfolio/state")
+async def get_portfolio_state(user: dict = Depends(get_current_user)):
+    """Full render-ready state: positions + off-plan + cash + summary."""
+    return build_state()
+
+
+class PortfolioHoldingsUpdate(BaseModel):
+    holdings: Optional[dict] = None
+    cash: Optional[float] = None
+    off_plan: Optional[dict] = None
+
+
+@app.put("/api/portfolio/holdings")
+async def update_portfolio_holdings(
+    body: PortfolioHoldingsUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """Update real holdings / cash / off-plan, then return the fresh state.
+
+    Only the provided fields are touched (None = leave as-is). Targets, meta and
+    lh_triggers are NOT editable here — they are part of the plan definition.
+    """
+    data = load_portfolio()
+    if body.holdings is not None:
+        data["holdings"] = body.holdings
+    if body.cash is not None:
+        data["cash"] = float(body.cash)
+    if body.off_plan is not None:
+        data["off_plan"] = body.off_plan
+    save_portfolio(data)
+    return build_state()
+
+
+class PortfolioTopup(BaseModel):
+    new_money: float
+
+
+@app.post("/api/portfolio/topup")
+async def portfolio_topup(
+    body: PortfolioTopup,
+    user: dict = Depends(get_current_user),
+):
+    """Pull-back-to-target calculator: where new money should go (no selling)."""
+    state = build_state()
+    allocation = rebalance_topup(state, body.new_money)
+    return {"new_money": body.new_money, "allocation": allocation}
+
+
+@app.get("/api/portfolio/lh-signals")
+async def get_lh_signals(user: dict = Depends(get_current_user)):
+    """Compare LH price to its trigger zones -> 3 plain-language signals.
+
+    sell_zone = [lo, hi] price band where LH is rich enough to trim.
+    support   = [s1, s2] price levels below which to watch / add.
+    Each signal carries status off/warn/danger for UI colouring.
+    """
+    p = load_portfolio()
+    trig = p.get("lh_triggers", {}) or {}
+    price = read_price("LH")
+
+    def _nums(arr):
+        # Keep only numeric entries — defensive against malformed config.
+        out = []
+        for v in (arr or []):
+            if isinstance(v, (int, float)):
+                out.append(float(v))
+        return out
+
+    sell_zone = _nums(trig.get("sell_zone"))
+    support = _nums(trig.get("support"))
+    signals = []
+
+    if price is None:
+        # No cached price — report all signals as "off" with detail.
+        signals = [
+            {"label": "Sell Zone", "status": "off", "detail": "ไม่มีราคาล่าสุดของ LH"},
+            {"label": "แนวรับที่ 1", "status": "off", "detail": "ไม่มีราคาล่าสุดของ LH"},
+            {"label": "แนวรับที่ 2", "status": "off", "detail": "ไม่มีราคาล่าสุดของ LH"},
+        ]
+        return {"price": None, "signals": signals}
+
+    # 1) Sell zone — danger if price inside [lo, hi], warn if within ~3% below lo
+    if len(sell_zone) >= 2:
+        lo, hi = sell_zone[0], sell_zone[1]
+        if lo <= price <= hi:
+            s = {"label": "Sell Zone", "status": "danger",
+                 "detail": f"ราคา {price:.2f} อยู่ในโซนขาย {lo:.2f}-{hi:.2f}"}
+        elif lo * 0.97 <= price < lo:
+            s = {"label": "Sell Zone", "status": "warn",
+                 "detail": f"ราคา {price:.2f} ใกล้โซนขาย {lo:.2f}-{hi:.2f}"}
+        else:
+            s = {"label": "Sell Zone", "status": "off",
+                 "detail": f"ราคา {price:.2f} ยังไม่ถึงโซนขาย {lo:.2f}-{hi:.2f}"}
+        signals.append(s)
+
+    # 2) & 3) Support levels — danger if price <= level, warn if within ~3% above
+    labels = ["แนวรับที่ 1", "แนวรับที่ 2"]
+    for i, lvl in enumerate(support[:2]):
+        label = labels[i] if i < len(labels) else f"แนวรับที่ {i + 1}"
+        if price <= lvl:
+            s = {"label": label, "status": "danger",
+                 "detail": f"ราคา {price:.2f} หลุดแนวรับ {lvl:.2f}"}
+        elif price <= lvl * 1.03:
+            s = {"label": label, "status": "warn",
+                 "detail": f"ราคา {price:.2f} ใกล้แนวรับ {lvl:.2f}"}
+        else:
+            s = {"label": label, "status": "off",
+                 "detail": f"ราคา {price:.2f} เหนือแนวรับ {lvl:.2f}"}
+        signals.append(s)
+
+    return {"price": price, "signals": signals}
+
+
 @app.get("/portfolio", response_class=HTMLResponse)
 async def serve_portfolio_desktop():
     return _render_shell(_V6_DESKTOP)

@@ -4,6 +4,7 @@ __pycache__/
 .claude/
 data/
 !data/hidden_value_holdings.json
+!data/portfolio.json
 data/analysis_cache/
 data/price_history/
 data/setsmart_cache/
