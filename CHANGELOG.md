@@ -1,5 +1,30 @@
 # Max Mahon Changelog
 
+## v6.7.0 — 2026-06-08 · Portfolio Page Redesign (เว็บพอร์ตจริง)
+
+**เปลี่ยน max จากเว็บสแกนหุ้น เป็นเว็บพอร์ตจริง (pillar 1 ปันผล) — เปิดมาเจอพอร์ตเลย หน้าเดียวจบ**
+
+### Added
+
+- **หน้าพอร์ตใหม่ (route `/`)** — `web/v6/static/js/pages/portfolio-home.js` + `portfolio-home.mobile.js`
+  - ตารางพอร์ต กรอกจำนวนหุ้น inline ในช่องแต่ละแถว + ราคา/มูลค่า/สัดส่วนจริง vs เป้า + แท่งเทียบ
+  - ตัวคำนวณดึงกลับเป้า — ใส่เงินกองกลาง → แผนซื้อเฉพาะตัวที่ขาดเป้า (ตัวเกินไม่ซื้อ)
+  - นอกแผน (LH สัญญาณขาย 3 ตัว + TISCO ถือถาวร) + แผนการลงทุน — พับ `<details>` ล่างสุด
+- **`data/portfolio.json`** — single source ของพอร์ตจริง (targets/holdings/cash/off_plan/lh_triggers/meta)
+- **`scripts/portfolio_state.py`** — state builder + calculator ดึงกลับเป้า (rebalance) + price reader + LH signal
+- **API** — `GET /api/portfolio/state`, `PUT /api/portfolio/holdings`, `POST /api/portfolio/topup`, `GET /api/portfolio/lh-signals`
+
+### Changed
+
+- หน้าแรก `/` = หน้าพอร์ต (เดิม = ผลสแกน) · ตัด nav 4-tab เหลือหน้าเดียว (brand-only header)
+- **`scripts/daily_price_refresh.py`** — รวม symbols ในพอร์ตเสมอ (ไม่ว่าจะอยู่ watchlist/scan ไหม) กันพอร์ตขาดราคา
+
+### Fixed
+
+- ช่องกรอกเลข (จำนวนหุ้น + เงิน) — เลือกทั้งหมดตอน focus (พิมพ์ทับ 0 ได้เลย) + ใส่ comma คั่นหลักสดๆ ตอนพิมพ์
+
+---
+
 ## Hong Lens — 2026-05-21 · New sub-project
 
 **Purpose:** คัดหุ้นไทยแนวเซียนฮง สถาพร งามเรืองพงศ์ สำหรับ 25% portfolio allocation (เสริม Niwes 70%)
