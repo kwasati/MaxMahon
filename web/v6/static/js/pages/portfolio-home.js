@@ -1,16 +1,20 @@
 /* ==========================================================
-   MAX MAHON v6 — Portfolio Home (Desktop)  — route "/"
-   เว็บพอร์ตจริง (pillar 1 ปันผล) — หน้าเดียวจบ
+   MAX MAHON v6 — Portfolio Home v2 MINIMAL (Desktop)  — route "/"
+   เว็บพอร์ตจริง (pillar 1 ปันผล) — 2 งานชัดๆ บนหน้าเดียว:
+     (1) กรอกจำนวนหุ้น inline ในตาราง -> ปุ่มบันทึก PUT holdings ทีเดียว
+     (2) กรอกเงินรอบนี้ -> คำนวณแผนซื้อ (ดึงกลับเป้า)
+   ของรอง (นอกแผน + แผนเต็ม) พับเก็บล่างสุดด้วย <details>.
+   Layout source of truth: .claude/artifacts/maxmahon-portfolio-mockup-v2-minimal.html
    Live data:
-     GET  /api/portfolio/state       -> hero + holdings + off-plan + summary
+     GET  /api/portfolio/state       -> total_value + positions[] + off_plan[] + cash
      GET  /api/portfolio/lh-signals  -> LH sell/support signals
      POST /api/portfolio/topup       -> pull-back-to-target calculator
-     PUT  /api/portfolio/holdings     -> edit shares / cash
-   Layout source of truth: maxmahon-portfolio-redesign-mockup.html
+     PUT  /api/portfolio/holdings    -> save shares/avg_cost (all) + cash
    All markup scoped under .pf-home (CSS in components.css + mobile.css).
    ========================================================== */
 
 let _state = null;
+const _REPORT_BASE = '/report/';
 
 export function mount(root) {
   root.classList.add('pf-home');
@@ -19,353 +23,253 @@ export function mount(root) {
   _load(root);
 }
 
-/* ---------- shell (static scaffold; data filled by _load) ---------- */
+/* ---------- shell (static scaffold; tables filled by _load) ---------- */
 function _renderShell() {
   return (
-    '<section class="pf-hero">' +
-      '<div class="inner">' +
-        '<div class="hero-eyebrow uppercase">มูลค่าพอร์ตหลัก</div>' +
-        '<div class="hero-value mono" id="ph-hero-value">—</div>' +
-        '<div class="hero-sub" id="ph-hero-sub"></div>' +
-        '<div class="pf-summary-strip" id="ph-summary"></div>' +
+    '<div class="pf-wrap">' +
+
+      '<div class="pf-total">' +
+        '<span class="lbl">มูลค่าพอร์ต</span>' +
+        '<span class="val mono" id="ph-total">—</span>' +
       '</div>' +
-    '</section>' +
-    '<div class="pf-container">' +
 
-      '<section class="pf-section">' +
-        '<div class="pf-section-head">' +
-          '<div class="pf-section-title serif">มีเงินมาเพิ่ม ใส่ตรงไหน</div>' +
-          '<div class="pf-section-note">ปันผล + รายได้ใหม่ = กองกลางก้อนเดียว เติมเฉพาะตัวที่ขาดเป้า (ดึงกลับเป้า)</div>' +
+      /* ====== งานที่ 1: พอร์ตของกู (กรอกหุ้น inline) ====== */
+      '<div class="pf-card">' +
+        '<div class="pf-card-h">' +
+          '<h2>พอร์ตของกู</h2>' +
+          '<span class="hint">กรอกจำนวนหุ้นที่ถือในช่อง แล้วกดบันทึก · แท่ง = สัดส่วนจริง ขีด = เป้า</span>' +
         '</div>' +
-        '<div class="calc">' +
-          '<div class="calc-top">' +
-            '<div>' +
-              '<div class="calc-label">เงินกองกลางรอลง (บาท)</div>' +
-              '<div class="calc-input-row">' +
-                '<input class="calc-input mono" id="ph-calc-input" inputmode="numeric" value="100,000">' +
-                '<button class="calc-btn" id="ph-calc-btn" type="button">คำนวณ &rarr;</button>' +
-              '</div>' +
-            '</div>' +
-            '<div class="calc-hint">ระบบเติมเฉพาะช่องที่ต่ำกว่าเป้า เกลี่ยตามยอดที่ขาด ช่องที่เกินเป้าไม่เติม (ไม่ขายออก)</div>' +
+        '<div class="pf-table-wrap"><table class="pf-table">' +
+          '<thead><tr><th>หุ้น</th><th>จำนวนหุ้น</th><th>ราคา</th><th>มูลค่า</th><th>สัดส่วน จริง / เป้า</th></tr></thead>' +
+          '<tbody id="ph-rows"><tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">โหลดพอร์ต&hellip;</td></tr></tbody>' +
+        '</table></div>' +
+        '<div class="pf-card-f">' +
+          '<span class="note">แก้ตัวเลขในช่องแล้วกดบันทึก · เงินสดกรอกเป็นบาท</span>' +
+          '<button class="pf-btn" id="ph-save" type="button">บันทึกพอร์ต</button>' +
+        '</div>' +
+      '</div>' +
+
+      /* ====== งานที่ 2: เติมเงินรอบนี้ ====== */
+      '<div class="pf-card">' +
+        '<div class="pf-card-h">' +
+          '<h2>มีเงินมาเพิ่ม</h2>' +
+          '<span class="hint">เติมเฉพาะตัวที่ขาดเป้า ดึงพอร์ตกลับสัดส่วน · ตัวเกินไม่ต้องซื้อ</span>' +
+        '</div>' +
+        '<div class="topup-in">' +
+          '<input class="mono" id="ph-calc-input" inputmode="numeric" value="100,000">' +
+          '<span class="cur">บาท</span>' +
+          '<button class="pf-btn" id="ph-calc-btn" type="button" style="margin-left:auto">คำนวณ &rarr;</button>' +
+        '</div>' +
+        '<div class="pf-table-wrap"><table class="pf-table">' +
+          '<thead><tr><th>ซื้อเพิ่ม</th><th>สถานะ</th><th>ราคา</th><th>จำนวนหุ้น</th><th>ลงเงิน</th></tr></thead>' +
+          '<tbody class="buyrow" id="ph-calc-body"><tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กดคำนวณเพื่อดูแผนซื้อ</td></tr></tbody>' +
+        '</table></div>' +
+      '</div>' +
+
+      /* ====== ของรอง: ย่อเก็บล่างสุด ====== */
+      '<div class="pf-minor">' +
+        '<details id="ph-offplan-det">' +
+          '<summary><span id="ph-offplan-sum">นอกแผน</span> <span class="chev">กดดู &#9662;</span></summary>' +
+          '<div class="det-body" id="ph-offplan"></div>' +
+        '</details>' +
+        '<details>' +
+          '<summary>แผนการลงทุน — Niwes 70 · เซียนฮง 25 · เงินสด 5 <span class="chev">กดดู &#9662;</span></summary>' +
+          '<div class="det-body">' +
+            '<p class="det-text">' +
+              'ปันผล + รายได้ใหม่ รวมกองกลางก้อนเดียว เติมเฉพาะตัวขาดเป้า · ไม่ cut loss · ' +
+              'ไม่ซื้อเพิ่มตามราคา · เงินสด 5% ช้อนตอนหุ้นตก &ge;20% ทั้งที่ thesis ยังอยู่ · ' +
+              'กดที่ชื่อหุ้นแต่ละตัวดูเหตุผลเต็มได้' +
+            '</p>' +
           '</div>' +
-          '<div class="calc-table-wrap"><table class="calc-table">' +
-            '<thead><tr><th>หุ้น</th><th>สถานะ</th><th>ราคาล่าสุด</th><th>ซื้อเพิ่ม (หุ้น)</th><th>ลงเงิน</th></tr></thead>' +
-            '<tbody id="ph-calc-body"><tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กดคำนวณเพื่อดูแผนซื้อ</td></tr></tbody>' +
-          '</table></div>' +
-        '</div>' +
-      '</section>' +
+        '</details>' +
+      '</div>' +
 
-      '<section class="pf-section">' +
-        '<div class="pf-section-head">' +
-          '<div class="pf-section-title serif">พอร์ตหลัก</div>' +
-          '<div class="pf-section-note">แท่ง = สัดส่วนจริง ขีดดำ = เป้า คลิกการ์ดเพื่อดูเหตุผลเต็ม</div>' +
-        '</div>' +
-        '<div id="ph-holdings"></div>' +
-      '</section>' +
-
-      '<section class="pf-section">' +
-        '<div class="pf-section-head">' +
-          '<div class="pf-section-title serif">นอกแผน</div>' +
-          '<div class="pf-section-note">ไม่นับฐานคำนวณดึงกลับเป้า ถือไว้ตามแผนเฉพาะตัว</div>' +
-        '</div>' +
-        '<div class="offplan" id="ph-offplan"></div>' +
-      '</section>' +
-
-      '<section class="pf-section">' +
-        '<div class="pf-section-head">' +
-          '<div class="pf-section-title serif">แผนการลงทุน</div>' +
-          '<div class="pf-section-note">Pillar 1 Niwes Dividend-First + เซียนฮง DCA 10-20 ปี</div>' +
-        '</div>' +
-        '<div class="plan-card" style="margin-bottom:var(--sp-4)">' +
-          '<h4>โครงสร้างพอร์ต</h4>' +
-          '<div class="struct-bar">' +
-            '<div class="niwes" style="flex:70">Niwes 70%</div>' +
-            '<div class="hong" style="flex:25">เซียนฮง 25%</div>' +
-            '<div class="cash" style="flex:5">5%</div>' +
-          '</div>' +
-          '<p>4 cyclical (AMATA + BBL + TOA + MOSHI = 68.75%) : 3 defensive (TCAP + SISB + SECURE = 26.25%) : เงินสด 5% 7 sector ไม่ทับกัน</p>' +
-        '</div>' +
-        '<div class="plan-grid">' +
-          '<div class="plan-card"><h4>วิธีเติมเงิน</h4><p>ปันผลทุกตัว + รายได้ใหม่ รวมกองกลางก้อนเดียว (ปันผลไม่วิ่งกลับตัวเดิม) เติมเฉพาะตัวขาดเป้า ดึงพอร์ตกลับสัดส่วนเอง</p></div>' +
-          '<div class="plan-card"><h4>ไม่ทำอะไร</h4><p>ไม่แบ่งรอบ 30:30:30:10 ไม่ซื้อเพิ่มตามราคา ไม่ cut loss (ถือยาว thesis ยังอยู่)</p></div>' +
-          '<div class="plan-card"><h4>ใช้เงินสดเมื่อไหร่</h4><p>หุ้นในพอร์ตตก &ge;20% จาก high ทั้งที่ thesis ยังจริง หรือ crash ทั้งตลาดแบบ 2020 ช้อนตัว thesis แข็งสุด + ตกแรงสุดก่อน</p></div>' +
-        '</div>' +
-      '</section>' +
-
+      '<div class="pf-foot" id="ph-foot">ราคาอัปเดตจาก SETSMART</div>' +
     '</div>'
   );
 }
 
 /* ---------- load + render ---------- */
 async function _load(root) {
-  const holdHost = root.querySelector('#ph-holdings');
-  if (holdHost) window.MMComponents.renderLoading(holdHost, 'โหลดพอร์ต');
+  const rowsHost = root.querySelector('#ph-rows');
   try {
     const state = await window.MMApi.get('/api/portfolio/state');
     _state = state;
-    _renderHero(root, state);
-    _renderSummary(root, state);
-    _renderHoldings(root, state);
+    _renderTotal(root, state);
+    _renderRows(root, state);
     _renderOffPlan(root, state);
-    _loadLhSignals(root);
+    _renderFoot(root, state);
   } catch (e) {
-    window.MMComponents.renderError(
-      holdHost || root,
-      'โหลดพอร์ตไม่สำเร็จ: ' + (e && e.message || e),
-      function () { _load(root); }
-    );
-  }
-}
-
-function _renderHero(root, state) {
-  const valEl = root.querySelector('#ph-hero-value');
-  const subEl = root.querySelector('#ph-hero-sub');
-  if (valEl) {
-    valEl.innerHTML = window.MMUtils.fmtNum(state.total_value || 0, 0) +
-      '<span class="cur">บาท</span>';
-  }
-  if (subEl) {
-    // ปันผลรับปีนี้ (คาด) = sum(current_value * yield%/100) ; yield ถ่วงน้ำหนัก
-    let divIncome = 0;
-    let weightedYieldNum = 0;
-    const positions = state.positions || [];
-    for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      const cv = p.current_value || 0;
-      const y = (p.metrics && p.metrics.yield) || 0;
-      divIncome += cv * y / 100;
-      weightedYieldNum += cv * y;
+    if (rowsHost) {
+      rowsHost.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--c-negative)">' +
+        'โหลดพอร์ตไม่สำเร็จ: ' + window.MMUtils.escapeHtml((e && e.message) || String(e)) + '</td></tr>';
     }
-    const totalCv = (state.total_value || 0) - (state.cash || 0);
-    const wYield = totalCv > 0 ? (weightedYieldNum / totalCv) : 0;
-    subEl.innerHTML =
-      'ปันผลรับปีนี้ (คาด) <b class="mono pos">~' + window.MMUtils.fmtNum(divIncome, 0) + ' บาท</b> ' +
-      '&middot; yield เฉลี่ยถ่วงน้ำหนัก <b class="mono">' + wYield.toFixed(1) + '%</b> ' +
-      '&middot; ปั้นไปเป้า 100M (10-20 ปี)';
   }
 }
 
-function _renderSummary(root, state) {
-  const host = root.querySelector('#ph-summary');
+function _renderTotal(root, state) {
+  const el = root.querySelector('#ph-total');
+  if (el) el.textContent = window.MMUtils.fmtNum(state.total_value || 0, 0);
+}
+
+function _renderFoot(root, state) {
+  const el = root.querySelector('#ph-foot');
+  if (!el) return;
+  let txt = 'ราคาอัปเดตจาก SETSMART';
+  if (state.updated_at) {
+    const d = new Date(state.updated_at);
+    if (!isNaN(d.getTime())) {
+      txt += ' · บันทึกล่าสุด ' + d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+  }
+  el.textContent = txt;
+}
+
+/* group dot class from position.group */
+function _groupDot(group) {
+  if (group === 'niwes') return 'niwes';
+  if (group === 'hong') return 'hong';
+  return 'niwes';  // default in-plan symbols use the niwes (green) dot
+}
+
+/* one allocation cell (badge + now/target + bar + mark) */
+function _allocCell(pct, target, status) {
+  // status ∈ ok / over / deficit  → badge under / over / ok
+  let st, fillCls, nowCls;
+  if (status === 'deficit') { st = 'under'; fillCls = 'under'; nowCls = ' warn'; }
+  else if (status === 'over') { st = 'over'; fillCls = 'over'; nowCls = ''; }
+  else { st = 'ok'; fillCls = 'ok'; nowCls = ''; }
+  const stText = st === 'under' ? 'ขาด' : (st === 'over' ? 'เกิน' : 'ตรง');
+  // fill width: pct relative to its own target, capped at 100%
+  const fillW = target > 0 ? Math.min(100, pct / target * 100) : (pct > 0 ? 100 : 0);
+  // target mark: position of target along the max(target,pct) scale
+  const scale = Math.max(target, pct) || 1;
+  const markLeft = Math.min(100, target / scale * 100);
+  return '<span class="st ' + st + '">' + stText + '</span> ' +
+    '<span class="now' + nowCls + '">' + pct.toFixed(1) + '%</span>' +
+    '<span class="arrow">/</span><span class="tgt">' + target.toFixed(1) + '</span>' +
+    '<div class="bar"><div class="fill ' + fillCls + '" style="width:' + fillW + '%"></div>' +
+    '<div class="mk" style="left:' + markLeft + '%"></div></div>';
+}
+
+function _renderRows(root, state) {
+  const host = root.querySelector('#ph-rows');
   if (!host) return;
-  const s = state.summary || {};
   const esc = window.MMUtils.escapeHtml;
-  // ตรงเป้า = count_on_target / (count_total + 1 cash slot)
-  const slots = (s.count_total || 0) + 1;
-  // ตัวเกิน / ตัวขาด — list symbols
-  const overSyms = [];
-  const deficitSyms = [];
-  (state.positions || []).forEach(function (p) {
-    if (p.status === 'over') overSyms.push(p.sym);
-    else if (p.status === 'deficit') deficitSyms.push(p.sym);
+  const positions = state.positions || [];
+  let html = '';
+
+  positions.forEach(function (p) {
+    const sym = p.sym || '';
+    const status = p.status || 'ok';
+    const pct = p.pct || 0;
+    const target = p.target_pct || 0;
+    // มูลค่า = current_value (fallback shares*price ถ้า backend ไม่คืน)
+    let cv = p.current_value;
+    if (cv == null) cv = (p.shares || 0) * (p.price || 0);
+    const priceStr = p.price != null ? window.MMUtils.fmtNum(p.price, 2) : '—';
+    const shares = p.shares || 0;
+
+    html += '<tr data-ph-sym="' + esc(sym) + '">' +
+      '<td><a class="sym" href="' + _REPORT_BASE + esc(sym) + '">' +
+        '<span class="g ' + _groupDot(p.group) + '"></span>' + esc(sym) + '</a></td>' +
+      '<td><input class="qty" data-ph-qty="' + esc(sym) + '" inputmode="numeric" value="' +
+        window.MMUtils.fmtNum(shares, 0) + '"></td>' +
+      '<td>' + priceStr + '</td>' +
+      '<td>' + window.MMUtils.fmtNum(cv, 0) + '</td>' +
+      '<td class="alloc">' + _allocCell(pct, target, status) + '</td>' +
+    '</tr>';
   });
-  // cash deficit/over too
+
+  // cash row (input = บาท)
+  const cash = state.cash || 0;
   const cashPct = state.cash_pct || 0;
   const cashTgt = state.cash_target_pct || 0;
-  if (cashPct - cashTgt < -0.5) deficitSyms.push('Cash');
-  else if (cashPct - cashTgt > 0.5) overSyms.push('Cash');
-
-  function cell(label, val, cls) {
-    return '<div class="pf-summary-cell"><div class="label">' + esc(label) + '</div>' +
-      '<div class="val' + (cls ? ' ' + cls : '') + '"' +
-      (cls === '__warn' ? ' style="color:var(--c-warn-fg)"' : '') + '>' + val + '</div></div>';
-  }
-  host.innerHTML =
-    cell('หุ้นในแผน', (s.count_total || 0) + ' ตัว', '') +
-    cell('เงินสด (dry powder)', cashPct.toFixed(1) + '%', '') +
-    cell('ตรงเป้า', '<span class="pos">' + (s.count_on_target || 0) + ' / ' + slots + '</span>', '') +
-    cell('เกินเป้า', overSyms.length ? esc(overSyms.join('·')) : '—', '') +
-    cell('ขาดเป้า', deficitSyms.length ? esc(deficitSyms.join('·')) : '—', '__warn');
-}
-
-/* group label markup */
-function _groupLabel(tagCls, tagText, note) {
-  const esc = window.MMUtils.escapeHtml;
-  return '<div class="group-label">' +
-    '<span class="tag ' + tagCls + '">' + esc(tagText) + '</span>' +
-    '<span class="gl-note">' + esc(note) + '</span>' +
-    '<span class="gl-line"></span>' +
-  '</div>';
-}
-
-function _renderHoldings(root, state) {
-  const host = root.querySelector('#ph-holdings');
-  if (!host) return;
-  const positions = state.positions || [];
-  const niwes = positions.filter(function (p) { return (p.group || '') === 'niwes'; });
-  const hong = positions.filter(function (p) { return (p.group || '') === 'hong'; });
-  const other = positions.filter(function (p) {
-    return (p.group || '') !== 'niwes' && (p.group || '') !== 'hong';
-  });
-
-  let html = '';
-  html += _groupLabel('niwes', 'Niwes 70%', 'แกนหลัก AMATA + BBL anchor TCAP supporting');
-  niwes.forEach(function (p) { html += _holdingCard(p); });
-  if (other.length) { other.forEach(function (p) { html += _holdingCard(p); }); }
-
-  html += _groupLabel('hong', 'เซียนฮง 25%', '4 ตัว ถ่วงน้ำหนัก 30/30/25/15 TOA SISB SECURE MOSHI');
-  hong.forEach(function (p) { html += _holdingCard(p); });
-
-  html += _groupLabel('cash', 'เงินสด 5%', 'Dry powder เก็บไว้ช้อนตอนหุ้นในพอร์ตตกแรง >=20% ทั้งที่ thesis ยังอยู่');
-  html += _cashCard(state);
+  const cashStatus = (cashPct - cashTgt < -0.5) ? 'deficit'
+    : ((cashPct - cashTgt > 0.5) ? 'over' : 'ok');
+  html += '<tr data-ph-cash="1">' +
+    '<td><span class="sym"><span class="g cash"></span>เงินสด</span> <span class="sub">dry powder</span></td>' +
+    '<td><input class="qty" id="ph-qty-cash" inputmode="numeric" value="' +
+      window.MMUtils.fmtNum(cash, 0) + '"></td>' +
+    '<td class="dim">—</td>' +
+    '<td>' + window.MMUtils.fmtNum(cash, 0) + '</td>' +
+    '<td class="alloc">' + _allocCell(cashPct, cashTgt, cashStatus) + '</td>' +
+  '</tr>';
 
   host.innerHTML = html;
 }
 
-/* one holding card — grid: meta | thesis+metrics | alloc | right */
-function _holdingCard(p) {
-  const esc = window.MMUtils.escapeHtml;
-  const sym = p.sym || '';
-  const status = p.status || 'ok';            // ok / over / deficit
-  const fillCls = status === 'over' ? 'over' : (status === 'deficit' ? 'under' : '');
-  const pctNumCls = status === 'deficit' ? ' under' : '';
-  const pct = p.pct || 0;
-  const target = p.target_pct || 0;
-  // fill width: cap at 100% of target (visual), target-mark position relative
-  const fillW = target > 0 ? Math.min(100, pct / target * 100) : (pct > 0 ? 100 : 0);
-  // target-mark left = target as fraction of the max(target, pct) scale used for the fill
-  const scale = Math.max(target, pct) || 1;
-  const markLeft = Math.min(100, target / scale * 100);
-
-  const m = p.metrics || {};
-  function metric(label, val, suffix) {
-    if (val === null || val === undefined) return '';
-    return '<span class="h-metric">' + label + '<b>' + esc(String(val)) + (suffix || '') + '</b></span>';
-  }
-  const metricsHtml =
-    metric('Yield', m.yield != null ? m.yield.toFixed(2) : null, '%') +
-    metric('P/E', m.pe, '') +
-    metric('P/BV', m.pbv, '') +
-    metric('ROE', m.roe != null ? m.roe.toFixed(1) : null, '%') +
-    metric('Payout', m.payout, '%');
-
-  const priceStr = p.price != null ? window.MMUtils.fmtNum(p.price, 2) : '—';
-  const sharesStr = window.MMUtils.fmtNum(p.shares || 0, 0) + ' หุ้น';
-
-  return '<div class="holding" data-ph-sym="' + esc(sym) + '">' +
-    '<div>' +
-      '<div class="h-sym">' + esc(sym) + '</div>' +
-      '<div class="h-name">' + esc(p.name || '') + '</div>' +
-      (p.sector ? '<div class="h-sector">' + esc(p.sector) + '</div>' : '') +
-    '</div>' +
-    '<div>' +
-      '<div class="h-thesis">' + esc(p.thesis || '') + '</div>' +
-      '<div class="h-metrics">' + metricsHtml + '</div>' +
-    '</div>' +
-    '<div class="alloc">' +
-      '<div class="alloc-nums"><span class="cur-pct' + pctNumCls + '">' + pct.toFixed(1) + '%</span> ' +
-        '<span class="tgt">/ ' + target.toFixed(1) + '</span></div>' +
-      '<div class="alloc-bar">' +
-        '<div class="fill ' + fillCls + '" style="width:' + fillW + '%"></div>' +
-        '<div class="target-mark" style="left:' + markLeft + '%"></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="h-right">' +
-      '<div class="h-price mono">' + priceStr + '</div>' +
-      '<div class="h-shares">' + sharesStr + '</div>' +
-      '<div class="h-view" data-ph-view="' + esc(sym) + '">ดูเหตุผลเต็ม &rarr;</div>' +
-      '<div class="h-edit" data-ph-edit="' + esc(sym) + '">แก้จำนวนหุ้น</div>' +
-    '</div>' +
-  '</div>';
-}
-
-/* cash card — uses cash / cash_pct / cash_target_pct */
-function _cashCard(state) {
-  const cash = state.cash || 0;
-  const pct = state.cash_pct || 0;
-  const target = state.cash_target_pct || 0;
-  const status = (pct - target < -0.5) ? 'deficit' : ((pct - target > 0.5) ? 'over' : 'ok');
-  const fillCls = status === 'over' ? 'over' : (status === 'deficit' ? 'under' : '');
-  const pctNumCls = status === 'deficit' ? ' under' : '';
-  const fillW = target > 0 ? Math.min(100, pct / target * 100) : (pct > 0 ? 100 : 0);
-  const scale = Math.max(target, pct) || 1;
-  const markLeft = Math.min(100, target / scale * 100);
-
-  return '<div class="holding static">' +
-    '<div><div class="h-sym">เงินสด</div><div class="h-name">Dry powder</div></div>' +
-    '<div><div class="h-thesis">รอจังหวะของถูก ไม่อยู่ใน DCA ปกติ ใช้เฉพาะตอนราคาตกแรงทั้งที่ thesis ไม่เสีย หรือ crash ทั้งตลาด</div></div>' +
-    '<div class="alloc">' +
-      '<div class="alloc-nums"><span class="cur-pct' + pctNumCls + '">' + pct.toFixed(1) + '%</span> ' +
-        '<span class="tgt">/ ' + target.toFixed(1) + '</span></div>' +
-      '<div class="alloc-bar">' +
-        '<div class="fill ' + fillCls + '" style="width:' + fillW + '%"></div>' +
-        '<div class="target-mark" style="left:' + markLeft + '%"></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="h-right">' +
-      '<div class="h-price mono">' + window.MMUtils.fmtNum(cash, 0) + '</div>' +
-      '<div class="h-shares">บาท</div>' +
-      '<div class="h-edit" data-ph-edit-cash="1">แก้เงินสด</div>' +
-    '</div>' +
-  '</div>';
-}
-
-/* ---------- off-plan (LH watch + TISCO hold) ---------- */
+/* ---------- off-plan (collapsed details) ---------- */
 function _renderOffPlan(root, state) {
   const host = root.querySelector('#ph-offplan');
+  const sum = root.querySelector('#ph-offplan-sum');
   if (!host) return;
   const esc = window.MMUtils.escapeHtml;
   const list = state.off_plan || [];
+  if (!list.length) {
+    host.innerHTML = '<div class="dim" style="padding:var(--sp-3) 0">ไม่มีรายการนอกแผน</div>';
+    if (sum) sum.textContent = 'นอกแผน';
+    return;
+  }
+  // summary line lists symbols + mode
+  const labels = list.map(function (op) {
+    const m = (op.mode === 'watch') ? '(รอขาย)' : '(ถือถาวร)';
+    return (op.sym || '') + ' ' + m;
+  });
+  if (sum) sum.textContent = 'นอกแผน — ' + labels.join(' · ');
+
   let html = '';
   list.forEach(function (op) {
     const sym = op.sym || '';
-    const mode = op.mode || 'hold';                    // watch / hold
-    const cardCls = mode === 'watch' ? 'watch' : 'hold';
-    const statusTxt = mode === 'watch' ? 'รอจังหวะขาย' : 'ถือถาวร ไม่ซื้อเพิ่ม';
+    const mode = op.mode || 'hold';
+    const tagCls = mode === 'watch' ? 'watch' : 'hold';
+    const tagTxt = mode === 'watch' ? 'รอจังหวะขาย' : 'ถือถาวร ไม่ซื้อเพิ่ม';
     const plPct = op.pl_pct;
     const plCls = (plPct != null && plPct < 0) ? 'neg' : 'pos';
-    const plStr = plPct != null ? ((plPct >= 0 ? '+' : '') + plPct.toFixed(1) + '%') : '—';
+    const plStr = plPct != null ? ((plPct >= 0 ? '+' : '') + plPct.toFixed(0) + '%') : '';
     const priceStr = op.price != null ? window.MMUtils.fmtNum(op.price, 2) : '—';
-    const cvStr = window.MMUtils.fmtNum(op.current_value || 0, 0);
     const sharesStr = window.MMUtils.fmtNum(op.shares || 0, 0);
     const avgStr = window.MMUtils.fmtNum(op.avg_cost || 0, 2);
 
-    let body =
-      '<div class="op-head">' +
-        '<div><div class="op-sym">' + esc(sym) + '</div></div>' +
-        '<div class="op-status ' + cardCls + '">' + esc(statusTxt) + '</div>' +
-      '</div>' +
-      '<div class="op-row"><span>ถือ ' + sharesStr + ' หุ้น ทุน ' + avgStr + '</span>' +
-        '<span class="op-pl ' + plCls + '">' + plStr + '</span></div>' +
-      '<div class="op-row"><span>ราคาล่าสุด</span><span class="v">' + priceStr + '</span></div>' +
-      '<div class="op-row"><span>มูลค่าปัจจุบัน</span><span class="v">' + cvStr + '</span></div>';
-
+    let opr = priceStr + (plStr ? ' <span class="' + plCls + '">' + plStr + '</span>' : '');
     if (mode === 'watch') {
-      body += '<div class="signals" data-ph-lh-signals>' +
-        '<div class="signal"><span class="dot off"></span><span class="s-label dim">กำลังโหลดสัญญาณ LH</span><span class="s-val"></span></div>' +
-      '</div>';
-    } else {
-      body += '<div class="op-note">อยู่ในพอร์ตถาวร เก็บกินปันผล ไม่เข้า cycle ดึงกลับเป้า และไม่ซื้อเพิ่ม</div>';
+      opr += ' · <span data-ph-lh-signals>สัญญาณ: กำลังโหลด&hellip;</span>';
     }
-    html += '<div class="op-card ' + cardCls + '">' + body + '</div>';
+    html += '<div class="op">' +
+      '<span class="opl">' + esc(sym) +
+        ' <span class="tag ' + tagCls + '">' + esc(tagTxt) + '</span>' +
+        ' <span class="sub">' + sharesStr + ' หุ้น · ทุน ' + avgStr + '</span></span>' +
+      '<span class="opr">' + opr + '</span>' +
+    '</div>';
   });
-  host.innerHTML = html || '<div style="color:var(--fg-dim)">ไม่มีรายการนอกแผน</div>';
+  host.innerHTML = html;
+  _loadLhSignals(root);
 }
 
 async function _loadLhSignals(root) {
-  const host = root.querySelector('[data-ph-lh-signals]');
-  if (!host) return;
+  const hosts = root.querySelectorAll('[data-ph-lh-signals]');
+  if (!hosts.length) return;
   try {
     const res = await window.MMApi.get('/api/portfolio/lh-signals');
     const esc = window.MMUtils.escapeHtml;
     const signals = res.signals || [];
-    if (!signals.length) { host.innerHTML = '<div class="signal dim">ไม่มีสัญญาณ</div>'; return; }
-    let html = '';
-    signals.forEach(function (s) {
-      const dotCls = s.status === 'danger' ? 'danger' : (s.status === 'warn' ? 'warn' : 'off');
-      html += '<div class="signal">' +
-        '<span class="dot ' + dotCls + '"></span>' +
-        '<span class="s-label">' + esc(s.label || '') + '</span>' +
-        '<span class="s-val">' + esc(s.detail || '') + '</span>' +
-      '</div>';
-    });
-    host.innerHTML = html;
+    let out;
+    if (!signals.length) {
+      out = 'สัญญาณ: ไม่มี';
+    } else {
+      const parts = signals.map(function (s) {
+        const dot = s.status === 'danger' ? '●' : (s.status === 'warn' ? '●' : '○');
+        return esc(s.label || '') + dot + (s.detail ? esc(s.detail) : '');
+      });
+      out = 'สัญญาณ: ' + parts.join(' · ');
+    }
+    hosts.forEach(function (h) { h.innerHTML = out; });
   } catch (e) {
-    host.innerHTML = '<div class="signal"><span class="dot off"></span><span class="s-label dim">โหลดสัญญาณ LH ไม่ได้</span></div>';
+    hosts.forEach(function (h) { h.textContent = 'สัญญาณ: โหลดไม่ได้'; });
   }
 }
 
-/* ---------- calculator ---------- */
+/* ---------- calculator (top-up) ---------- */
 function _parseMoney(raw) {
   const n = parseFloat(String(raw || '').replace(/[, ]/g, ''));
   return isNaN(n) ? 0 : n;
@@ -380,7 +284,7 @@ async function _runCalc(root) {
     body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--c-warn-fg)">ใส่จำนวนเงินมากกว่า 0</td></tr>';
     return;
   }
-  body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กำลังคำนวณ</td></tr>';
+  body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กำลังคำนวณ&hellip;</td></tr>';
   try {
     const res = await window.MMApi.post('/api/portfolio/topup', { new_money: money });
     _renderCalcTable(body, res.allocation || []);
@@ -392,142 +296,86 @@ async function _runCalc(root) {
 
 function _renderCalcTable(body, allocation) {
   const esc = window.MMUtils.escapeHtml;
-  // sort: under first (by baht desc), then over/ok
-  const rows = allocation.slice().sort(function (a, b) {
-    const au = a.status === 'under' ? 0 : 1;
-    const bu = b.status === 'under' ? 0 : 1;
-    if (au !== bu) return au - bu;
-    return (b.baht || 0) - (a.baht || 0);
+  // ตัวขาด (under) ที่ลงเงินจริง vs ที่เหลือ (เกิน/ตรง — ยุบรวมบรรทัดเดียว)
+  const buys = [];
+  const skips = [];
+  allocation.forEach(function (r) {
+    const isBuy = (r.status === 'under') && ((r.baht || 0) > 0);
+    if (isBuy) buys.push(r);
+    else skips.push(r);
   });
+  // sort buys by baht desc
+  buys.sort(function (a, b) { return (b.baht || 0) - (a.baht || 0); });
+
   let html = '';
-  rows.forEach(function (r) {
+  buys.forEach(function (r) {
     const isCash = (r.sym === 'cash');
     const symLabel = isCash ? 'เงินสด' : r.sym;
-    let pill;
-    if (r.status === 'under') {
-      pill = '<span class="pf-pill under">ขาด ' + (r.deficit_pct != null ? r.deficit_pct.toFixed(1) : '0') + '%</span>';
-    } else if (r.status === 'over') {
-      pill = '<span class="pf-pill over">เกินเป้า</span>';
-    } else {
-      pill = '<span class="pf-pill ok">ตรงเป้า</span>';
-    }
-    const priceStr = isCash ? '—' : (r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—');
-    const buys = r.shares_to_buy;
-    const cellCls = (r.status === 'under' && (r.baht || 0) > 0) ? 'add' : 'skip';
-    let sharesCell;
-    if (isCash) {
-      sharesCell = (r.baht || 0) > 0 ? '—' : '—';
-    } else if (buys != null && buys > 0) {
-      sharesCell = '+' + window.MMUtils.fmtNum(buys, 0);
-    } else {
-      sharesCell = '—';
-    }
-    const bahtCell = (r.baht || 0) > 0 ? window.MMUtils.fmtNum(r.baht, 0) : '0';
+    const deficit = r.deficit_pct != null ? r.deficit_pct.toFixed(1) : '0';
+    const priceStr = isCash ? '<span class="dim">—</span>' :
+      (r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—');
+    const buy = r.shares_to_buy;
+    const sharesCell = isCash ? '<span class="b">—</span>'
+      : (buy != null && buy > 0 ? '<span class="b">+' + window.MMUtils.fmtNum(buy, 0) + '</span>' : '—');
+    const bahtCell = '<span class="b">' + window.MMUtils.fmtNum(r.baht || 0, 0) + '</span>';
     html += '<tr>' +
-      '<td>' + esc(symLabel) + '</td>' +
-      '<td>' + pill + '</td>' +
+      '<td class="sym">' + esc(symLabel) + '</td>' +
+      '<td><span class="st under">ขาด ' + deficit + '%</span></td>' +
       '<td>' + priceStr + '</td>' +
-      '<td class="' + cellCls + '">' + sharesCell + '</td>' +
-      '<td class="' + cellCls + '">' + bahtCell + '</td>' +
+      '<td>' + sharesCell + '</td>' +
+      '<td>' + bahtCell + '</td>' +
     '</tr>';
   });
+
+  if (skips.length) {
+    const names = skips.map(function (r) { return r.sym === 'cash' ? 'เงินสด' : r.sym; });
+    html += '<tr>' +
+      '<td class="sym skip">' + esc(names.join(' · ')) + '</td>' +
+      '<td colspan="4" style="text-align:left" class="skip">เกิน/ตรงเป้า — ไม่ต้องซื้อ</td>' +
+    '</tr>';
+  }
   body.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">ไม่มีผลลัพธ์</td></tr>';
 }
 
-/* ---------- edit holdings ---------- */
-function _openEditShares(root, sym) {
+/* ---------- save whole portfolio (PUT holdings + cash) ---------- */
+async function _saveAll(root) {
   if (!_state) return;
-  const pos = (_state.positions || []).find(function (p) { return p.sym === sym; });
-  if (!pos) return;
-  const esc = window.MMUtils.escapeHtml;
-  const html =
-    '<p style="color:var(--fg-secondary);margin-bottom:var(--sp-4)">แก้จำนวนหุ้น + ราคาทุนเฉลี่ยของ <b>' + esc(sym) + '</b></p>' +
-    '<label style="display:block;font-size:var(--fs-sm);color:var(--fg-dim);margin-bottom:var(--sp-1)">จำนวนหุ้น</label>' +
-    '<input type="text" id="ph-ed-shares" inputmode="numeric" value="' + (pos.shares || 0) + '" ' +
-      'style="width:100%;padding:10px 12px;border:1px solid var(--border-subtle);background:var(--bg-surface);' +
-      'font-family:var(--font-mono);font-size:var(--fs-md);color:var(--fg-primary);outline:none;margin-bottom:var(--sp-4)">' +
-    '<label style="display:block;font-size:var(--fs-sm);color:var(--fg-dim);margin-bottom:var(--sp-1)">ราคาทุนเฉลี่ย</label>' +
-    '<input type="text" id="ph-ed-avg" inputmode="decimal" value="' + (pos.avg_cost || 0) + '" ' +
-      'style="width:100%;padding:10px 12px;border:1px solid var(--border-subtle);background:var(--bg-surface);' +
-      'font-family:var(--font-mono);font-size:var(--fs-md);color:var(--fg-primary);outline:none;margin-bottom:var(--sp-4)">' +
-    '<div style="display:flex;justify-content:flex-end;gap:var(--sp-3)">' +
-      '<button type="button" class="btn ghost" id="ph-ed-cancel">ยกเลิก</button>' +
-      '<button type="button" class="btn primary" id="ph-ed-save">บันทึก</button>' +
-    '</div>';
-  window.MMComponents.openModal(html, { kicker: 'Portfolio · แก้พอร์ต', headline: 'แก้จำนวนหุ้น ' + sym });
-  const cancel = document.getElementById('ph-ed-cancel');
-  const save = document.getElementById('ph-ed-save');
-  if (cancel) cancel.addEventListener('click', function () { window.MMComponents.closeModal(); });
-  if (save) save.addEventListener('click', async function () {
-    const shares = _parseMoney(document.getElementById('ph-ed-shares').value);
-    const avg = _parseMoney(document.getElementById('ph-ed-avg').value);
-    const holdings = {};
-    (_state.positions || []).forEach(function (p) {
-      holdings[p.sym] = { shares: p.sym === sym ? shares : (p.shares || 0),
-                          avg_cost: p.sym === sym ? avg : (p.avg_cost || 0) };
-    });
-    await _saveHoldings(root, { holdings: holdings });
+  const btn = root.querySelector('#ph-save');
+  const holdings = {};
+  (_state.positions || []).forEach(function (p) {
+    const sel = (window.CSS && window.CSS.escape) ? window.CSS.escape(p.sym) : p.sym;
+    const inp = root.querySelector('[data-ph-qty="' + sel + '"]');
+    const shares = inp ? _parseMoney(inp.value) : (p.shares || 0);
+    holdings[p.sym] = { shares: shares, avg_cost: (p.avg_cost || 0) };
   });
-}
+  const cashInp = root.querySelector('#ph-qty-cash');
+  const cash = cashInp ? _parseMoney(cashInp.value) : (_state.cash || 0);
 
-function _openEditCash(root) {
-  if (!_state) return;
-  const html =
-    '<p style="color:var(--fg-secondary);margin-bottom:var(--sp-4)">แก้ยอดเงินสด (dry powder)</p>' +
-    '<input type="text" id="ph-ed-cash" inputmode="numeric" value="' + (_state.cash || 0) + '" ' +
-      'style="width:100%;padding:10px 12px;border:1px solid var(--border-subtle);background:var(--bg-surface);' +
-      'font-family:var(--font-mono);font-size:var(--fs-md);color:var(--fg-primary);outline:none;margin-bottom:var(--sp-4)">' +
-    '<div style="display:flex;justify-content:flex-end;gap:var(--sp-3)">' +
-      '<button type="button" class="btn ghost" id="ph-ed-cancel">ยกเลิก</button>' +
-      '<button type="button" class="btn primary" id="ph-ed-save">บันทึก</button>' +
-    '</div>';
-  window.MMComponents.openModal(html, { kicker: 'Portfolio · แก้พอร์ต', headline: 'แก้เงินสด' });
-  const cancel = document.getElementById('ph-ed-cancel');
-  const save = document.getElementById('ph-ed-save');
-  if (cancel) cancel.addEventListener('click', function () { window.MMComponents.closeModal(); });
-  if (save) save.addEventListener('click', async function () {
-    const cash = _parseMoney(document.getElementById('ph-ed-cash').value);
-    await _saveHoldings(root, { cash: cash });
-  });
-}
-
-async function _saveHoldings(root, body) {
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
   try {
-    const state = await window.MMApi.put('/api/portfolio/holdings', body);
+    const state = await window.MMApi.put('/api/portfolio/holdings', { holdings: holdings, cash: cash });
     _state = state;
-    window.MMComponents.closeModal();
-    window.MMComponents.showToast('อัปเดตพอร์ตแล้ว', 'info');
-    _renderHero(root, state);
-    _renderSummary(root, state);
-    _renderHoldings(root, state);
+    window.MMComponents.showToast('บันทึกพอร์ตแล้ว', 'info');
+    _renderTotal(root, state);
+    _renderRows(root, state);
     _renderOffPlan(root, state);
-    _loadLhSignals(root);
+    _renderFoot(root, state);
   } catch (e) {
     window.MMComponents.showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'บันทึกพอร์ต'; }
   }
 }
 
 /* ---------- events ---------- */
 function _bindEvents(root) {
   root.addEventListener('click', function (e) {
-    const calcBtn = e.target.closest('#ph-calc-btn');
-    if (calcBtn) { _runCalc(root); return; }
-    const editBtn = e.target.closest('[data-ph-edit]');
-    if (editBtn) { _openEditShares(root, editBtn.getAttribute('data-ph-edit')); return; }
-    const editCash = e.target.closest('[data-ph-edit-cash]');
-    if (editCash) { _openEditCash(root); return; }
-    const viewBtn = e.target.closest('[data-ph-view]');
-    if (viewBtn) { location.href = '/report/' + viewBtn.getAttribute('data-ph-view'); return; }
-    // click card body (not on a button) -> go to report
-    const card = e.target.closest('.holding[data-ph-sym]');
-    if (card && !e.target.closest('[data-ph-edit]')) {
-      location.href = '/report/' + card.getAttribute('data-ph-sym');
-    }
+    if (e.target.closest('#ph-calc-btn')) { _runCalc(root); return; }
+    if (e.target.closest('#ph-save')) { _saveAll(root); return; }
   });
-  const input = root.querySelector('#ph-calc-input');
-  if (input) {
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); _runCalc(root); }
-    });
-  }
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'ph-calc-input') { e.preventDefault(); _runCalc(root); return; }
+    if (e.target.classList && e.target.classList.contains('qty')) { e.preventDefault(); _saveAll(root); }
+  });
 }
