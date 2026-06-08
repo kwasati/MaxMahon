@@ -20,30 +20,16 @@
   }
 
   /**
-   * Modern app header with brand mark + primary nav + icon button.
-   * Active link detection from the `active` argument; callers can also rely
-   * on the returned <a class="active"> markup.
-   * @param {string|{active?:string}} activeOrCtx — either active key or ctx-like object
+   * App header with brand mark + user badge (logout). Single-page redesign:
+   * the 4-tab nav was removed, so the active-route argument is now ignored
+   * (kept in the signature for backward-compatible call sites).
+   * @param {string|{active?:string}} activeOrCtx — accepted but unused (legacy)
    * @returns {string} HTML for <header class="app-header">
    */
   function renderMastNav(activeOrCtx, user) {
-    var active = typeof activeOrCtx === 'string'
-      ? activeOrCtx
-      : ((activeOrCtx && activeOrCtx.active) || 'latest-scan');
-    if (active === 'home' || active === 'report') active = 'latest-scan';
-    var items = [
-      ['latest-scan', '/',          'LATEST SCAN'],
-      ['watchlist',   '/watchlist', 'WATCHLIST'],
-      ['portfolio',   '/portfolio', 'จัดพอร์ต'],
-      ['settings',    '/settings',  'SETTINGS']
-    ];
-    var nav = '';
-    for (var i = 0; i < items.length; i++) {
-      var key = items[i][0];
-      var href = items[i][1];
-      var label = items[i][2];
-      nav += '<a href="' + href + '"' + (key === active ? ' class="active"' : '') + '>' + label + '</a>';
-    }
+    // Redesign: single-page portfolio app — no 4-tab nav.
+    // Header = brand mark + user badge (logout) only. The previous LATEST
+    // SCAN / WATCHLIST / จัดพอร์ต / SETTINGS tabs were removed by decision.
     var userArea = user ? renderUserBadge(user) : '<button class="icon-btn" type="button" aria-label="menu">⋮</button>';
     var dropdown = user ? renderUserDropdown(user) : '';
     setTimeout(_wireUserBadge, 0); // attach handler after DOM render
@@ -53,10 +39,9 @@
           '<div class="mark">M</div>' +
           '<div>' +
             '<div class="name">Max Mahon</div>' +
-            '<div class="sub">จัดพอร์ตสไตล์ ดร.นิเวศน์</div>' +
+            '<div class="sub">พอร์ตปันผล · เสาหลัก 1</div>' +
           '</div>' +
         '</div>' +
-        '<nav>' + nav + '</nav>' +
         '<div class="user-badge-wrap">' + userArea + dropdown + '</div>' +
       '</header>'
     );
@@ -166,30 +151,14 @@
   }
 
   /**
-   * Mobile sticky bottom nav — 3 touch targets with monochrome icon glyphs
-   * + label (Robinhood-style). Active tab uses --c-positive.
-   * @param {string} active — one of: home, saved, settings
-   * @returns {string} HTML for <nav class="bottom-nav">
+   * Mobile bottom nav — REMOVED in the single-page portfolio redesign.
+   * Returns an empty string so the bottom-nav 4-tab bar no longer renders.
+   * Kept as a no-op (signature stable) so existing callers don't break.
+   * @param {string} active — accepted but unused (legacy)
+   * @returns {string} empty string
    */
   function renderMobileNav(active) {
-    var items = [
-      ['home',      '/m',                   '⌂', 'Home'],
-      ['saved',     '/m/watchlist',         '⌕', 'WATCHLIST'],
-      ['portfolio', '/m/portfolio',         '◇', 'จัดพอร์ต'],
-      ['settings',  '/m/settings',          '⚙', 'Settings']
-    ];
-    var html = '<nav class="bottom-nav" role="navigation">';
-    for (var i = 0; i < items.length; i++) {
-      var key = items[i][0];
-      var href = items[i][1];
-      var icon = items[i][2];
-      var label = items[i][3];
-      html += '<a class="bn-item' + (key === active ? ' active' : '') + '" href="' + href + '">' +
-                '<span class="ic" aria-hidden="true">' + icon + '</span>' + label +
-              '</a>';
-    }
-    html += '</nav>';
-    return html;
+    return '';
   }
 
   /**
