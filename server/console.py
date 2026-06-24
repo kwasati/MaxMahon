@@ -4,6 +4,7 @@ Uses ANSI cursor-home to redraw in-place without clearing screen.
 No flickering, no selection loss.
 """
 
+import json
 import os
 import sys
 import threading
@@ -43,6 +44,68 @@ def _ts() -> str:
     return now.strftime("%H:%M:%S")
 
 
+def _age_days(date_str: str):
+    """Return whole days between date_str (YYYY-MM-DD) and now, or None if unparseable."""
+    try:
+        d = datetime.strptime(date_str[:10], "%Y-%m-%d")
+        return (datetime.now() - d).days
+    except (ValueError, TypeError):
+        return None
+
+
+def _fresh_color(days, warn: int, bad: int) -> str:
+    """Green if fresh (<=warn days), yellow if aging (<=bad), red if stale."""
+    if days is None:
+        return C.white
+    if days <= warn:
+        return C.green
+    if days <= bad:
+        return C.yellow
+    return C.red
+
+
+def _age_str(days) -> str:
+    if days is None:
+        return ""
+    if days <= 0:
+        return f" {C.dim}(today){C.reset}"
+    if days == 1:
+        return f" {C.dim}(1d ago){C.reset}"
+    return f" {C.dim}({days}d ago){C.reset}"
+
+
+def _data_row(label: str, date_str: str, warn: int, bad: int, suffix: str, clr: str) -> str:
+    """Render one Data-section row with freshness color + age annotation."""
+    days = _age_days(date_str)
+    col = _fresh_color(days, warn, bad)
+    return f"    {label}  {col}{date_str}{C.reset}{_age_str(days)}{suffix}{clr}"
+
+
+def _latest_price_info(data_dir: Path):
+    """Return (price_date, sym_count, refreshed_at) from data/price_cache/.
+
+    price_date = EOD date of the data (from fetched_at); refreshed_at = file mtime
+    of the newest cache file (when the cron actually wrote it).
+    """
+    price_dir = data_dir / "price_cache"
+    if not price_dir.exists():
+        return "-", 0, ""
+    files = list(price_dir.glob("*.json"))
+    if not files:
+        return "-", 0, ""
+    latest = max(files, key=lambda p: p.stat().st_mtime)
+    price_date = "-"
+    try:
+        d = json.loads(latest.read_text(encoding="utf-8"))
+        price_date = str(d.get("fetched_at", ""))[:10] or "-"
+    except (json.JSONDecodeError, OSError):
+        pass
+    if price_date == "-":
+        price_date = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%Y-%m-%d")
+    refreshed = datetime.fromtimestamp(latest.stat().st_mtime).strftime("%m-%d %H:%M")
+    return price_date, len(files), refreshed
+
+
 # Request counter (thread-safe)
 _request_count = 0
 _request_lock = threading.Lock()
@@ -79,34 +142,17 @@ def render(
 
     uptime = time.time() - start_time
 
-    # Find latest data
-    snap_files = sorted(data_dir.glob("snapshot_*.json"), key=lambda p: p.name, reverse=True)
-    last_date = snap_files[0].stem.replace("snapshot_", "") if snap_files else "-"
-    screener_files = sorted(data_dir.glob("screener_*.json"), key=lambda p: p.name, reverse=True)
-    screener_date = screener_files[0].stem.replace("screener_", "") if screener_files else "-"
-
-    # Pipeline status
-    if pipeline_state["running"]:
-        pipe_icon = f"{C.yellow}◆{C.reset}"
-        pipe_text = f"{C.yellow}{pipeline_state['current_task']}{C.reset}"
-    elif pipeline_state["last_result"] and "OK" in str(pipeline_state["last_result"]):
-        pipe_icon = f"{C.green}●{C.reset}"
-        pipe_text = f"{C.green}idle{C.reset}"
-    else:
-        pipe_icon = f"{C.green}●{C.reset}"
-        pipe_text = f"{C.green}idle{C.reset}"
-
-    last_run = pipeline_state.get("last_run")
-    last_run_str = last_run[:19].replace("T", " ") if last_run else "-"
-    last_result = pipeline_state.get("last_result") or "-"
-    if len(last_result) > 60:
-        last_result = last_result[:57] + "..."
+    # Current system: daily price cache (v6.7.0+).
+    price_date, price_count, price_refreshed = _latest_price_info(data_dir)
 
     with _request_lock:
         req_count = _request_count
         recent = list(_last_requests)
 
     clr = "\x1b[K"
+
+    price_suffix = f"  {C.dim}{price_count} syms{C.reset}"
+
     lines = [
         f"{clr}",
         f"  {C.cyan}●{C.reset} {C.bold}Max Mahon Server{C.reset}{clr}",
@@ -114,13 +160,14 @@ def render(
         f"{C.dim}    URL:  {url}{C.reset}{clr}",
         f"{clr}",
         f"  {C.bold}Data{C.reset}{clr}",
-        f"    Snapshot:  {C.white}{last_date}{C.reset}{clr}",
-        f"    Screener:  {C.white}{screener_date}{C.reset}{clr}",
+        _data_row("Prices:", price_date, 3, 7, price_suffix, clr),
+    ]
+    if price_refreshed:
+        lines.append(f"    {C.dim}last refresh: {price_refreshed}{C.reset}{clr}")
+    lines += [
         f"{clr}",
-        f"  {C.bold}Pipeline{C.reset}{clr}",
-        f"    Status:    {pipe_icon} {pipe_text}{clr}",
-        f"    Last run:  {C.dim}{last_run_str}{C.reset}{clr}",
-        f"    Result:    {C.dim}{last_result}{C.reset}{clr}",
+        f"  {C.bold}Scheduler{C.reset}{clr}",
+        f"    {C.dim}Price refresh:{C.reset}  daily 19:00 Asia/Bangkok{clr}",
         f"{clr}",
         f"  {C.bold}Requests{C.reset}  {C.dim}({req_count} total){C.reset}{clr}",
     ]

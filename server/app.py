@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import logging.handlers
 import os
 import re
 import subprocess
@@ -81,6 +82,31 @@ app.add_middleware(
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# File logging — uvicorn runs at --log-level warning with no file handler, so
+# scheduler INFO logs (price-refresh START/DONE) were lost and cron firing could
+# not be audited after the fact. Persist INFO+ to data/logs/server.log (rotating)
+# so the next 19:00 run leaves a durable trace. File handler only (no extra
+# stream handler) to avoid polluting the in-place console status panel.
+# ---------------------------------------------------------------------------
+_LOG_DIR = DATA_DIR / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_file_handler = logging.handlers.RotatingFileHandler(
+    _LOG_DIR / "server.log", maxBytes=2_000_000, backupCount=5, encoding="utf-8"
+)
+_file_handler.setLevel(logging.INFO)
+_file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+)
+_root_logger = logging.getLogger()
+if _root_logger.level == logging.NOTSET or _root_logger.level > logging.INFO:
+    _root_logger.setLevel(logging.INFO)
+if not any(
+    isinstance(h, logging.handlers.RotatingFileHandler)
+    for h in _root_logger.handlers
+):
+    _root_logger.addHandler(_file_handler)
 
 START_TIME = time.time()
 
@@ -1186,6 +1212,12 @@ def apply_schedule(config: dict):
         hour=19,
         minute=0,
         timezone="Asia/Bangkok",
+        # Default misfire_grace_time is 1s — if the scheduler thread wakes even
+        # slightly late at 19:00 (GIL contention / OS scheduling), APScheduler
+        # silently skips the whole run. Allow up to 1h late + coalesce so a
+        # missed slot still fires once.
+        misfire_grace_time=3600,
+        coalesce=True,
     )
     logging.info("[scheduler] daily_price_refresh scheduled: 19:00 Asia/Bangkok")
 
@@ -1202,14 +1234,48 @@ def apply_schedule(config: dict):
         hour=6,
         minute=0,
         timezone="Asia/Bangkok",
+        misfire_grace_time=3600,
+        coalesce=True,
     )
     logging.info("[scheduler] weekly_dividend_refresh scheduled: sun 06:00 Asia/Bangkok")
+
+
+def _price_cache_stale_hours() -> Optional[float]:
+    """Age (hours) of the newest price_cache file, or None if cache is empty."""
+    cache_dir = DATA_DIR / "price_cache"
+    files = list(cache_dir.glob("*.json")) if cache_dir.exists() else []
+    if not files:
+        return None
+    newest = max(f.stat().st_mtime for f in files)
+    return (time.time() - newest) / 3600.0
+
+
+def _startup_price_catchup(max_age_hours: float = 18.0) -> None:
+    """Refresh prices on boot if the cache is stale.
+
+    The 19:00 cron only fires if the server is up AND the scheduler thread wakes
+    on time. When a run is missed (server restart, misfire), the cache goes stale
+    and the user previously had to trigger a refresh by hand. This catch-up makes
+    boot self-healing: if the newest price file is older than max_age_hours (or
+    there is no cache at all), run the refresh once in the background so startup
+    is not blocked.
+    """
+    age = _price_cache_stale_hours()
+    if age is not None and age <= max_age_hours:
+        logging.info("[startup] price cache fresh (%.1fh old) — no catch-up", age)
+        return
+    label = "empty cache" if age is None else f"{age:.1f}h old"
+    logging.info("[startup] price cache stale (%s) — running catch-up refresh", label)
+    threading.Thread(
+        target=scheduled_price_refresh_job, name="price-catchup", daemon=True
+    ).start()
 
 
 @app.on_event("startup")
 async def on_startup():
     scheduler.start()
     apply_schedule(load_config())
+    _startup_price_catchup()
     start_refresh_loop(
         port=50089,
         pid=os.getpid(),
