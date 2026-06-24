@@ -1,5 +1,26 @@
 # Max Mahon Changelog
 
+## v6.8.0 — 2026-06-24 · 3 พอร์ตแยก + ปุ่มดึงราคา + แก้ cron ดึงราคาเอง
+
+**แยกพอร์ตเป็น 3 tab อิสระ (สลับ/เปลี่ยนชื่อได้) + ปุ่มดึงราคาบนหน้า + แก้ cron ดึงราคา 19:00 ที่ไม่ยิงเอง**
+
+### Added
+
+- **3 พอร์ต (tab A/B/C)** — `data/portfolios/{A,B,C}.json` แยกไฟล์ต่อพอร์ต (หุ้น+เป้า+holdings+cash อิสระ) · double-click ชื่อ tab เปลี่ยนชื่อ inline · พอร์ต A = ของเดิม, B/C โครงหุ้น+เป้าเดียวกัน (จำนวน 0 ให้กรอก)
+- **ปุ่มดึงราคา** บนหัวหน้าพอร์ต — กดทีเดียวครอบ symbol ทุกพอร์ต + โชว์เวลาดึงล่าสุด (`price_as_of`)
+- **`scripts/migrate_portfolio_to_separate.py`** — ย้าย `portfolio.json` → `portfolios/A.json` + seed B/C (copy mode, idempotent, ไฟล์เดิมไม่แตะ)
+- **API** — `GET /api/portfolios` (list 3 พอร์ต+ชื่อ), `PUT /api/portfolio/{pf}/name` (rename) · `state`/`holdings`/`topup`/`lh-signals` รับ query `?pf=A|B|C`
+
+### Changed
+
+- **`scripts/portfolio_state.py`** — `load/save/build_state/rebalance_topup` รับ `portfolio_id` (default A + fallback `portfolio.json` เดิมกัน server พังก่อน migrate) · `build_state` เพิ่ม `price_as_of` + `name`
+- **`scripts/daily_price_refresh.py`** — `_load_symbols()` รวม symbol จากทุกพอร์ต (`data/portfolios/*.json`)
+- **console terminal** (`server/console.py`) — รื้อ Snapshot/Screener/Pipeline เก่า (เศษซากยุค scan) เหลือ Prices (วันที่+อายุ+สีสด/ค้าง) + scheduler price refresh
+
+### Fixed
+
+- **cron ดึงราคา 19:00 ไม่ยิงเอง** (ต้อง trigger มือทุกรอบ) — `daily_price_refresh` job เพิ่ม `misfire_grace_time` 1 ชม + `coalesce` (กัน skip เงียบเมื่อ scheduler thread ตื่นช้า) + ดึงย้อนตอน boot ถ้าราคาเก่า >18h + file logging `data/logs/server.log` (เดิม uvicorn warning-level กลืน INFO หมด จับ cron firing ไม่ได้)
+
 ## v6.7.0 — 2026-06-08 · Portfolio Page Redesign (เว็บพอร์ตจริง)
 
 **เปลี่ยน max จากเว็บสแกนหุ้น เป็นเว็บพอร์ตจริง (pillar 1 ปันผล) — เปิดมาเจอพอร์ตเลย หน้าเดียวจบ**

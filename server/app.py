@@ -3007,13 +3007,37 @@ from scripts.portfolio_state import (  # noqa: E402
     build_state,
     rebalance_topup,
     read_price,
+    VALID_PF,
 )
 
 
+def _valid_pf(pf: str = "A") -> str:
+    """Query-param dependency: portfolio id, validated to A/B/C (400 otherwise)."""
+    if pf not in VALID_PF:
+        raise HTTPException(status_code=400, detail=f"invalid portfolio id: {pf}")
+    return pf
+
+
+@app.get("/api/portfolios")
+async def list_portfolios(user: dict = Depends(get_current_user)):
+    """List the 3 fixed portfolios with their (editable) display names."""
+    out = []
+    for pid in VALID_PF:
+        try:
+            p = load_portfolio(pid)
+            out.append({"id": pid, "name": p.get("name") or pid})
+        except FileNotFoundError:
+            out.append({"id": pid, "name": pid})
+    return {"portfolios": out}
+
+
 @app.get("/api/portfolio/state")
-async def get_portfolio_state(user: dict = Depends(get_current_user)):
+async def get_portfolio_state(
+    pf: str = Depends(_valid_pf),
+    user: dict = Depends(get_current_user),
+):
     """Full render-ready state: positions + off-plan + cash + summary."""
-    return build_state()
+    return build_state(pf)
 
 
 class PortfolioHoldingsUpdate(BaseModel):
@@ -3025,6 +3049,7 @@ class PortfolioHoldingsUpdate(BaseModel):
 @app.put("/api/portfolio/holdings")
 async def update_portfolio_holdings(
     body: PortfolioHoldingsUpdate,
+    pf: str = Depends(_valid_pf),
     user: dict = Depends(get_current_user),
 ):
     """Update real holdings / cash / off-plan, then return the fresh state.
@@ -3032,15 +3057,15 @@ async def update_portfolio_holdings(
     Only the provided fields are touched (None = leave as-is). Targets, meta and
     lh_triggers are NOT editable here — they are part of the plan definition.
     """
-    data = load_portfolio()
+    data = load_portfolio(pf)
     if body.holdings is not None:
         data["holdings"] = body.holdings
     if body.cash is not None:
         data["cash"] = float(body.cash)
     if body.off_plan is not None:
         data["off_plan"] = body.off_plan
-    save_portfolio(data)
-    return build_state()
+    save_portfolio(data, pf)
+    return build_state(pf)
 
 
 class PortfolioTopup(BaseModel):
@@ -3050,23 +3075,27 @@ class PortfolioTopup(BaseModel):
 @app.post("/api/portfolio/topup")
 async def portfolio_topup(
     body: PortfolioTopup,
+    pf: str = Depends(_valid_pf),
     user: dict = Depends(get_current_user),
 ):
     """Pull-back-to-target calculator: where new money should go (no selling)."""
-    state = build_state()
-    allocation = rebalance_topup(state, body.new_money)
+    state = build_state(pf)
+    allocation = rebalance_topup(state, body.new_money, pf)
     return {"new_money": body.new_money, "allocation": allocation}
 
 
 @app.get("/api/portfolio/lh-signals")
-async def get_lh_signals(user: dict = Depends(get_current_user)):
+async def get_lh_signals(
+    pf: str = Depends(_valid_pf),
+    user: dict = Depends(get_current_user),
+):
     """Compare LH price to its trigger zones -> 3 plain-language signals.
 
     sell_zone = [lo, hi] price band where LH is rich enough to trim.
     support   = [s1, s2] price levels below which to watch / add.
     Each signal carries status off/warn/danger for UI colouring.
     """
-    p = load_portfolio()
+    p = load_portfolio(pf)
     trig = p.get("lh_triggers", {}) or {}
     price = read_price("LH")
 
@@ -3121,6 +3150,28 @@ async def get_lh_signals(user: dict = Depends(get_current_user)):
         signals.append(s)
 
     return {"price": price, "signals": signals}
+
+
+class PortfolioRename(BaseModel):
+    name: str
+
+
+@app.put("/api/portfolio/{pf}/name")
+async def rename_portfolio(
+    pf: str,
+    body: PortfolioRename,
+    user: dict = Depends(get_current_user),
+):
+    """Rename a portfolio tab (double-click rename in the UI)."""
+    if pf not in VALID_PF:
+        raise HTTPException(status_code=400, detail=f"invalid portfolio id: {pf}")
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    data = load_portfolio(pf)
+    data["name"] = name
+    save_portfolio(data, pf)
+    return {"id": pf, "name": name}
 
 
 @app.get("/portfolio", response_class=HTMLResponse)

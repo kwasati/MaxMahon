@@ -1548,3 +1548,75 @@
   color: var(--fg-dim);
   padding: var(--sp-6) 0;
 }
+
+/* ===== multi-portfolio: ปุ่มดึงราคา + tab strip (3 พอร์ต) ===== */
+.pf-home .pf-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+}
+.pf-home .pf-pricebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: var(--c-positive-strong);
+  border: 1px solid var(--c-positive-border);
+  transition: background 120ms ease;
+}
+.pf-home .pf-pricebtn:hover { background: var(--c-positive-soft); }
+.pf-home .pf-pricebtn:disabled { opacity: 0.6; cursor: default; }
+.pf-home .pf-pricebtn-ico { font-size: var(--fs-md); line-height: 1; display: inline-block; }
+.pf-home .pf-pricebtn.pf-pricebtn-spin .pf-pricebtn-ico { animation: pf-spin 0.7s linear infinite; }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+.pf-home .pf-priceinfo { font-size: var(--fs-xs); color: var(--fg-dim); white-space: nowrap; }
+
+.pf-home .pf-tabbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: var(--sp-4);
+  border-bottom: 1px solid var(--border-strong);
+}
+.pf-home .pf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--r-3) var(--r-3) 0 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--bg-surface-2);
+  color: var(--fg-secondary);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  position: relative;
+  bottom: -1px;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pf-home .pf-tab.pf-tab-active {
+  background: var(--bg-surface);
+  color: var(--fg-primary);
+}
+.pf-home .pf-tab-dot { width: 8px; height: 8px; border-radius: 99px; flex: none; }
+.pf-home .pf-tab-nm { outline: none; border-radius: 3px; padding: 1px 3px; }
+.pf-home .pf-tab-nm[contenteditable="true"] {
+  background: var(--c-positive-tint);
+  box-shadow: 0 0 0 1.5px var(--c-positive);
+}
+.pf-home .pf-hintbar {
+  font-size: var(--fs-xs);
+  color: var(--fg-mute);
+  text-align: center;
+  padding: var(--sp-2) 0 0;
+}

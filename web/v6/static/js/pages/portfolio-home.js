@@ -14,19 +14,98 @@
    ========================================================== */
 
 let _state = null;
+let _currentPfId = 'A';
+try { _currentPfId = localStorage.getItem('mm_active_pf') || 'A'; } catch (e) { /* private mode */ }
+if (['A', 'B', 'C'].indexOf(_currentPfId) < 0) _currentPfId = 'A';
 const _REPORT_BASE = '/report/';
 
 export function mount(root) {
   root.classList.add('pf-home');
   root.innerHTML = _renderShell();
   _bindEvents(root);
+  _initTabs(root);
   _load(root);
+}
+
+/* ---------- tabs: highlight active + load names ---------- */
+async function _initTabs(root) {
+  root.querySelectorAll('.pf-tab').forEach(function (t) {
+    t.classList.toggle('pf-tab-active', t.getAttribute('data-pf') === _currentPfId);
+  });
+  try {
+    const res = await window.MMApi.get('/api/portfolios');
+    (res.portfolios || []).forEach(function (p) {
+      const nm = root.querySelector('.pf-tab[data-pf="' + p.id + '"] .pf-tab-nm');
+      if (nm && p.name) nm.textContent = p.name;
+    });
+  } catch (e) { /* keep default names */ }
+}
+
+function _switchTab(root, pid) {
+  if (['A', 'B', 'C'].indexOf(pid) < 0 || pid === _currentPfId) return;
+  _currentPfId = pid;
+  try { localStorage.setItem('mm_active_pf', pid); } catch (e) { /* private mode */ }
+  root.querySelectorAll('.pf-tab').forEach(function (t) {
+    t.classList.toggle('pf-tab-active', t.getAttribute('data-pf') === pid);
+  });
+  _load(root);
+}
+
+async function _saveTabName(root, nm) {
+  const tab = nm.closest('.pf-tab');
+  if (!tab) return;
+  const pid = tab.getAttribute('data-pf');
+  const name = (nm.textContent || '').trim();
+  if (!name) { nm.textContent = pid; return; }  // empty -> restore id placeholder
+  try {
+    await window.MMApi.put('/api/portfolio/' + pid + '/name', { name: name });
+    nm.textContent = name;
+  } catch (e) {
+    window.MMComponents.showToast('เปลี่ยนชื่อไม่สำเร็จ', 'error');
+  }
+}
+
+/* ---------- price refresh (covers all portfolios) ---------- */
+async function _refreshPrice(root) {
+  const btn = root.querySelector('#ph-pricebtn');
+  const info = root.querySelector('#ph-priceinfo');
+  if (btn) { btn.disabled = true; btn.classList.add('pf-pricebtn-spin'); }
+  if (info) info.textContent = 'กำลังดึงราคา…';
+  try {
+    await window.MMApi.post('/api/admin/price-refresh/trigger', {});
+    await _load(root);  // reload -> price_as_of + fresh prices
+    window.MMComponents.showToast('ดึงราคาแล้ว', 'info');
+  } catch (e) {
+    window.MMComponents.showToast('ดึงราคาไม่สำเร็จ: ' + ((e && e.message) || e), 'error');
+    if (info) info.textContent = 'ดึงราคาไม่สำเร็จ';
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('pf-pricebtn-spin'); }
+  }
 }
 
 /* ---------- shell (static scaffold; tables filled by _load) ---------- */
 function _renderShell() {
   return (
     '<div class="pf-wrap">' +
+
+      '<div class="pf-header">' +
+        '<button class="pf-pricebtn" id="ph-pricebtn" type="button">' +
+          '<span class="pf-pricebtn-ico">&#x21bb;</span> ดึงราคา</button>' +
+        '<span class="pf-priceinfo" id="ph-priceinfo">ดึงล่าสุด &mdash;</span>' +
+      '</div>' +
+
+      '<div class="pf-tabbar" id="ph-tabbar">' +
+        '<div class="pf-tab pf-tab-active" data-pf="A">' +
+          '<span class="pf-tab-dot" style="background:var(--c-positive)"></span>' +
+          '<span class="pf-tab-nm">พอร์ตหลัก</span></div>' +
+        '<div class="pf-tab" data-pf="B">' +
+          '<span class="pf-tab-dot" style="background:var(--c-info)"></span>' +
+          '<span class="pf-tab-nm">พอร์ต 2</span></div>' +
+        '<div class="pf-tab" data-pf="C">' +
+          '<span class="pf-tab-dot" style="background:var(--c-purple)"></span>' +
+          '<span class="pf-tab-nm">พอร์ต 3</span></div>' +
+      '</div>' +
+      '<div class="pf-hintbar">ดับเบิลคลิกที่ชื่อแท็บเพื่อเปลี่ยนชื่อพอร์ต · แต่ละพอร์ตเก็บหุ้น+เป้าแยกกัน</div>' +
 
       '<div class="pf-total">' +
         '<span class="lbl">มูลค่าพอร์ต</span>' +
@@ -93,7 +172,7 @@ function _renderShell() {
 async function _load(root) {
   const rowsHost = root.querySelector('#ph-rows');
   try {
-    const state = await window.MMApi.get('/api/portfolio/state');
+    const state = await window.MMApi.get('/api/portfolio/state?pf=' + _currentPfId);
     _state = state;
     _renderTotal(root, state);
     _renderRows(root, state);
@@ -113,6 +192,19 @@ function _renderTotal(root, state) {
 }
 
 function _renderFoot(root, state) {
+  // เวลาดึงราคาล่าสุด ข้างปุ่มดึงราคา (จาก newest mtime ใน price_cache)
+  const pinfo = root.querySelector('#ph-priceinfo');
+  if (pinfo) {
+    let pt = 'ดึงล่าสุด —';
+    if (state.price_as_of) {
+      const pd = new Date(state.price_as_of);
+      if (!isNaN(pd.getTime())) {
+        pt = 'ดึงล่าสุด ' + pd.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+      }
+    }
+    pinfo.textContent = pt;
+  }
+
   const el = root.querySelector('#ph-foot');
   if (!el) return;
   let txt = 'ราคาอัปเดตจาก SETSMART';
@@ -250,7 +342,7 @@ async function _loadLhSignals(root) {
   const hosts = root.querySelectorAll('[data-ph-lh-signals]');
   if (!hosts.length) return;
   try {
-    const res = await window.MMApi.get('/api/portfolio/lh-signals');
+    const res = await window.MMApi.get('/api/portfolio/lh-signals?pf=' + _currentPfId);
     const esc = window.MMUtils.escapeHtml;
     const signals = res.signals || [];
     let out;
@@ -286,7 +378,7 @@ async function _runCalc(root) {
   }
   body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กำลังคำนวณ&hellip;</td></tr>';
   try {
-    const res = await window.MMApi.post('/api/portfolio/topup', { new_money: money });
+    const res = await window.MMApi.post('/api/portfolio/topup?pf=' + _currentPfId, { new_money: money });
     _renderCalcTable(body, res.allocation || []);
   } catch (e) {
     body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--c-negative)">คำนวณไม่สำเร็จ: ' +
@@ -353,7 +445,7 @@ async function _saveAll(root) {
 
   if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
   try {
-    const state = await window.MMApi.put('/api/portfolio/holdings', { holdings: holdings, cash: cash });
+    const state = await window.MMApi.put('/api/portfolio/holdings?pf=' + _currentPfId, { holdings: holdings, cash: cash });
     _state = state;
     window.MMComponents.showToast('บันทึกพอร์ตแล้ว', 'info');
     _renderTotal(root, state);
@@ -372,9 +464,30 @@ function _bindEvents(root) {
   root.addEventListener('click', function (e) {
     if (e.target.closest('#ph-calc-btn')) { _runCalc(root); return; }
     if (e.target.closest('#ph-save')) { _saveAll(root); return; }
+    if (e.target.closest('#ph-pricebtn')) { _refreshPrice(root); return; }
+    // คลิก tab อื่น = สลับพอร์ต; คลิก tab ที่ active อยู่ = ไม่ทำ (รอ dblclick แก้ชื่อ)
+    const tab = e.target.closest('.pf-tab');
+    if (tab) { _switchTab(root, tab.getAttribute('data-pf')); return; }
+  });
+  // ดับเบิลคลิกชื่อ tab = แก้ชื่อ inline
+  root.addEventListener('dblclick', function (e) {
+    const nm = e.target.closest('.pf-tab-nm');
+    if (!nm) return;
+    nm.contentEditable = 'true';
+    nm.focus();
+    const r = document.createRange(); r.selectNodeContents(nm);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  });
+  // focusout (bubble version ของ blur) -> commit ชื่อใหม่
+  root.addEventListener('focusout', function (e) {
+    const nm = e.target.closest && e.target.closest('.pf-tab-nm');
+    if (!nm || nm.contentEditable !== 'true') return;
+    nm.contentEditable = 'false';
+    _saveTabName(root, nm);
   });
   root.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
+    if (e.target.classList && e.target.classList.contains('pf-tab-nm')) { e.preventDefault(); e.target.blur(); return; }
     if (e.target.id === 'ph-calc-input') { e.preventDefault(); _runCalc(root); return; }
     if (e.target.classList && e.target.classList.contains('qty')) { e.preventDefault(); _saveAll(root); }
   });

@@ -35,8 +35,21 @@ from typing import Optional
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_DIR / "data"
-PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
+PORTFOLIO_FILE = DATA_DIR / "portfolio.json"  # legacy single-portfolio (pre multi-portfolio)
+PORTFOLIOS_DIR = DATA_DIR / "portfolios"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
+
+# Multi-portfolio: 3 fixed tabs. Each portfolio lives in data/portfolios/{id}.json.
+VALID_PF = ("A", "B", "C")
+
+
+def _portfolio_path(portfolio_id: str = "A") -> Path:
+    """Resolve data/portfolios/{id}.json, validating the id (A/B/C only)."""
+    if portfolio_id not in VALID_PF:
+        raise ValueError(
+            f"invalid portfolio id: {portfolio_id!r} (expected one of {VALID_PF})"
+        )
+    return PORTFOLIOS_DIR / f"{portfolio_id}.json"
 
 # The 7 in-plan symbols are derived from holdings; cash is a virtual slot in
 # targets. off_plan (LH/TISCO) is tracked but excluded from rebalance math.
@@ -45,21 +58,28 @@ PRICE_CACHE_DIR = DATA_DIR / "price_cache"
 # ---------------------------------------------------------------------------
 # Phase 1 — data accessor
 # ---------------------------------------------------------------------------
-def load_portfolio() -> dict:
-    """Read ``data/portfolio.json`` and return it as a dict.
+def load_portfolio(portfolio_id: str = "A") -> dict:
+    """Read ``data/portfolios/{id}.json`` and return it as a dict.
+
+    Legacy fallback: if portfolio A's file is missing but the old single
+    ``data/portfolio.json`` still exists (pre-migration deploy), read that — so
+    a server restart before the migration runs cannot break the live portfolio.
 
     Raises FileNotFoundError if the file is missing (the file is the single
     source of truth and must exist — we do NOT synthesize fake holdings).
     """
-    if not PORTFOLIO_FILE.exists():
-        raise FileNotFoundError(f"portfolio file not found: {PORTFOLIO_FILE}")
-    data = json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+    path = _portfolio_path(portfolio_id)
+    if not path.exists() and portfolio_id == "A" and PORTFOLIO_FILE.exists():
+        path = PORTFOLIO_FILE
+    if not path.exists():
+        raise FileNotFoundError(f"portfolio file not found: {path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise ValueError("portfolio.json did not contain a JSON object")
+        raise ValueError(f"{path.name} did not contain a JSON object")
     return data
 
 
-def save_portfolio(data: dict) -> dict:
+def save_portfolio(data: dict, portfolio_id: str = "A") -> dict:
     """Write the portfolio back atomically, stamping ``updated_at``.
 
     Returns the payload that was written (with the fresh timestamp). Uses a
@@ -68,18 +88,19 @@ def save_portfolio(data: dict) -> dict:
     """
     if not isinstance(data, dict):
         raise TypeError("data must be a dict")
+    path = _portfolio_path(portfolio_id)
     payload = dict(data)  # shallow copy so caller's dict is untouched
     payload["updated_at"] = datetime.now().isoformat()
 
-    PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     fd, tmp_path = tempfile.mkstemp(
-        dir=str(PORTFOLIO_FILE.parent), prefix=".portfolio_", suffix=".tmp"
+        dir=str(path.parent), prefix=".portfolio_", suffix=".tmp"
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
-        os.replace(tmp_path, PORTFOLIO_FILE)
+        os.replace(tmp_path, path)
     except Exception:
         # Clean up the temp file on any failure so we don't litter the dir.
         if os.path.exists(tmp_path):
@@ -130,7 +151,21 @@ def _round2(x: float) -> float:
     return round(float(x), 2)
 
 
-def build_state() -> dict:
+def _price_cache_as_of() -> Optional[str]:
+    """ISO timestamp of the newest file in data/price_cache, or None if empty.
+
+    Reflects when prices were last refreshed (the daily job / manual trigger
+    rewrites every cache file in one pass), shown next to the refresh button.
+    """
+    if not PRICE_CACHE_DIR.exists():
+        return None
+    mtimes = [p.stat().st_mtime for p in PRICE_CACHE_DIR.glob("*.json")]
+    if not mtimes:
+        return None
+    return datetime.fromtimestamp(max(mtimes)).isoformat(timespec="seconds")
+
+
+def build_state(portfolio_id: str = "A") -> dict:
     """Merge holdings + live prices + targets into a render-ready dict.
 
     Returns a dict shaped for the frontend cards:
@@ -152,7 +187,7 @@ def build_state() -> dict:
 
     status ∈ {"ok","over","deficit"} per symbol (vs target, ±0.5pct dead-band).
     """
-    p = load_portfolio()
+    p = load_portfolio(portfolio_id)
     targets: dict = p.get("targets", {}) or {}
     holdings: dict = p.get("holdings", {}) or {}
     meta: dict = p.get("meta", {}) or {}
@@ -267,13 +302,15 @@ def build_state() -> dict:
         },
         "lh_triggers": p.get("lh_triggers", {}),
         "updated_at": p.get("updated_at"),
+        "name": p.get("name"),
+        "price_as_of": _price_cache_as_of(),
     }
 
 
 # ---------------------------------------------------------------------------
 # Phase 3 — "pull back to target" top-up calculator
 # ---------------------------------------------------------------------------
-def rebalance_topup(state: dict, new_money: float) -> list[dict]:
+def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> list[dict]:
     """Pure calculator: where should fresh money go to pull the portfolio
     back toward its target weights (without selling overweight names)?
 
@@ -302,7 +339,7 @@ def rebalance_topup(state: dict, new_money: float) -> list[dict]:
     if new_money < 0:
         raise ValueError("new_money must be >= 0")
 
-    p = load_portfolio()
+    p = load_portfolio(portfolio_id)
     targets: dict = p.get("targets", {}) or {}
 
     # Build current_value per slot from the passed-in state (7 syms) + cash.

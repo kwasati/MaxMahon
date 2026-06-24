@@ -67,19 +67,27 @@ def _load_symbols() -> list[str]:
             logger.warning(f"could not read {screeners[0].name}: {e}")
 
     # Portfolio symbols — ALWAYS refresh price for held names (portfolio-redesign),
-    # regardless of watchlist/screener membership. Covers the 7 plan names + off-plan.
-    try:
-        pf = json.loads((DATA_DIR / "portfolio.json").read_text(encoding="utf-8"))
-        pf_syms = (
-            set(pf.get("targets", {}).keys())
-            | set(pf.get("holdings", {}).keys())
-            | set(pf.get("off_plan", {}).keys())
-        )
-        for sym in pf_syms:
-            if sym and sym != "cash":
-                symbols.add(sym if sym.endswith(".BK") else f"{sym}.BK")
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"could not read portfolio.json: {e}")
+    # regardless of watchlist/screener membership. Multi-portfolio: union symbols
+    # across every data/portfolios/{A,B,C}.json so one refresh covers all tabs
+    # (duplicate symbols dedupe via the set). Falls back to legacy portfolio.json
+    # if the portfolios/ folder does not exist yet (pre-migration).
+    pf_dir = DATA_DIR / "portfolios"
+    pf_files = sorted(pf_dir.glob("*.json")) if pf_dir.exists() else []
+    if not pf_files and (DATA_DIR / "portfolio.json").exists():
+        pf_files = [DATA_DIR / "portfolio.json"]
+    for pf_path in pf_files:
+        try:
+            pf = json.loads(pf_path.read_text(encoding="utf-8"))
+            pf_syms = (
+                set(pf.get("targets", {}).keys())
+                | set(pf.get("holdings", {}).keys())
+                | set(pf.get("off_plan", {}).keys())
+            )
+            for sym in pf_syms:
+                if sym and sym != "cash":
+                    symbols.add(sym if sym.endswith(".BK") else f"{sym}.BK")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"could not read {pf_path.name}: {e}")
 
     return sorted(symbols)
 
