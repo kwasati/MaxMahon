@@ -4,7 +4,7 @@ __pycache__/
 .claude/
 data/
 !data/hidden_value_holdings.json
-!data/portfolio.json
+# data/portfolio.json = legacy fallback A, archived 2026-06-25 (untracked — real data lives in gitignored portfolios/{A,B,C}.json)
 data/analysis_cache/
 data/price_history/
 data/setsmart_cache/
