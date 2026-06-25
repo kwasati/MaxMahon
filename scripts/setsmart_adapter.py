@@ -108,9 +108,15 @@ def fetch_financial_all(year: str, quarter: str, account_period: str = "C") -> l
 def cached_eod_bulk(date: str, security_type: str = "CS") -> list[dict]:
     cache_file = CACHE_DIR / f"eod_{date}.json"
     if cache_file.exists():
-        return json.loads(cache_file.read_text(encoding="utf-8"))
+        cached = json.loads(cache_file.read_text(encoding="utf-8"))
+        # Empty cache = fetched before SETSMART published that date's EOD.
+        # Treat as miss: drop the stale file and refetch.
+        if cached:
+            return cached
+        cache_file.unlink(missing_ok=True)
     data = fetch_eod_all(date, security_type=security_type)
-    cache_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    if data:
+        cache_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return data
 
 
