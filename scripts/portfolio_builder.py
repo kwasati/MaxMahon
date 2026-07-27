@@ -114,6 +114,7 @@ def allocate_80_20(picks):
     base = DEFAULT_WEIGHTS[:n]
     total = sum(base)
     weights = [round(w / total * 100, 1) for w in base]
+    weights[-1] = round(100.0 - sum(weights[:-1]), 1)
     for s, w in zip(picks, weights):
         s['weight_pct'] = w
     return picks

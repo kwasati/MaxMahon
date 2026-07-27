@@ -388,15 +388,18 @@ async function _runCalc(root) {
 
 function _renderCalcTable(body, allocation) {
   const esc = window.MMUtils.escapeHtml;
-  // ตัวขาด (under) ที่ลงเงินจริง vs ที่เหลือ (เกิน/ตรง — ยุบรวมบรรทัดเดียว)
   const buys = [];
+  const belowLot = [];
   const skips = [];
   allocation.forEach(function (r) {
-    const isBuy = (r.status === 'under') && ((r.baht || 0) > 0);
+    const isCash = r.sym === 'cash';
+    const shares = Number(r.shares_to_buy) || 0;
+    const isBuy = (isCash && ((r.baht || 0) > 0)) ||
+      (!isCash && shares > 0 && ((r.baht || 0) > 0));
     if (isBuy) buys.push(r);
+    else if (!isCash && r.status === 'under' && shares === 0) belowLot.push(r);
     else skips.push(r);
   });
-  // sort buys by baht desc
   buys.sort(function (a, b) { return (b.baht || 0) - (a.baht || 0); });
 
   let html = '';
@@ -407,17 +410,30 @@ function _renderCalcTable(body, allocation) {
     const priceStr = isCash ? '<span class="dim">—</span>' :
       (r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—');
     const buy = r.shares_to_buy;
+    const statusCell = isCash
+      ? '<span class="st ok">' + (r.status === 'under' ? 'เติมเงินสด' : 'เงินเหลือ') + '</span>'
+      : (r.status === 'under'
+        ? '<span class="st under">ขาด ' + deficit + '%</span>'
+        : '<span class="st ok">รักษาสัดส่วน</span>');
     const sharesCell = isCash ? '<span class="b">—</span>'
       : (buy != null && buy > 0 ? '<span class="b">+' + window.MMUtils.fmtNum(buy, 0) + '</span>' : '—');
     const bahtCell = '<span class="b">' + window.MMUtils.fmtNum(r.baht || 0, 0) + '</span>';
     html += '<tr>' +
       '<td class="sym">' + esc(symLabel) + '</td>' +
-      '<td><span class="st under">ขาด ' + deficit + '%</span></td>' +
+      '<td>' + statusCell + '</td>' +
       '<td>' + priceStr + '</td>' +
       '<td>' + sharesCell + '</td>' +
       '<td>' + bahtCell + '</td>' +
     '</tr>';
   });
+
+  if (belowLot.length) {
+    const names = belowLot.map(function (r) { return r.sym; });
+    html += '<tr>' +
+      '<td class="sym skip">' + esc(names.join(' · ')) + '</td>' +
+      '<td colspan="4" style="text-align:left" class="skip">ยังขาด แต่เงินไม่พอซื้อครบ 100 หุ้น</td>' +
+    '</tr>';
+  }
 
   if (skips.length) {
     const names = skips.map(function (r) { return r.sym === 'cash' ? 'เงินสด' : r.sym; });

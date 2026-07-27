@@ -38,6 +38,7 @@ DATA_DIR = PROJECT_DIR / "data"
 PORTFOLIO_FILE = DATA_DIR / "portfolio.json"  # legacy single-portfolio (pre multi-portfolio)
 PORTFOLIOS_DIR = DATA_DIR / "portfolios"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
+BOARD_LOT = 100
 
 # Multi-portfolio: 3 fixed tabs. Each portfolio lives in data/portfolios/{id}.json.
 VALID_PF = ("A", "B", "C")
@@ -327,13 +328,15 @@ def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> l
         if total_def == 0 (all over/on-target):
             topup = new_money * target_pct/sum(targets)
 
-        shares_to_buy = floor(topup / price)   (cash slot has no shares)
+        shares_to_buy = floor(topup / (price * 100)) * 100
+        stock baht    = shares_to_buy * price
+        cash baht     = new_money - sum(stock baht)
 
     Returns a list of dicts (one per slot incl cash):
         {sym, status, deficit_pct, price, shares_to_buy, baht}
 
-    Guarantee: sum(baht) == new_money exactly (no rounding leak — the largest
-    remainder is absorbed into the final slot so totals reconcile to the cent).
+    Guarantee: stock orders use executable 100-share board lots and sum(baht)
+    equals new_money to the cent, with all unspent remainder kept as cash.
     """
     new_money = float(new_money)
     if new_money < 0:
@@ -358,6 +361,21 @@ def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> l
     target_sum = sum(float(targets.get(s, 0) or 0) for s in slots)
     if target_sum <= 0:
         raise ValueError("targets sum to 0 — cannot rebalance")
+    if "cash" not in slots:
+        raise ValueError("cash target is required to absorb board-lot remainder")
+
+    invalid_prices = []
+    for s in slots:
+        if s == "cash":
+            continue
+        price = price_map.get(s)
+        if not isinstance(price, (int, float)) or price <= 0:
+            invalid_prices.append(s)
+    if invalid_prices:
+        symbols = ", ".join(invalid_prices)
+        raise ValueError(
+            f"missing or invalid prices for: {symbols}; refresh prices before calculating"
+        )
 
     base_existing = sum(cv.get(s, 0.0) for s in slots)
     base_new = base_existing + new_money
@@ -383,26 +401,31 @@ def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> l
         for s in slots:
             topup[s] = deficit[s] + surplus * float(targets.get(s, 0) or 0) / target_sum
 
-    # ---- reconcile baht so sum(baht) == new_money exactly --------------------
-    # Round each slot to 2dp, then push the residual into the slot that
-    # received the most (largest-remainder style) so totals match to the cent.
-    baht: dict[str, float] = {s: _round2(topup.get(s, 0.0)) for s in slots}
-    residual = _round2(new_money - sum(baht.values()))
-    if abs(residual) >= 0.01:
-        # absorb residual into the slot with the largest top-up
-        biggest = max(slots, key=lambda s: topup.get(s, 0.0))
-        baht[biggest] = _round2(baht[biggest] + residual)
+    # Convert ideal allocations to executable SET board lots. Stock ``baht``
+    # is actual spend (shares * price), never an unspendable budget. Any
+    # remainder — including the intended cash allocation — stays in cash.
+    shares_by_slot: dict[str, Optional[int]] = {}
+    baht: dict[str, float] = {}
+    stock_spend = 0.0
+    for s in slots:
+        if s == "cash":
+            shares_by_slot[s] = None
+            continue
+        price = float(price_map[s])
+        lot_cost = price * BOARD_LOT
+        board_lots = int(math.floor((topup.get(s, 0.0) + 1e-9) / lot_cost))
+        shares = board_lots * BOARD_LOT
+        spend = _round2(shares * price)
+        shares_by_slot[s] = shares
+        baht[s] = spend
+        stock_spend += spend
+    baht["cash"] = _round2(new_money - stock_spend)
 
     out = []
     for s in slots:
         is_cash = (s == "cash")
         price = price_map.get(s)
-        shares_to_buy = None
-        if not is_cash:
-            if price and price > 0:
-                shares_to_buy = int(math.floor(baht[s] / price))
-            else:
-                shares_to_buy = 0  # no price -> can't size shares
+        shares_to_buy = shares_by_slot[s]
         # status vs target (deficit if it had a gap, else over/ok)
         if deficit.get(s, 0.0) > 1e-9:
             status = "under"
@@ -415,7 +438,7 @@ def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> l
             "sym": s,
             "status": status,
             "deficit_pct": _round2(
-                (deficit.get(s, 0.0) / new_money * 100) if new_money > 0 else 0.0
+                (deficit.get(s, 0.0) / base_new * 100) if base_new > 0 else 0.0
             ),
             "price": price,
             "shares_to_buy": shares_to_buy,
