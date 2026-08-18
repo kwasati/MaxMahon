@@ -2218,7 +2218,7 @@ async def trigger_analysis(symbol: str):
     response = await loop.run_in_executor(
         None,
         lambda: _anthropic_client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-opus-5",
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
             timeout=90.0,
@@ -2233,7 +2233,7 @@ async def trigger_analysis(symbol: str):
         )
     payload = {
         "analyzed_at": datetime.now().isoformat(timespec="seconds"),
-        "model": "claude-opus-4-7",
+        "model": "claude-opus-5",
         **parsed,
     }
     (_ANALYSIS_CACHE_DIR / f"{symbol}.json").write_text(
@@ -2967,7 +2967,7 @@ async def explain_portfolio(
     response = await loop.run_in_executor(
         None,
         lambda: _anthropic_client.messages.create(
-            model="claude-opus-4-7",
+            model="claude-opus-5",
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
             timeout=90.0,
@@ -2983,7 +2983,7 @@ async def explain_portfolio(
 
     payload_out = {
         "analyzed_at": datetime.now().isoformat(timespec="seconds"),
-        "model": "claude-opus-4-7",
+        "model": "claude-opus-5",
         "commentary": response.content[0].text.strip(),
     }
     cache_file.write_text(
