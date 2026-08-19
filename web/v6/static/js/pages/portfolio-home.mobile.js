@@ -347,31 +347,24 @@ function _parseMoney(raw) {
   return isNaN(n) ? 0 : n;
 }
 
-async function _runCalc(root) {
-  const input = root.querySelector('#ph-calc-input');
-  const body = root.querySelector('#ph-calc-body');
-  if (!input || !body) return;
-  const money = _parseMoney(input.value);
-  if (money <= 0) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--c-warn-fg)">ใส่จำนวนเงินมากกว่า 0</td></tr>';
-    return;
-  }
-  body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กำลังคำนวณ&hellip;</td></tr>';
-  try {
-    const res = await window.MMApi.post('/api/portfolio/topup?pf=' + _currentPfId, { new_money: money });
-    _renderCalcTable(body, res.allocation || []);
-  } catch (e) {
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--c-negative)">คำนวณไม่สำเร็จ: ' +
-      window.MMUtils.escapeHtml((e && e.message) || String(e)) + '</td></tr>';
-  }
-}
-
-function _renderCalcTable(body, allocation) {
+function _renderCalcTable(root, plan) {
   const esc = window.MMUtils.escapeHtml;
+  const p = plan || { spendable: 0, cash_target_baht: 0, rows: [], note: '' };
+  const head = root.querySelector('#ph-plan-head');
+  const body = root.querySelector('#ph-calc-body');
+  if (head) {
+    const warnCls = (p.spendable > 0) ? '' : ' warn';
+    const cashStr = window.MMUtils.fmtNum((_state && _state.cash) || 0, 0);
+    const tgtStr = window.MMUtils.fmtNum(p.cash_target_baht || 0, 0);
+    head.innerHTML = '<span class="note' + warnCls + '">' + esc(p.note || '') +
+      ' <span class="dim">(เงินสด ' + cashStr + ' &minus; เป้าเงินสด ' + tgtStr + ')</span></span>';
+  }
+  if (!body) return;
+
   const buys = [];
   const belowLot = [];
   const skips = [];
-  allocation.forEach(function (r) {
+  (p.rows || []).forEach(function (r) {
     const isCash = r.sym === 'cash';
     const shares = Number(r.shares_to_buy) || 0;
     const isBuy = (isCash && ((r.baht || 0) > 0)) ||
@@ -456,7 +449,6 @@ async function _saveAll(root) {
 
 function _bindEvents(root) {
   root.addEventListener('click', function (e) {
-    if (e.target.closest('#ph-calc-btn')) { _runCalc(root); return; }
     if (e.target.closest('#ph-save')) { _saveAll(root); return; }
     if (e.target.closest('#ph-pricebtn')) { _refreshPrice(root); return; }
     const tab = e.target.closest('.pf-tab');
@@ -479,7 +471,6 @@ function _bindEvents(root) {
   root.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     if (e.target.classList && e.target.classList.contains('pf-tab-nm')) { e.preventDefault(); e.target.blur(); return; }
-    if (e.target.id === 'ph-calc-input') { e.preventDefault(); _runCalc(root); return; }
     if (e.target.classList && e.target.classList.contains('qty')) { e.preventDefault(); _saveAll(root); }
   });
   // เลือกทั้งหมดตอน focus — พิมพ์ทับเลขเดิม/0 ได้เลย ไม่ต้องลบก่อน
@@ -495,5 +486,5 @@ function _bindEvents(root) {
 }
 
 function _isNumField(t) {
-  return !!(t && t.classList && (t.classList.contains('qty') || t.id === 'ph-calc-input'));
+  return !!(t && t.classList && t.classList.contains('qty'));
 }
