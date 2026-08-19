@@ -3005,7 +3005,6 @@ from scripts.portfolio_state import (  # noqa: E402
     load_portfolio,
     save_portfolio,
     build_state,
-    rebalance_topup,
     read_price,
     VALID_PF,
 )
@@ -3066,22 +3065,6 @@ async def update_portfolio_holdings(
         data["off_plan"] = body.off_plan
     save_portfolio(data, pf)
     return build_state(pf)
-
-
-class PortfolioTopup(BaseModel):
-    new_money: float
-
-
-@app.post("/api/portfolio/topup")
-async def portfolio_topup(
-    body: PortfolioTopup,
-    pf: str = Depends(_valid_pf),
-    user: dict = Depends(get_current_user),
-):
-    """Pull-back-to-target calculator: where new money should go (no selling)."""
-    state = build_state(pf)
-    allocation = rebalance_topup(state, body.new_money, pf)
-    return {"new_money": body.new_money, "allocation": allocation}
 
 
 @app.get("/api/portfolio/lh-signals")
