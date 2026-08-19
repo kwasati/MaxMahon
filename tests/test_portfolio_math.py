@@ -2,10 +2,10 @@ import unittest
 from unittest.mock import patch
 
 from scripts.portfolio_builder import allocate_80_20
-from scripts.portfolio_state import BOARD_LOT, rebalance_topup
+from scripts.portfolio_state import BOARD_LOT, compute_buy_plan
 
 
-def _state(price):
+def _state(price, cash, total_value):
     return {
         "positions": [
             {
@@ -15,7 +15,8 @@ def _state(price):
                 "missing_price": price is None,
             }
         ],
-        "cash": 0,
+        "cash": cash,
+        "total_value": total_value,
         "summary": {"missing_prices": ["AAA"] if price is None else []},
     }
 
