@@ -81,7 +81,6 @@ def _load_symbols() -> list[str]:
             pf_syms = (
                 set(pf.get("targets", {}).keys())
                 | set(pf.get("holdings", {}).keys())
-                | set(pf.get("off_plan", {}).keys())
             )
             for sym in pf_syms:
                 if sym and sym != "cash":
