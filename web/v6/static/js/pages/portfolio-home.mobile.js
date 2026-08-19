@@ -361,40 +361,32 @@ function _renderCalcTable(root, plan) {
   }
   if (!body) return;
 
+  // แถวเงินสดแยกออกก่อนเสมอ — ห้ามเข้า sort เพราะยอด baht สูงสุดจะดันขึ้นบนสุด
+  let cashRow = null;
   const buys = [];
   const belowLot = [];
   const skips = [];
   (p.rows || []).forEach(function (r) {
-    const isCash = r.sym === 'cash';
+    if (r.sym === 'cash') { cashRow = r; return; }
     const shares = Number(r.shares_to_buy) || 0;
-    const isBuy = (isCash && ((r.baht || 0) > 0)) ||
-      (!isCash && shares > 0 && ((r.baht || 0) > 0));
-    if (isBuy) buys.push(r);
-    else if (!isCash && r.status === 'under' && shares === 0) belowLot.push(r);
+    if (shares > 0 && (r.baht || 0) > 0) buys.push(r);
+    else if (r.status === 'under' && shares === 0) belowLot.push(r);
     else skips.push(r);
   });
   buys.sort(function (a, b) { return (b.baht || 0) - (a.baht || 0); });
 
   let html = '';
   buys.forEach(function (r) {
-    const isCash = (r.sym === 'cash');
-    const symLabel = isCash ? 'เงินสด' : r.sym;
     const deficit = r.gap_pct != null ? r.gap_pct.toFixed(1) : '0';
-    const priceStr = isCash ? '<span class="dim">—</span>' :
-      (r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—');
+    const priceStr = r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—';
     const buy = r.shares_to_buy;
-    const statusCell = isCash
-      ? '<span class="st ok">' + (r.status === 'under' ? 'เติมเงินสด' : 'เงินเหลือ') + '</span>'
-      : (r.status === 'under'
-        ? '<span class="st under">ขาด ' + deficit + '%</span>'
-        : '<span class="st ok">รักษาสัดส่วน</span>');
-    const sharesCell = isCash ? '<span class="b">—</span>'
-      : (buy != null && buy > 0 ? '<span class="b">+' + window.MMUtils.fmtNum(buy, 0) + '</span>' : '—');
-    const bahtCell = '<span class="b">' + window.MMUtils.fmtNum(r.baht || 0, 0) + '</span>';
+    const statusCell = '<span class="st under">ขาด ' + deficit + '%</span>';
+    const sharesCell = buy != null && buy > 0 ? '<span class="b">+' + window.MMUtils.fmtNum(buy, 0) + '</span>' : '—';
+    const bahtCell = '<span class="b mono">' + window.MMUtils.fmtNum(r.baht || 0, 0) + '</span>';
     html += '<tr>' +
-      '<td class="sym">' + esc(symLabel) + '</td>' +
+      '<td class="sym">' + esc(r.sym) + '</td>' +
       '<td>' + statusCell + '</td>' +
-      '<td>' + priceStr + '</td>' +
+      '<td class="mono">' + priceStr + '</td>' +
       '<td>' + sharesCell + '</td>' +
       '<td>' + bahtCell + '</td>' +
     '</tr>';
@@ -409,10 +401,21 @@ function _renderCalcTable(root, plan) {
   }
 
   if (skips.length) {
-    const names = skips.map(function (r) { return r.sym === 'cash' ? 'เงินสด' : r.sym; });
+    const names = skips.map(function (r) { return r.sym; });
     html += '<tr>' +
       '<td class="sym skip">' + esc(names.join(' · ')) + '</td>' +
       '<td colspan="4" style="text-align:left" class="skip">เกิน/ตรงเป้า — ไม่ต้องซื้อ</td>' +
+    '</tr>';
+  }
+
+  if (cashRow) {
+    const pctAfter = cashRow.pct_after != null ? cashRow.pct_after : 0;
+    html += '<tr>' +
+      '<td class="sym">เงินสด</td>' +
+      '<td><span class="st ok">เหลือหลังซื้อ ' + pctAfter + '%</span></td>' +
+      '<td><span class="dim">—</span></td>' +
+      '<td><span class="b">—</span></td>' +
+      '<td><span class="b mono">' + window.MMUtils.fmtNum(cashRow.baht || 0, 0) + '</span></td>' +
     '</tr>';
   }
   body.innerHTML = html || '<tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">ไม่มีผลลัพธ์</td></tr>';
