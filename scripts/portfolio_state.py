@@ -54,7 +54,7 @@ def _portfolio_path(portfolio_id: str = "A") -> Path:
     return PORTFOLIOS_DIR / f"{portfolio_id}.json"
 
 # The 7 in-plan symbols are derived from holdings; cash is a virtual slot in
-# targets. off_plan (LH/TISCO) is tracked but excluded from rebalance math.
+# targets.
 
 
 # ---------------------------------------------------------------------------
@@ -267,15 +267,12 @@ def build_state(portfolio_id: str = "A") -> dict:
           "positions": [ {sym, name, sector, group, thesis, metrics,
                           price, shares, avg_cost, current_value, pct,
                           target_pct, status, diff_pct, missing_price}, ... ],
-          "off_plan":  [ {sym, mode, shares, avg_cost, price,
-                          current_value, pl_pct, missing_price}, ... ],
           "cash":      <float>,
           "cash_pct":  <float>,
           "cash_target_pct": <float>,
           "total_value": <float>,
           "summary":   {count_total, count_on_target, count_over,
                         count_deficit, missing_prices: [...]},
-          "lh_triggers": {...},
           "updated_at": <str|None>,
         }
 
@@ -354,35 +351,11 @@ def build_state(portfolio_id: str = "A") -> dict:
             "missing_price": price is None,
         })
 
-    # off-plan positions (LH watch / TISCO hold) — tracked, not rebalanced
-    off_plan_out = []
-    off_plan: dict = p.get("off_plan", {}) or {}
-    for sym, info in off_plan.items():
-        info = info or {}
-        shares = float(info.get("shares", 0) or 0)
-        avg_cost = float(info.get("avg_cost", 0) or 0)
-        price = read_price(sym)
-        cv = (shares * price) if price is not None else 0.0
-        pl_pct = None
-        if price is not None and avg_cost > 0:
-            pl_pct = _round2((price - avg_cost) / avg_cost * 100)
-        off_plan_out.append({
-            "sym": sym,
-            "mode": info.get("mode"),
-            "shares": shares,
-            "avg_cost": avg_cost,
-            "price": price,
-            "current_value": _round2(cv),
-            "pl_pct": pl_pct,
-            "missing_price": price is None,
-        })
-
     cash_target_pct = float(targets.get("cash", 0) or 0)
     cash_pct = (cash / total_value * 100) if total_value > 0 else 0.0
 
     state = {
         "positions": positions,
-        "off_plan": off_plan_out,
         "cash": _round2(cash),
         "cash_pct": _round2(cash_pct),
         "cash_target_pct": cash_target_pct,
@@ -394,7 +367,6 @@ def build_state(portfolio_id: str = "A") -> dict:
             "count_deficit": count_deficit,
             "missing_prices": missing_prices,
         },
-        "lh_triggers": p.get("lh_triggers", {}),
         "updated_at": p.get("updated_at"),
         "name": p.get("name"),
         "price_as_of": _price_cache_as_of(),
