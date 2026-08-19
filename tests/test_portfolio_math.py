@@ -109,6 +109,19 @@ class BuyPlanTests(unittest.TestCase):
         for result in results[1:]:
             self.assertEqual(result, results[0])
 
+    def test_iteration_cap_stops_and_flags_note(self):
+        # AAA ต้องการ 5 ล็อตถึงจะหมดเงิน แต่ patch cap เหลือ 2 - ต้องหยุดกลางทาง
+        # และบอกในโน้ตว่าคำนวณไม่ครบ ห้ามเงียบเพราะหน้าตาจะเหมือนบั๊กเงินค้างเดิม
+        state = {
+            "positions": [{"sym": "AAA", "current_value": 0.0, "price": 100.0}],
+            "cash": 50_000.0,
+            "total_value": 50_000.0,
+        }
+        targets = {"AAA": 100, "cash": 0}
+        with patch("scripts.portfolio_state.MAX_LOT_ITERATIONS", 2):
+            plan = compute_buy_plan(state, targets)
+        self.assertTrue(plan["note"].endswith("(คำนวณไม่ครบ - ล็อตเยอะเกิน)"))
+
 
 class PortfolioBuilderWeightTests(unittest.TestCase):
     def test_weights_always_total_one_hundred(self):
