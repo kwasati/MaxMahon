@@ -39,6 +39,7 @@ PORTFOLIO_FILE = DATA_DIR / "portfolio.json"  # legacy single-portfolio (pre mul
 PORTFOLIOS_DIR = DATA_DIR / "portfolios"
 PRICE_CACHE_DIR = DATA_DIR / "price_cache"
 BOARD_LOT = 100
+MAX_LOT_ITERATIONS = 10000  # runaway guard — ชน cap เมื่อไหร่ต้องบอก ห้ามเงียบ
 
 # Multi-portfolio: 3 fixed tabs. Each portfolio lives in data/portfolios/{id}.json.
 VALID_PF = ("A", "B", "C")
