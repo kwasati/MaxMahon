@@ -380,7 +380,7 @@ def build_state(portfolio_id: str = "A") -> dict:
     cash_target_pct = float(targets.get("cash", 0) or 0)
     cash_pct = (cash / total_value * 100) if total_value > 0 else 0.0
 
-    return {
+    state = {
         "positions": positions,
         "off_plan": off_plan_out,
         "cash": _round2(cash),
@@ -399,6 +399,8 @@ def build_state(portfolio_id: str = "A") -> dict:
         "name": p.get("name"),
         "price_as_of": _price_cache_as_of(),
     }
+    state["plan"] = compute_buy_plan(state, targets)
+    return state
 
 
 # ---------------------------------------------------------------------------
