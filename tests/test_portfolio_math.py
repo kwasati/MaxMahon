@@ -37,6 +37,42 @@ class BuyPlanTests(unittest.TestCase):
         # แถวเงินสดต้องเป็นแถวสุดท้ายเสมอ
         self.assertEqual(plan["rows"][-1]["sym"], "cash")
 
+    def test_missing_price_returns_empty_plan_without_raising(self):
+        st = _state(price=None, cash=10_000, total_value=10_000)
+        # ห้าม raise แม้ราคาไม่มา — build_state เรียกฟังก์ชันนี้ตรงๆ
+        # raise ที่นี่ = ทั้งหน้าจอพัง ไม่ใช่แค่ตารางแผนซื้อหาย
+        plan = compute_buy_plan(st, {"AAA": 95, "cash": 5})
+        self.assertEqual(plan["rows"], [])
+        self.assertIn("AAA", plan["note"])
+
+    def test_cash_below_target_yields_zero_spendable(self):
+        # เป้าเงินสด 50% ของพอร์ต 10,000 แต่มีเงินสดแค่ 1,000 - ต่ำกว่าเป้า
+        st = _state(price=30.0, cash=1_000, total_value=10_000)
+        plan = compute_buy_plan(st, {"AAA": 50, "cash": 50})
+        self.assertEqual(plan["spendable"], 0.0)
+        rows = {r["sym"]: r for r in plan["rows"]}
+        self.assertEqual(rows["AAA"]["shares_to_buy"], 0)
+        self.assertIn("cash", rows)
+
+    def test_row_sum_reconciles_to_starting_cash_across_two_stocks(self):
+        # หุ้น 2 ตัวราคาต่างกัน ล็อตซื้อไม่ลงตัวพอดี - เงินเศษต้องตกเป็นแถวเงินสด
+        # ไม่ใช่หายไปเงียบๆ ระหว่างทาง (นี่คือบั๊กเดิมที่งานนี้มาฆ่า)
+        state = {
+            "positions": [
+                {"sym": "X", "current_value": 0.0, "price": 33.0},
+                {"sym": "Y", "current_value": 0.0, "price": 17.0},
+            ],
+            "cash": 15_000.0,
+            "total_value": 50_000.0,
+        }
+        targets = {"X": 40, "Y": 30, "cash": 10}
+        plan = compute_buy_plan(state, targets)
+        self.assertEqual(plan["spendable"], 10_000.0)
+        self.assertAlmostEqual(
+            sum(r["baht"] for r in plan["rows"]), 15_000.0, places=2
+        )
+        self.assertEqual(plan["rows"][-1]["sym"], "cash")
+
 
 class PortfolioBuilderWeightTests(unittest.TestCase):
     def test_weights_always_total_one_hundred(self):
