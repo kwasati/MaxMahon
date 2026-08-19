@@ -167,6 +167,7 @@ async function _load(root) {
     _state = state;
     _renderTotal(root, state);
     _renderRows(root, state);
+    _renderCalcTable(root, state.plan || null);
     _renderOffPlan(root, state);
     _renderFoot(root, state);
   } catch (e) {
@@ -444,6 +445,7 @@ async function _saveAll(root) {
     window.MMComponents.showToast('บันทึกแล้ว', 'info');
     _renderTotal(root, state);
     _renderRows(root, state);
+    _renderCalcTable(root, state.plan || null);
     _renderOffPlan(root, state);
     _renderFoot(root, state);
   } catch (e) {
