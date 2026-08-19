@@ -93,6 +93,22 @@ class BuyPlanTests(unittest.TestCase):
         self.assertGreater(rows["CHEAP"]["shares_to_buy"], 0)
         self.assertLess(rows["cash"]["baht"], 1_000)
 
+    def test_deterministic_across_repeated_calls(self):
+        # AAA/BBB ห่างเป้าเท่ากันเป๊ะและราคาเท่ากัน - tie ต้องแตกด้วยลำดับ key
+        # ใน targets เสมอ ไม่ใช่สุ่ม ไม่งั้นหน้าจอโหลดซ้ำแล้วได้แผนซื้อคนละอัน
+        state = {
+            "positions": [
+                {"sym": "AAA", "current_value": 0.0, "price": 50.0},
+                {"sym": "BBB", "current_value": 0.0, "price": 50.0},
+            ],
+            "cash": 20_000.0,
+            "total_value": 1_000_000.0,
+        }
+        targets = {"AAA": 10, "BBB": 10, "cash": 0}
+        results = [compute_buy_plan(state, targets) for _ in range(5)]
+        for result in results[1:]:
+            self.assertEqual(result, results[0])
+
 
 class PortfolioBuilderWeightTests(unittest.TestCase):
     def test_weights_always_total_one_hundred(self):
