@@ -4,7 +4,7 @@ This module is the backend brain for the "real portfolio" redesign:
 
     Phase 1 — data accessor    : load_portfolio / save_portfolio
     Phase 2 — price + state     : read_price / build_state
-    Phase 3 — top-up calculator : rebalance_topup  (pure, "pull back to target")
+    Phase 3 — buy-plan calculator : compute_buy_plan  (pure, greedy lot-by-lot)
 
 Single source of truth = ``data/portfolio.json`` (NOT per-user — this is one
 real portfolio, the one Art actually holds). Targets, holdings (shares +
@@ -18,7 +18,7 @@ Public API:
     save_portfolio(data)        — atomic write + stamp updated_at
     read_price(sym)             — latest cached price (float) or None
     build_state()               — holdings + prices merged into a render-ready dict
-    rebalance_topup(state, new) — pure "pull back to target" calculator
+    compute_buy_plan(state, targets) — pure greedy lot-by-lot buy-plan calculator
 
 Used by:
     server.app — /api/portfolio/* endpoints
@@ -401,145 +401,6 @@ def build_state(portfolio_id: str = "A") -> dict:
     }
     state["plan"] = compute_buy_plan(state, targets)
     return state
-
-
-# ---------------------------------------------------------------------------
-# Phase 3 — "pull back to target" top-up calculator
-# ---------------------------------------------------------------------------
-def rebalance_topup(state: dict, new_money: float, portfolio_id: str = "A") -> list[dict]:
-    """Pure calculator: where should fresh money go to pull the portfolio
-    back toward its target weights (without selling overweight names)?
-
-    Logic (cash counted as one slot in targets):
-        base_new   = sum(current_value of 7) + cash + new_money
-        target_val = base_new * target_pct/100   for each slot (incl cash)
-        deficit    = max(0, target_val - current_value)
-        total_def  = sum(deficit)
-
-        if new_money <= total_def:
-            topup = new_money * deficit/total_def
-        elif new_money > total_def:
-            topup = deficit + (new_money - total_def) * target_pct/sum(targets)
-        if total_def == 0 (all over/on-target):
-            topup = new_money * target_pct/sum(targets)
-
-        shares_to_buy = floor(topup / (price * 100)) * 100
-        stock baht    = shares_to_buy * price
-        cash baht     = new_money - sum(stock baht)
-
-    Returns a list of dicts (one per slot incl cash):
-        {sym, status, deficit_pct, price, shares_to_buy, baht}
-
-    Guarantee: stock orders use executable 100-share board lots and sum(baht)
-    equals new_money to the cent, with all unspent remainder kept as cash.
-    """
-    new_money = float(new_money)
-    if new_money < 0:
-        raise ValueError("new_money must be >= 0")
-
-    p = load_portfolio(portfolio_id)
-    targets: dict = p.get("targets", {}) or {}
-
-    # Build current_value per slot from the passed-in state (7 syms) + cash.
-    cv: dict[str, float] = {}
-    price_map: dict[str, Optional[float]] = {}
-    for pos in state.get("positions", []):
-        sym = pos["sym"]
-        cv[sym] = float(pos.get("current_value", 0) or 0)
-        price_map[sym] = pos.get("price")
-    cash_now = float(state.get("cash", 0) or 0)
-    cv["cash"] = cash_now
-    price_map["cash"] = None
-
-    # Slots = every key in targets (the 7 syms + "cash"). Restrict cv to those.
-    slots = list(targets.keys())
-    target_sum = sum(float(targets.get(s, 0) or 0) for s in slots)
-    if target_sum <= 0:
-        raise ValueError("targets sum to 0 — cannot rebalance")
-    if "cash" not in slots:
-        raise ValueError("cash target is required to absorb board-lot remainder")
-
-    invalid_prices = []
-    for s in slots:
-        if s == "cash":
-            continue
-        price = price_map.get(s)
-        if not isinstance(price, (int, float)) or price <= 0:
-            invalid_prices.append(s)
-    if invalid_prices:
-        symbols = ", ".join(invalid_prices)
-        raise ValueError(
-            f"missing or invalid prices for: {symbols}; refresh prices before calculating"
-        )
-
-    base_existing = sum(cv.get(s, 0.0) for s in slots)
-    base_new = base_existing + new_money
-
-    deficit: dict[str, float] = {}
-    for s in slots:
-        tval = base_new * float(targets.get(s, 0) or 0) / 100.0
-        deficit[s] = max(0.0, tval - cv.get(s, 0.0))
-    total_def = sum(deficit.values())
-
-    topup: dict[str, float] = {}
-    if total_def <= 1e-9:
-        # Everyone is at/over target — spread purely by target weight.
-        for s in slots:
-            topup[s] = new_money * float(targets.get(s, 0) or 0) / target_sum
-    elif new_money <= total_def:
-        # Not enough to fill all gaps — share proportional to the gaps.
-        for s in slots:
-            topup[s] = new_money * deficit[s] / total_def
-    else:
-        # Fill every gap, then spread the surplus by target weight.
-        surplus = new_money - total_def
-        for s in slots:
-            topup[s] = deficit[s] + surplus * float(targets.get(s, 0) or 0) / target_sum
-
-    # Convert ideal allocations to executable SET board lots. Stock ``baht``
-    # is actual spend (shares * price), never an unspendable budget. Any
-    # remainder — including the intended cash allocation — stays in cash.
-    shares_by_slot: dict[str, Optional[int]] = {}
-    baht: dict[str, float] = {}
-    stock_spend = 0.0
-    for s in slots:
-        if s == "cash":
-            shares_by_slot[s] = None
-            continue
-        price = float(price_map[s])
-        lot_cost = price * BOARD_LOT
-        board_lots = int(math.floor((topup.get(s, 0.0) + 1e-9) / lot_cost))
-        shares = board_lots * BOARD_LOT
-        spend = _round2(shares * price)
-        shares_by_slot[s] = shares
-        baht[s] = spend
-        stock_spend += spend
-    baht["cash"] = _round2(new_money - stock_spend)
-
-    out = []
-    for s in slots:
-        is_cash = (s == "cash")
-        price = price_map.get(s)
-        shares_to_buy = shares_by_slot[s]
-        # status vs target (deficit if it had a gap, else over/ok)
-        if deficit.get(s, 0.0) > 1e-9:
-            status = "under"
-        else:
-            # distinguish over vs on-target using current pct vs target
-            cur_pct = (cv.get(s, 0.0) / base_existing * 100) if base_existing > 0 else 0.0
-            tgt = float(targets.get(s, 0) or 0)
-            status = "over" if cur_pct > tgt + 0.5 else "ok"
-        out.append({
-            "sym": s,
-            "status": status,
-            "deficit_pct": _round2(
-                (deficit.get(s, 0.0) / base_new * 100) if base_new > 0 else 0.0
-            ),
-            "price": price,
-            "shares_to_buy": shares_to_buy,
-            "baht": baht[s],
-        })
-    return out
 
 
 # ---------------------------------------------------------------------------
