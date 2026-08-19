@@ -379,7 +379,7 @@ function _renderCalcTable(root, plan) {
   buys.forEach(function (r) {
     const isCash = (r.sym === 'cash');
     const symLabel = isCash ? 'เงินสด' : r.sym;
-    const deficit = r.deficit_pct != null ? r.deficit_pct.toFixed(1) : '0';
+    const deficit = r.gap_pct != null ? r.gap_pct.toFixed(1) : '0';
     const priceStr = isCash ? '<span class="dim">—</span>' :
       (r.price != null ? window.MMUtils.fmtNum(r.price, 2) : '—');
     const buy = r.shares_to_buy;
