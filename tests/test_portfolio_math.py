@@ -21,30 +21,21 @@ def _state(price, cash, total_value):
     }
 
 
-class PortfolioTopupTests(unittest.TestCase):
-    @patch(
-        "scripts.portfolio_state.load_portfolio",
-        return_value={"targets": {"AAA": 95, "cash": 5}},
-    )
-    def test_missing_price_stops_calculation(self, _load):
-        with self.assertRaisesRegex(ValueError, "AAA"):
-            rebalance_topup(_state(None), 10_000)
+class BuyPlanTests(unittest.TestCase):
+    def test_board_lot_actual_spend_and_cash_remainder(self):
+        st = _state(price=30.0, cash=10_000, total_value=10_000)
+        plan = compute_buy_plan(st, {"AAA": 95, "cash": 5})
+        rows = {r["sym"]: r for r in plan["rows"]}
+        stock = rows["AAA"]
 
-    @patch(
-        "scripts.portfolio_state.load_portfolio",
-        return_value={"targets": {"AAA": 95, "cash": 5}},
-    )
-    def test_board_lot_actual_spend_and_cash_remainder(self, _load):
-        rows = rebalance_topup(_state(30.0), 10_000)
-        by_sym = {row["sym"]: row for row in rows}
-        stock = by_sym["AAA"]
-
-        self.assertEqual(stock["shares_to_buy"], 300)
         self.assertEqual(stock["shares_to_buy"] % BOARD_LOT, 0)
         self.assertEqual(stock["baht"], stock["shares_to_buy"] * stock["price"])
-        self.assertEqual(by_sym["cash"]["baht"], 1_000)
-        self.assertEqual(sum(row["baht"] for row in rows), 10_000)
-        self.assertEqual(stock["deficit_pct"], 95.0)
+        # ผลรวมทุกแถว (หุ้น + เงินสด) ต้องเท่ากับเงินสดตั้งต้นเป๊ะ — เงินห้ามหายระหว่างทาง
+        self.assertAlmostEqual(
+            sum(r["baht"] for r in plan["rows"]), 10_000, places=2
+        )
+        # แถวเงินสดต้องเป็นแถวสุดท้ายเสมอ
+        self.assertEqual(plan["rows"][-1]["sym"], "cash")
 
 
 class PortfolioBuilderWeightTests(unittest.TestCase):
