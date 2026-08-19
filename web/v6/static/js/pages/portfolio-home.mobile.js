@@ -242,19 +242,31 @@ function _renderRows(root, state) {
     const status = p.status || 'ok';
     const pct = p.pct || 0;
     const target = p.target_pct || 0;
-    let cv = p.current_value;
-    if (cv == null) cv = (p.shares || 0) * (p.price || 0);
-    const priceStr = p.price != null ? window.MMUtils.fmtNum(p.price, 2) : '—';
     const shares = p.shares || 0;
+
+    // ราคาไม่มา -> ห้ามโชว์มูลค่า 0 + ป้าย "ขาด" ปกติ เพราะแยกไม่ออกจากตัวที่ขาดเป้าจริง
+    let priceCell, valueCell, allocCell;
+    if (p.missing_price) {
+      priceCell = '<td class="dim">—</td>';
+      valueCell = '<td class="warn">ราคาไม่มา</td>';
+      allocCell = '<td class="alloc"><span class="st ok">ยังไม่รู้</span> <span class="dim">รอดึงราคา</span></td>';
+    } else {
+      let cv = p.current_value;
+      if (cv == null) cv = shares * (p.price || 0);
+      const priceStr = p.price != null ? window.MMUtils.fmtNum(p.price, 2) : '—';
+      priceCell = '<td>' + priceStr + '</td>';
+      valueCell = '<td>' + window.MMUtils.fmtNum(cv, 0) + '</td>';
+      allocCell = '<td class="alloc">' + _allocCell(pct, target, status) + '</td>';
+    }
 
     html += '<tr data-ph-sym="' + esc(sym) + '">' +
       '<td><a class="sym" href="' + _REPORT_BASE + esc(sym) + '">' +
         '<span class="g ' + _groupDot(p.group) + '"></span>' + esc(sym) + '</a></td>' +
       '<td><input class="qty" data-ph-qty="' + esc(sym) + '" inputmode="numeric" value="' +
         window.MMUtils.fmtNum(shares, 0) + '"></td>' +
-      '<td>' + priceStr + '</td>' +
-      '<td>' + window.MMUtils.fmtNum(cv, 0) + '</td>' +
-      '<td class="alloc">' + _allocCell(pct, target, status) + '</td>' +
+      priceCell +
+      valueCell +
+      allocCell +
     '</tr>';
   });
 
