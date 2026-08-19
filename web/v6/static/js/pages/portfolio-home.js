@@ -124,21 +124,17 @@ function _renderShell() {
         '</table></div>' +
         '<div class="pf-card-f">' +
           '<span class="note">แก้ตัวเลขในช่องแล้วกดบันทึก · เงินสดกรอกเป็นบาท</span>' +
-          '<button class="pf-btn" id="ph-save" type="button">บันทึกพอร์ต</button>' +
+          '<button class="pf-btn" id="ph-save" type="button">บันทึก + คำนวณใหม่</button>' +
         '</div>' +
       '</div>' +
 
-      /* ====== งานที่ 2: เติมเงินรอบนี้ ====== */
+      /* ====== งานที่ 2: ต้องซื้ออะไรบ้าง ====== */
       '<div class="pf-card">' +
         '<div class="pf-card-h">' +
-          '<h2>มีเงินมาเพิ่ม</h2>' +
-          '<span class="hint">เติมเฉพาะตัวที่ขาดเป้า ดึงพอร์ตกลับสัดส่วน · ตัวเกินไม่ต้องซื้อ</span>' +
+          '<h2>ต้องซื้ออะไรบ้าง</h2>' +
+          '<span class="hint">เงินสดส่วนที่เกินเป้า เติมเข้าตัวที่ขาด ดึงพอร์ตกลับสัดส่วน</span>' +
         '</div>' +
-        '<div class="topup-in">' +
-          '<input class="mono" id="ph-calc-input" inputmode="numeric" value="100,000">' +
-          '<span class="cur">บาท</span>' +
-          '<button class="pf-btn" id="ph-calc-btn" type="button" style="margin-left:auto">คำนวณ &rarr;</button>' +
-        '</div>' +
+        '<div class="pf-card-f" id="ph-plan-head" style="border-top:none;padding-top:var(--sp-3)"></div>' +
         '<div class="pf-table-wrap"><table class="pf-table">' +
           '<thead><tr><th>ซื้อเพิ่ม</th><th>สถานะ</th><th>ราคา</th><th>จำนวนหุ้น</th><th>ลงเงิน</th></tr></thead>' +
           '<tbody class="buyrow" id="ph-calc-body"><tr><td colspan="5" style="text-align:center;color:var(--fg-dim)">กดคำนวณเพื่อดูแผนซื้อ</td></tr></tbody>' +
@@ -463,7 +459,7 @@ async function _saveAll(root) {
   try {
     const state = await window.MMApi.put('/api/portfolio/holdings?pf=' + _currentPfId, { holdings: holdings, cash: cash });
     _state = state;
-    window.MMComponents.showToast('บันทึกพอร์ตแล้ว', 'info');
+    window.MMComponents.showToast('บันทึกแล้ว', 'info');
     _renderTotal(root, state);
     _renderRows(root, state);
     _renderOffPlan(root, state);
@@ -471,7 +467,7 @@ async function _saveAll(root) {
   } catch (e) {
     window.MMComponents.showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e), 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'บันทึกพอร์ต'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'บันทึก + คำนวณใหม่'; }
   }
 }
 
