@@ -410,9 +410,12 @@ function _renderCalcTable(root, plan) {
 
   if (belowLot.length) {
     const names = belowLot.map(function (r) { return r.sym; });
+    const belowMsg = (p.spendable > 0)
+      ? 'ยังขาด แต่เงินไม่พอซื้อครบ 100 หุ้น'
+      : 'ยังขาดเป้า แต่เงินสดยังไม่มีส่วนเกินให้ซื้อ';
     html += '<tr>' +
       '<td class="sym skip">' + esc(names.join(' · ')) + '</td>' +
-      '<td colspan="4" style="text-align:left" class="skip">ยังขาด แต่เงินไม่พอซื้อครบ 100 หุ้น</td>' +
+      '<td colspan="4" style="text-align:left" class="skip">' + belowMsg + '</td>' +
     '</tr>';
   }
 
