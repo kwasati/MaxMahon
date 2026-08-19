@@ -1,15 +1,13 @@
 /* ==========================================================
    MAX MAHON v6 — Portfolio Home v2 MINIMAL (Desktop)  — route "/"
-   เว็บพอร์ตจริง (pillar 1 ปันผล) — 2 งานชัดๆ บนหน้าเดียว:
-     (1) กรอกจำนวนหุ้น inline ในตาราง -> ปุ่มบันทึก PUT holdings ทีเดียว
-     (2) กรอกเงินรอบนี้ -> คำนวณแผนซื้อ (ดึงกลับเป้า)
-   ของรอง (นอกแผน + แผนเต็ม) พับเก็บล่างสุดด้วย <details>.
-   Layout source of truth: .claude/artifacts/maxmahon-portfolio-mockup-v2-minimal.html
+   เว็บพอร์ตจริง (pillar 1 ปันผล) — ตารางเดียว ปุ่มเดียว:
+     (1) กรอกจำนวนหุ้น + เงินสด inline ในตาราง -> ปุ่มบันทึก PUT holdings ทีเดียว
+     (2) แผนซื้อคำนวณอัตโนมัติจากเงินสดส่วนเกินเป้า ติดมากับ response เดียวกัน
+   ของรอง (คำอธิบายแนวลงทุนเต็ม) พับเก็บล่างสุดด้วย <details>.
+   Layout source of truth: .claude/artifacts/maxmahon-portfolio-onetable.html
    Live data:
-     GET  /api/portfolio/state       -> total_value + positions[] + off_plan[] + cash
-     GET  /api/portfolio/lh-signals  -> LH sell/support signals
-     POST /api/portfolio/topup       -> pull-back-to-target calculator
-     PUT  /api/portfolio/holdings    -> save shares/avg_cost (all) + cash
+     GET  /api/portfolio/state       -> total_value + positions[] + cash + plan
+     PUT  /api/portfolio/holdings    -> save shares/avg_cost (all) + cash -> ได้ state ใหม่ (มี plan)
    All markup scoped under .pf-home (CSS in components.css + mobile.css).
    ========================================================== */
 
@@ -143,10 +141,6 @@ function _renderShell() {
 
       /* ====== ของรอง: ย่อเก็บล่างสุด ====== */
       '<div class="pf-minor">' +
-        '<details id="ph-offplan-det">' +
-          '<summary><span id="ph-offplan-sum">นอกแผน</span> <span class="chev">กดดู &#9662;</span></summary>' +
-          '<div class="det-body" id="ph-offplan"></div>' +
-        '</details>' +
         '<details>' +
           '<summary>แผนการลงทุน — Niwes 70 · เซียนฮง 25 · เงินสด 5 <span class="chev">กดดู &#9662;</span></summary>' +
           '<div class="det-body">' +
@@ -173,7 +167,6 @@ async function _load(root) {
     _renderTotal(root, state);
     _renderRows(root, state);
     _renderCalcTable(root, state.plan || null);
-    _renderOffPlan(root, state);
     _renderFoot(root, state);
   } catch (e) {
     if (rowsHost) {
@@ -300,76 +293,6 @@ function _renderRows(root, state) {
   host.innerHTML = html;
 }
 
-/* ---------- off-plan (collapsed details) ---------- */
-function _renderOffPlan(root, state) {
-  const host = root.querySelector('#ph-offplan');
-  const sum = root.querySelector('#ph-offplan-sum');
-  if (!host) return;
-  const esc = window.MMUtils.escapeHtml;
-  const list = state.off_plan || [];
-  if (!list.length) {
-    host.innerHTML = '<div class="dim" style="padding:var(--sp-3) 0">ไม่มีรายการนอกแผน</div>';
-    if (sum) sum.textContent = 'นอกแผน';
-    return;
-  }
-  // summary line lists symbols + mode
-  const labels = list.map(function (op) {
-    const m = (op.mode === 'watch') ? '(รอขาย)' : '(ถือถาวร)';
-    return (op.sym || '') + ' ' + m;
-  });
-  if (sum) sum.textContent = 'นอกแผน — ' + labels.join(' · ');
-
-  let html = '';
-  list.forEach(function (op) {
-    const sym = op.sym || '';
-    const mode = op.mode || 'hold';
-    const tagCls = mode === 'watch' ? 'watch' : 'hold';
-    const tagTxt = mode === 'watch' ? 'รอจังหวะขาย' : 'ถือถาวร ไม่ซื้อเพิ่ม';
-    const plPct = op.pl_pct;
-    const plCls = (plPct != null && plPct < 0) ? 'neg' : 'pos';
-    const plStr = plPct != null ? ((plPct >= 0 ? '+' : '') + plPct.toFixed(0) + '%') : '';
-    const priceStr = op.price != null ? window.MMUtils.fmtNum(op.price, 2) : '—';
-    const sharesStr = window.MMUtils.fmtNum(op.shares || 0, 0);
-    const avgStr = window.MMUtils.fmtNum(op.avg_cost || 0, 2);
-
-    let opr = priceStr + (plStr ? ' <span class="' + plCls + '">' + plStr + '</span>' : '');
-    if (mode === 'watch') {
-      opr += ' · <span data-ph-lh-signals>สัญญาณ: กำลังโหลด&hellip;</span>';
-    }
-    html += '<div class="op">' +
-      '<span class="opl">' + esc(sym) +
-        ' <span class="tag ' + tagCls + '">' + esc(tagTxt) + '</span>' +
-        ' <span class="sub">' + sharesStr + ' หุ้น · ทุน ' + avgStr + '</span></span>' +
-      '<span class="opr">' + opr + '</span>' +
-    '</div>';
-  });
-  host.innerHTML = html;
-  _loadLhSignals(root);
-}
-
-async function _loadLhSignals(root) {
-  const hosts = root.querySelectorAll('[data-ph-lh-signals]');
-  if (!hosts.length) return;
-  try {
-    const res = await window.MMApi.get('/api/portfolio/lh-signals?pf=' + _currentPfId);
-    const esc = window.MMUtils.escapeHtml;
-    const signals = res.signals || [];
-    let out;
-    if (!signals.length) {
-      out = 'สัญญาณ: ไม่มี';
-    } else {
-      const parts = signals.map(function (s) {
-        const dot = s.status === 'danger' ? '●' : (s.status === 'warn' ? '●' : '○');
-        return esc(s.label || '') + dot + (s.detail ? esc(s.detail) : '');
-      });
-      out = 'สัญญาณ: ' + parts.join(' · ');
-    }
-    hosts.forEach(function (h) { h.innerHTML = out; });
-  } catch (e) {
-    hosts.forEach(function (h) { h.textContent = 'สัญญาณ: โหลดไม่ได้'; });
-  }
-}
-
 /* ---------- calculator (auto buy plan, comes with state.plan) ---------- */
 function _parseMoney(raw) {
   const n = parseFloat(String(raw || '').replace(/[, ]/g, ''));
@@ -475,7 +398,6 @@ async function _saveAll(root) {
     _renderTotal(root, state);
     _renderRows(root, state);
     _renderCalcTable(root, state.plan || null);
-    _renderOffPlan(root, state);
     _renderFoot(root, state);
   } catch (e) {
     window.MMComponents.showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e), 'error');
