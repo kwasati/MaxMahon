@@ -3042,7 +3042,6 @@ async def get_portfolio_state(
 class PortfolioHoldingsUpdate(BaseModel):
     holdings: Optional[dict] = None
     cash: Optional[float] = None
-    off_plan: Optional[dict] = None
 
 
 @app.put("/api/portfolio/holdings")
@@ -3051,18 +3050,16 @@ async def update_portfolio_holdings(
     pf: str = Depends(_valid_pf),
     user: dict = Depends(get_current_user),
 ):
-    """Update real holdings / cash / off-plan, then return the fresh state.
+    """Update real holdings / cash, then return the fresh state.
 
-    Only the provided fields are touched (None = leave as-is). Targets, meta and
-    lh_triggers are NOT editable here — they are part of the plan definition.
+    Only the provided fields are touched (None = leave as-is). Targets and meta
+    are NOT editable here — they are part of the plan definition.
     """
     data = load_portfolio(pf)
     if body.holdings is not None:
         data["holdings"] = body.holdings
     if body.cash is not None:
         data["cash"] = float(body.cash)
-    if body.off_plan is not None:
-        data["off_plan"] = body.off_plan
     save_portfolio(data, pf)
     return build_state(pf)
 
