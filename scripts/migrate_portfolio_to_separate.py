@@ -75,17 +75,11 @@ def migrate() -> int:
             sym: {"shares": 0, "avg_cost": 0}
             for sym in (a_data.get("holdings", {}) or {})
         }
-        seed_offplan = {
-            sym: {"shares": 0, "avg_cost": 0, "mode": (info or {}).get("mode", "hold")}
-            for sym, info in (a_data.get("off_plan", {}) or {}).items()
-        }
         seed = {
             "name": PF_NAMES[pid],
             "targets": dict(a_data.get("targets", {}) or {}),
             "holdings": seed_holdings,
             "cash": 0,
-            "off_plan": seed_offplan,
-            "lh_triggers": dict(a_data.get("lh_triggers", {}) or {}),
             "meta": dict(a_data.get("meta", {}) or {}),
         }
         _write_json(p_path, seed)
