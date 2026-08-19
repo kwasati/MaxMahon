@@ -73,6 +73,26 @@ class BuyPlanTests(unittest.TestCase):
         )
         self.assertEqual(plan["rows"][-1]["sym"], "cash")
 
+    def test_expensive_lot_does_not_strand_money(self):
+        # RICH ล็อตละ 19,000 ขาดเป้าเยอะสุด แต่ซื้อไม่ไหวด้วยเงิน 12,000
+        # CHEAP ล็อตละ 1,000 ขาดเป้าน้อยกว่า แต่ซื้อไหว -> เงินต้องไปที่ CHEAP
+        # ของเดิม (แบ่งสัดส่วนช่องว่างก่อน แล้วค่อยปัดลงเป็นล็อต) จะจองเงินให้ RICH
+        # ตามสัดส่วนช่องว่างแล้วปัดลงเหลือ 0 หุ้น เงินก้อนนั้นตกเป็นเงินสดหายไปเงียบๆ
+        # - เทสนี้กันไม่ให้กลับมา (เคยหายไปถึง 45% ของเงินเติมรอบหนึ่ง)
+        state = {
+            "positions": [
+                {"sym": "RICH", "current_value": 0.0, "price": 190.0},
+                {"sym": "CHEAP", "current_value": 0.0, "price": 10.0},
+            ],
+            "cash": 12_000.0,
+            "total_value": 1_000_000.0,
+        }
+        targets = {"RICH": 50, "CHEAP": 5, "cash": 0}
+        plan = compute_buy_plan(state, targets)
+        rows = {r["sym"]: r for r in plan["rows"]}
+        self.assertGreater(rows["CHEAP"]["shares_to_buy"], 0)
+        self.assertLess(rows["cash"]["baht"], 1_000)
+
 
 class PortfolioBuilderWeightTests(unittest.TestCase):
     def test_weights_always_total_one_hundred(self):
