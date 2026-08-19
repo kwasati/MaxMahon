@@ -1,6 +1,6 @@
 @echo off
 title Max Mahon Server
-cd /d "C:\WORKSPACE\projects\MaxMahon"
+cd /d "C:\WORKSPACE\projects\4-MaxMahon"
 
 :: UTF-8 for Python (Windows Thai encoding fix)
 set PYTHONUTF8=1
