@@ -167,6 +167,98 @@ def _price_cache_as_of() -> Optional[str]:
     return datetime.fromtimestamp(max(mtimes)).isoformat(timespec="seconds")
 
 
+# new — วางก่อน build_state. pure + total: ห้าม raise เพราะ build_state เรียกตัวนี้
+# ถ้า raise = ทั้งหน้าจอพัง ไม่ใช่แค่ตารางแผนซื้อหาย
+def compute_buy_plan(state: dict, targets: dict) -> dict:
+    """เงินสดส่วนที่เกินเป้าของตัวเอง ควรไปลงตัวไหนบ้าง.
+
+    เงินสด = ช่องหนึ่งในสัดส่วนรวม 100% ไม่ใช่เงินสำรอง:
+        spendable = cash - total_value * targets['cash']/100   (clamp 0)
+
+    greedy: วนซื้อทีละ 1 ล็อต ให้ตัวที่ห่างเป้ามากที่สุดเป็นบาทและยังจ่ายไหว
+    แล้วคำนวณระยะห่างใหม่ทุกรอบ เงินเศษที่ซื้อล็อตไม่ไหวจึงตกเป็นเงินสดจริงๆ
+    ไม่ใช่เงินที่ถูกจองไว้ให้ตัวที่ซื้อไม่ลงแล้วหายเงียบแบบของเดิม
+    """
+    total_value = float(state.get("total_value", 0) or 0)
+    cash = float(state.get("cash", 0) or 0)
+    positions = state.get("positions", []) or []
+
+    cv = {p["sym"]: float(p.get("current_value", 0) or 0) for p in positions}
+    px = {p["sym"]: p.get("price") for p in positions}
+    stocks = [s for s in targets if s != "cash"]
+
+    missing = [s for s in stocks
+               if not isinstance(px.get(s), (int, float)) or float(px.get(s) or 0) <= 0]
+    if missing:
+        return {"spendable": 0.0, "cash_target_baht": 0.0, "rows": [],
+                "note": "ราคาไม่มา: " + ", ".join(missing) + " - กดดึงราคาก่อน"}
+    if total_value <= 0:
+        return {"spendable": 0.0, "cash_target_baht": 0.0, "rows": [],
+                "note": "ยังไม่มีมูลค่าพอร์ต"}
+
+    cash_target_baht = total_value * float(targets.get("cash", 0) or 0) / 100.0
+    spendable = max(0.0, cash - cash_target_baht)
+
+    bought = {s: 0 for s in stocks}
+    left = spendable
+    truncated = True
+    for _ in range(MAX_LOT_ITERATIONS):
+        pick, best_gap = None, 0.0
+        for s in stocks:  # ลำดับ key ใน targets = tie-break ที่นิ่ง
+            lot_cost = float(px[s]) * BOARD_LOT
+            if lot_cost > left + 1e-9:
+                continue
+            # คำนวณใหม่ทุกรอบ (ห้าม cache) ไม่งั้นเงินกองใส่ตัวเดียว
+            gap = (total_value * float(targets.get(s, 0) or 0) / 100.0
+                   - (cv[s] + bought[s] * float(px[s])))
+            if gap > best_gap:
+                pick, best_gap = s, gap
+        if pick is None:
+            truncated = False
+            break
+        bought[pick] += BOARD_LOT
+        left -= float(px[pick]) * BOARD_LOT
+
+    rows = []
+    spent = 0.0
+    for s in stocks:
+        price = float(px[s])
+        gap0 = total_value * float(targets.get(s, 0) or 0) / 100.0 - cv[s]
+        baht = _round2(bought[s] * price)
+        spent += baht
+        rows.append({
+            "sym": s,
+            "status": "under" if gap0 > 1e-9 else "over",
+            "gap_pct": _round2(max(0.0, gap0) / total_value * 100.0),
+            "price": price,
+            "shares_to_buy": bought[s],
+            "baht": baht,
+        })
+    rows.sort(key=lambda r: r["baht"], reverse=True)
+
+    # แถวเงินสด — ต่อท้าย "หลัง" sort เสมอ ห้ามให้มันเข้าไปเรียงกับหุ้น
+    cash_after = _round2(cash - spent)
+    rows.append({
+        "sym": "cash", "status": "ok", "gap_pct": 0.0, "price": None,
+        "shares_to_buy": None, "baht": cash_after,
+        "pct_after": _round2(cash_after / total_value * 100.0),
+    })
+
+    if spendable <= 0:
+        note = "เงินสดยังไม่ถึงเป้า - ยังไม่ต้องซื้อ"
+    else:
+        note = "ซื้อได้ " + format(spendable, ",.0f") + " บาท"
+    if truncated:
+        note += " (คำนวณไม่ครบ - ล็อตเยอะเกิน)"
+
+    return {
+        "spendable": _round2(spendable),
+        "cash_target_baht": _round2(cash_target_baht),
+        "rows": rows,
+        "note": note,
+    }
+
+
 def build_state(portfolio_id: str = "A") -> dict:
     """Merge holdings + live prices + targets into a render-ready dict.
 
