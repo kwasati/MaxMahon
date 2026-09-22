@@ -9,7 +9,6 @@ Python · ยืม data layer ของ MaxMahon มาสแกน · scanner 
 - `C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — scanner ทั้งหมดอยู่ที่นี่
 - `research\` — บันทึกและผลคัด
 - `set-companyprofiles\` `set-factsheets\` — เอกสาร SET ที่ใช้ audit
-- `MEMORY.md` — รายชื่อหุ้นที่ผ่าน/ตก พร้อมเหตุผล
 
 ## Commands
 - `py C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — stage 1 auto scan
@@ -22,5 +21,5 @@ Python · ยืม data layer ของ MaxMahon มาสแกน · scanner 
 - เป้าคือหา pattern ตรงสไตล์ ไม่ใช่ลอกพอร์ตเซียนฮงตรง ๆ
 
 ## Read first
-- `MEMORY.md` — รายชื่อปัจจุบันและเหตุผล
+- `research\` — บันทึกและผลคัดล่าสุด
 - `C:\WORKSPACE\projects\4-MaxMahon\CLAUDE.md` — กฎของโปรเจกต์แม่
