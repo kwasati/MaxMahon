@@ -2,16 +2,6 @@
 
 เอเจนต์คัดหุ้นไทยแนวนิเวศน์ (Dividend-First) — scan pipeline เป็นอัลกอริทึมล้วน AI เรียกเฉพาะตอน Art กดขอ
 
-## Stack
-Python + FastAPI/uvicorn · SETSMART API (aggregate) + thaifin (history) + yahooquery (DPS/52w/capex) · Anthropic SDK เรียกต่อหุ้นตามคำสั่ง
-
-## Layout
-- `server\app.py` — FastAPI app (port 50089, https://max.intensivetrader.com)
-- `scripts\` — pipeline ทั้งชุด (fetch_data, data_adapter, history_manager, anchor_scoring, case_study_detector, daily_price_refresh)
-- `web\` — frontend v6 (desktop + mobile แยก module ต่อ route)
-- `hong-lens\` — sub-project คัดหุ้นแนวเซียนฮง มี `CLAUDE.md` เอง
-- `data\` `reports\` `research\` `docs\`
-
 ## Commands
 - start server: `C:\WORKSPACE\projects\4-MaxMahon\max-server.bat` — **Art รันเอง ห้ามรันแทน**
 - scan/refresh: `py scripts\<script>.py` (ตั้ง `PYTHONUTF8=1` ก่อน)
@@ -24,7 +14,12 @@ Python + FastAPI/uvicorn · SETSMART API (aggregate) + thaifin (history) + yahoo
 - scan pipeline ต้อง deterministic ห้ามเอา AI มาตัดสินใจในสายนี้
 - ห้ามแก้ Niwes scoring/ranking module จากโค้ด Hong Lens
 
-## Read first
+## → ลูก
+- `server\app.py` — FastAPI app (port 50089, https://max.intensivetrader.com)
+- `scripts\` — pipeline ทั้งชุด (fetch_data, data_adapter, history_manager, anchor_scoring, case_study_detector, daily_price_refresh)
+- `web\` — frontend v6 (desktop + mobile แยก module ต่อ route)
+- `hong-lens\` — sub-project คัดหุ้นแนวเซียนฮง มี `CLAUDE.md` เอง
+- `data\` `reports\` `research\` `docs\`
 - `DESIGN.md` — token/typography/component spec + กฎเหล็ก
 - `CHANGELOG.md`
 - `hong-lens\CLAUDE.md` — ก่อนทำงานเรื่อง Hong Lens

@@ -2,14 +2,6 @@
 
 Sub-project ใน MaxMahon — คัดหุ้นไทยแนวเซียนฮง (Hybrid Value/Growth) สำหรับพอร์ตส่วน 25%
 
-## Stack
-Python · ยืม data layer ของ MaxMahon มาสแกน · scanner standalone ตัวเดียว
-
-## Layout
-- `C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — scanner ทั้งหมดอยู่ที่นี่
-- `research\` — บันทึกและผลคัด
-- `set-companyprofiles\` `set-factsheets\` — เอกสาร SET ที่ใช้ audit
-
 ## Commands
 - `py C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — stage 1 auto scan
 - stage 2 = manual review คุยกับ Art ในแชท ไม่มีสคริปต์
@@ -20,6 +12,8 @@ Python · ยืม data layer ของ MaxMahon มาสแกน · scanner 
 - ห้ามเดา ถ้าข้อมูลไม่ครบให้บอกว่าไม่ครบ
 - เป้าคือหา pattern ตรงสไตล์ ไม่ใช่ลอกพอร์ตเซียนฮงตรง ๆ
 
-## Read first
-- `research\` — บันทึกและผลคัดล่าสุด
+## → ลูก
+- `C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — scanner ทั้งหมดอยู่ที่นี่
+- `research\` — บันทึกและผลคัด
+- `set-companyprofiles\` `set-factsheets\` — เอกสาร SET ที่ใช้ audit
 - `C:\WORKSPACE\projects\4-MaxMahon\CLAUDE.md` — กฎของโปรเจกต์แม่
