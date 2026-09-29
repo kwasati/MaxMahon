@@ -13,6 +13,7 @@
 - แก้ desktop แล้วต้องเช็ค `mobile.css` override ตาม — แยกชั้น ไม่ใช่ responsive ไฟล์เดียว
 - scan pipeline ต้อง deterministic ห้ามเอา AI มาตัดสินใจในสายนี้
 - ห้ามแก้ Niwes scoring/ranking module จากโค้ด Hong Lens
+- Art ส่งรูปพอร์ต + "จัดพอร์ต max mahon" → ทำตาม `C:\WORKSPACE\projects\4-MaxMahon\docs\portfolio-rebalance.md`
 
 ## → ลูก
 - `server\app.py` — FastAPI app (port 50089, https://max.intensivetrader.com)
