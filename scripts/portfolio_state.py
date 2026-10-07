@@ -21,7 +21,7 @@ Public API:
     compute_buy_plan(state, targets) — pure greedy lot-by-lot buy-plan calculator
 
 Used by:
-    server.app — /api/portfolio/* endpoints
+    server.app — /api/portfolio/* endpoints (archived: _archive/2026-10/server)
 """
 from __future__ import annotations
 

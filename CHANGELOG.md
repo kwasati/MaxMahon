@@ -1,5 +1,7 @@
 # Max Mahon Changelog
 
+> 2026-10-07: หน้า web + server เก็บเข้า `_archive/2026-10/` (server/ web/ mockup/ DESIGN.md ฯลฯ) — path `server/…` `web/…` `mockup/…` ในรายการด้านล่างคือของเดิมตอนนั้น · ดู `_archive/2026-10/README.md`
+
 ## v6.9.0 — 2026-08-19 · จัดพอร์ตเหลือตารางเดียว + เลิกทิ้งเงินค้าง
 
 ### Changed
@@ -408,7 +410,7 @@ Plan B Part 1 retry timing 0.5s+1s ใน parallel ไม่พอแก้ rate
 - `web/v6/static/css/components.css` — เพิ่ม PORTFOLIO BUILDER section + mobile overrides
 
 ### Notes — ของเก่าที่ลบไปแล้ว
-- `/api/portfolio/{pnl,simulated,transactions}` + `/api/simulate/*` (capital-based portfolio + DCA simulator) — archived 2026-04-25 ก่อนหน้า feature นี้ (ดู `_archive/portfolio-simulator-builder-2026-04-25/`)
+- `/api/portfolio/{pnl,simulated,transactions}` + `/api/simulate/*` (capital-based portfolio + DCA simulator) — archived 2026-04-25 ก่อนหน้า feature นี้ (ดู `_archive/2026-04/portfolio-simulator-builder-2026-04-25/`)
 - เมนูเก่า "Portfolio" + "Simulator" ใน nav 5-tab → ทิ้ง รวมเหลือ 4-tab
 
 ---
@@ -421,7 +423,7 @@ Plan B Part 1 retry timing 0.5s+1s ใน parallel ไม่พอแก้ rate
 - `scripts/portfolio_builder.py` — pure functions: `niwes_composite_score()` + `group_by_sector()` + `top_per_sector()` + `allocate_80_20()` + `apply_overrides()` + `build_portfolio()`
 - `POST /api/portfolio/builder` — รับ `capital` + `pins` + `excludes` → return 5-stock portfolio (5 SET sectors, 80/20 weighted 40/35/12/8/5)
 - New page `/portfolio-builder` + `/m/portfolio-builder` — desktop + mobile
-- UI ตาม approved mockups: `mockup/portfolio-builder-robinhood.html` (mobile) + `portfolio-builder-robinhood-desktop.html`
+- UI ตาม approved mockups: `_archive/2026-10/mockup/portfolio-builder-robinhood.html` (mobile) + `portfolio-builder-robinhood-desktop.html`
 
 ### New — Daily Price Refresh Scheduler
 - `scripts/daily_price_refresh.py` — batch yahooquery fetch สำหรับ watchlist + PASS candidates
@@ -473,7 +475,7 @@ Plan B Part 1 retry timing 0.5s+1s ใน parallel ไม่พอแก้ rate
 
 ### References
 - Research: `docs/research-thai-stock-data-sources.md`
-- Mockups: `mockup/portfolio-builder-robinhood*.html`, `mockup/stock-detail-polish.html`
+- Mockups: `_archive/2026-10/mockup/portfolio-builder-robinhood*.html`, `_archive/2026-10/mockup/stock-detail-polish.html`
 
 ---
 

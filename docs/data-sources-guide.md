@@ -95,7 +95,7 @@ Cache reader functions: `cached_eod_bulk`, `cached_eod_history`, `cached_financi
 - **Auth:** none. But Cloudflare blocks plain HTTPS requests (403).
 - **Playwright bootstrap:** module-level singleton browser context (`scripts/set_official_adapter.py:47-76`) launches headless Chromium once per process, visits `https://www.set.or.th/en/market` to receive Cloudflare clearance cookies, then reuses the same `BrowserContext.request` (APIRequestContext) for every subsequent JSON call.
 - **Referer required:** API call sends `Referer: https://www.set.or.th/en/market/product/stock/quote/{SYMBOL}/rights-benefits` plus `Accept: application/json`.
-- **Inter-request delay:** caller-side `time.sleep(1.5)` between symbols in the weekly cron loop (`server/app.py:1143`).
+- **Inter-request delay:** caller-side `time.sleep(1.5)` between symbols in the weekly cron loop (`_archive/2026-10/server/app.py:1143`).
 
 #### Response filtering
 
@@ -437,13 +437,13 @@ fetch_fundamentals(symbol):
 | Aggregated per-stock snapshot | `data/screener_cache/{YYYY-MM-DD}/{symbol}.json` | full `fetch_fundamentals` return dict | same-day only (filename + `fetched_at` prefix match required) | written by `fetch_data._save_to_cache` after each successful fetch (skipped if `dy > 0` but `dividend_history` empty — yahoo flake guard) |
 | Per-symbol latest price | `data/price_cache/{symbol}.json` | `{symbol, price, fetched_at, source}` (`source` in `setsmart` or `yahoo`) | rewritten each refresh | `daily_price_refresh` 19:00 |
 
-## Refresh Schedule (APScheduler in `server/app.py`)
+## Refresh Schedule (APScheduler in `_archive/2026-10/server/app.py`)
 
 | Job ID | Function | Cron | Source code |
 |---|---|---|---|
-| `max_pipeline` | `scheduled_run` (unified scan over 933 universe) | Configurable via `config.schedule` (default Sun 09:00 Asia/Bangkok) | `server/app.py:1060-1068`, registered at 1165-1172 |
-| `daily_price_refresh` | `scheduled_price_refresh_job` -> `scripts/daily_price_refresh.refresh_prices` | Every day 19:00 Asia/Bangkok | `server/app.py:1071-1088`, registered at 1182-1190 |
-| `weekly_dividend_refresh` | `scheduled_dividend_refresh_job` (set.or.th for full `set_universe.json`) | Sun 06:00 Asia/Bangkok | `server/app.py:1091-1147`, registered at 1197-1206 |
+| `max_pipeline` | `scheduled_run` (unified scan over 933 universe) | Configurable via `config.schedule` (default Sun 09:00 Asia/Bangkok) | `_archive/2026-10/server/app.py:1060-1068`, registered at 1165-1172 |
+| `daily_price_refresh` | `scheduled_price_refresh_job` -> `scripts/daily_price_refresh.refresh_prices` | Every day 19:00 Asia/Bangkok | `_archive/2026-10/server/app.py:1071-1088`, registered at 1182-1190 |
+| `weekly_dividend_refresh` | `scheduled_dividend_refresh_job` (set.or.th for full `set_universe.json`) | Sun 06:00 Asia/Bangkok | `_archive/2026-10/server/app.py:1091-1147`, registered at 1197-1206 |
 
 All three jobs are registered unconditionally in `apply_schedule(config)` except `max_pipeline` which respects `schedule.enabled` toggle.
 
@@ -502,5 +502,5 @@ All three jobs are registered unconditionally in `apply_schedule(config)` except
 - Yearly aggregation helper: `scripts/data_adapter.py:_setsmart_financial_to_yearly()` lines 638-661
 - Top-level fetch + cache: `scripts/fetch_data.py:fetch_multi_year_safe()` lines 711-732, cache I/O 640-672
 - Daily price refresh: `scripts/daily_price_refresh.py:refresh_prices()` lines 260-346
-- Weekly dividend refresh: `server/app.py:scheduled_dividend_refresh_job()` lines 1091-1147
-- Cron registration: `server/app.py:apply_schedule()` lines 1153-1206
+- Weekly dividend refresh: `_archive/2026-10/server/app.py:scheduled_dividend_refresh_job()` lines 1091-1147
+- Cron registration: `_archive/2026-10/server/app.py:apply_schedule()` lines 1153-1206

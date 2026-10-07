@@ -105,56 +105,36 @@ severity = high → Telegram alert (flag only, Max **ไม่เคยสั่
 
 - Python + SETSMART API (primary aggregate snapshot) + thaifin (yearly history) + yahooquery (DPS events / 52w / capex)
 - Anthropic SDK (on-demand only)
-- FastAPI + APScheduler (server + weekly cron)
-- Vanilla JS + Chart.js (dashboard, no build step)
+- (เก็บแล้ว `_archive/2026-10/`) FastAPI + APScheduler + Vanilla JS dashboard
 
 ## Quickstart
 
+หน้า web + server (FastAPI port 50089) เลิกใช้แล้ว 2026-10-07 — เก็บไว้ที่ `_archive/2026-10/` (วิธีเปิดกลับดู `_archive/2026-10/README.md`) · ตอนนี้ใช้สคริปต์ใน `scripts/` ผ่านแชทกับ Claude
+
 ```bash
-# Start the server (port 50089)
-max-server.bat
-# or
-py -m uvicorn server.app:app --port 50089
+# scan / refresh (ตั้ง PYTHONUTF8=1 ก่อน)
+py scripts/<script>.py
+# จัดพอร์ต — ขั้นตอนใน docs/portfolio-rebalance.md
+py scripts/rebalance.py --cash <Cash Balance> SYM=vol@market ...
 ```
 
-Open:
-- Desktop: http://localhost:50089/ (auto-redirects touch UA → /m)
-- Mobile: http://localhost:50089/m
-- Settings: http://localhost:50089/settings (edit schedule + filters + universe)
-
-Auto-scan runs Saturday 09:00 per config; trigger manually:
-```bash
-curl -X POST http://localhost:50089/api/admin/scan/trigger \
-  -H "Authorization: Bearer $MAX_TOKEN"
-```
-
-Requires `MAX_TOKEN` in root `.env` for API auth (Bearer token) and `MAX_ANTHROPIC_API_KEY` for on-demand Claude analysis.
+API key (`MAX_ANTHROPIC_API_KEY` ฯลฯ) โหลดจาก `C:/WORKSPACE/.env` — ไม่มี `.env` ที่ root ของ project
 
 ## Project Structure
 
 ```
-scripts/
-  fetch_data.py      # multi-year financials + dividends
-  update_universe.py # refresh SET/mai universe
-  screen_stocks.py   # hard filters + quality score
-  scan.py            # screener + case detectors + sector spread + reports
-  report_template.py # markdown generator (deterministic)
-  telegram_alert.py  # exit signal alerts
-server/
-  app.py             # FastAPI server, scheduler, SSE, public API
-  admin.py           # /api/admin/* namespace (debug + pipeline control)
-web/v6/              # vintage newspaper frontend (desktop + mobile)
-  desktop/*.html     # desktop shells
-  mobile/*.html      # mobile shells
-  shared/*.css       # design tokens + base styles
-  static/css/        # component extensions
-  static/js/pages/   # 12 page modules (desktop + mobile × 6 pages)
+scripts/             # pipeline + utils (fetch_data update_universe screen_stocks scan report_template telegram_alert rebalance ...)
+tests/               # unittest (test_portfolio_math.py)
+docs/                # เอกสาร (portfolio-rebalance.md ฯลฯ)
+research/            # งานวิจัยรายตัว + hong_stage1_scanner เขียนผลลงที่นี่
+hong-lens/           # sub-project คัดหุ้นแนวเซียนฮง
 reports/             # scan_*.md reports
 data/                # snapshots + screener + history.json (gitignored)
-user_data.json       # watchlist + blacklist + notes + transactions + simulated portfolio
-config.json          # schedule + filters + universe (edited via /settings UI)
+user_data.json       # watchlist + blacklist + notes
+config.json          # schedule + filters + universe
+_archive/2026-10/    # server/ web/ mockup/ DESIGN.md plans ฯลฯ ที่เก็บแล้ว
 ```
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) — current version **v6.0.0** (vintage newspaper redesign + backend cleanup).
+See [CHANGELOG.md](CHANGELOG.md) — current version **v6.9.0**.

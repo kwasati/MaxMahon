@@ -14,7 +14,7 @@ Public API:
     aggregate_watchlists()        — set union of all users' watchlists
 
 Used by:
-    server.app — per-endpoint user data load/save (Phase 3.7)
+    server.app — per-endpoint user data load/save (Phase 3.7; archived: _archive/2026-10/server)
     scripts.daily_price_refresh — cron aggregate (Phase 4.8)
     scripts.migrate_to_per_user — one-shot legacy migration (Phase 3.8)
 """
