@@ -645,6 +645,37 @@ def _save_to_cache(symbol: str, data: dict) -> None:
         logger.warning(f'cache save failed for {symbol}: {e}')
 
 
+def special_dividends_for(symbol: str, config_path=None) -> dict:
+    """{FY(int): baht} special (one-off) dividends a person entered in config.json "special_dividends" for this stock."""
+    try:
+        cfg = json.loads(Path(config_path or ROOT / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    raw = (cfg.get("special_dividends") or {}).get(symbol.upper().replace(".BK", "")) or {}
+    out = {}
+    for fy, amt in raw.items():
+        try:
+            out[int(fy)] = float(amt)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def split_special_dividends(dividend_history: dict, specials: dict) -> tuple:
+    """(regular {FY: DPS}, special {FY: baht actually removed}). The special part is capped at that FY's total DPS,
+    so a wrong config entry can never push a year below zero. FYs with no special come back unchanged."""
+    regular, removed = {}, {}
+    for k, v in (dividend_history or {}).items():
+        sp = specials.get(int(k)) if v is not None else None
+        if sp:
+            cut = min(float(sp), float(v))
+            removed[int(k)] = cut
+            regular[k] = round(float(v) - cut, 4)
+        else:
+            regular[k] = v
+    return regular, removed
+
+
 def fetch_multi_year(symbol: str) -> dict:
     """Fetch multi-year fundamentals. thaifin primary, yahooquery supplement, no fallback."""
     # Try thaifin + yahooquery supplement via adapter
@@ -653,7 +684,12 @@ def fetch_multi_year(symbol: str) -> dict:
     if adapter_result is not None and "error" not in adapter_result:
         # Adapter succeeded — compute aggregates and finalize
         yearly_metrics = adapter_result["yearly_metrics"]
-        dividend_history = adapter_result["dividend_history"]
+        specials = special_dividends_for(symbol)
+        dividend_history, special_removed = split_special_dividends(adapter_result["dividend_history"], specials)
+        adapter_result["dividend_history_total"] = adapter_result["dividend_history"]
+        adapter_result["dividend_history"] = dividend_history
+        adapter_result["dividend_history_special"] = special_removed
+        adapter_result["special_dividends_applied"] = specials
         fy_is_complete = adapter_result.get("fy_is_complete")
 
         aggregates = _build_aggregates(yearly_metrics, dividend_history,
@@ -692,7 +728,8 @@ def fetch_multi_year_safe(symbol: str, use_cache: bool = True) -> dict:
     """
     if use_cache:
         cached = _load_from_cache(symbol)
-        if cached is not None:
+        # a day-cache written before special_dividends were entered (or changed) is not reusable
+        if cached is not None and {int(k): v for k, v in (cached.get("special_dividends_applied") or {}).items()}                 == special_dividends_for(symbol):
             return cached
     try:
         result = fetch_multi_year(symbol)
