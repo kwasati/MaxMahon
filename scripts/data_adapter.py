@@ -1099,8 +1099,6 @@ def _fetch_setsmart(symbol: str) -> dict | None:
 # Public API aliases
 fetch_from_thaifin = _fetch_thaifin
 fetch_yahoo_supplement = _fetch_yahoo_supplement
-# DEPRECATED: keep for any external caller — prefer _fetch_yahoo_supplement
-fetch_yfinance_supplement = _fetch_yahoo_supplement
 
 
 def fetch_fundamentals(symbol: str) -> dict:
@@ -1440,66 +1438,6 @@ def compute_normalized_earnings(stock_data: dict) -> dict:
             continue
         out[year] = eps
     return out
-
-
-def compute_payout_sustainability(stock_data: dict) -> dict:
-    """Return {year: {payout_ratio, sustainable}} per yearly_metrics row.
-
-    payout_ratio = DPS / diluted_eps (both known fields).
-    sustainable = payout < 0.80 AND fcf positive (dividends paid from real cash).
-
-    Replaces old formula that depended on dividends_paid which is always None from thaifin.
-    """
-    out = {}
-    dividend_history = stock_data.get("dividend_history", {}) or {}
-    for m in stock_data.get("yearly_metrics", []):
-        year = m.get("year")
-        if year is None:
-            continue
-        eps = m.get("diluted_eps")
-        fcf = m.get("fcf")
-        # dividend_history keys are int (from fetch), yearly_metrics.year is str — try both
-        dps = dividend_history.get(year)
-        if dps is None:
-            try:
-                dps = dividend_history.get(int(year))
-            except (TypeError, ValueError):
-                dps = None
-        if dps is not None and eps is not None and eps > 0:
-            payout_ratio = dps / eps
-        else:
-            payout_ratio = None
-        sustainable = (
-            payout_ratio is not None and payout_ratio < 0.80
-            and fcf is not None and fcf > 0
-        )
-        out[year] = {"payout_ratio": payout_ratio, "sustainable": sustainable}
-    return out
-
-
-def check_hidden_value(symbol: str) -> list:
-    """Return list of hidden-value holdings for symbol, or [] if none.
-
-    Reads bootstrap data from data/hidden_value_holdings.json.
-    Symbol normalized to .BK form for lookup.
-    """
-    import json
-    from pathlib import Path
-
-    _, yf_sym = normalize_symbol(symbol)
-    json_path = Path(__file__).resolve().parent.parent / "data" / "hidden_value_holdings.json"
-    if not json_path.exists():
-        return []
-    try:
-        data = json.loads(json_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-    holdings = data.get(yf_sym, [])
-    # Enrich holdings with holding_mcap (error-safe, memoized)
-    for h in holdings:
-        if "holding_mcap" not in h:  # don't overwrite if caller pre-set
-            h["holding_mcap"] = _holding_mcap(h.get("holding"))
-    return holdings
 
 
 if __name__ == '__main__':

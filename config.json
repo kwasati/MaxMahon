@@ -1,10 +1,4 @@
 {
-  "schedule": {
-    "enabled": true,
-    "day_of_week": "sat",
-    "hour": 9,
-    "minute": 0
-  },
   "filters": {
     "min_dividend_yield": 5,
     "min_market_cap": 5000000000,

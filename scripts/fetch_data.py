@@ -23,7 +23,6 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from scripts.data_adapter import fetch_fundamentals as _adapter_fetch
-from scripts.data_adapter import fetch_from_thaifin
 from scripts.data_adapter import (
     classify_sector_profile,
     complete_dividend_by_year,
