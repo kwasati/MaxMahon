@@ -12,3 +12,7 @@ data/set_dividend_cache/
 
 # Scratch space (root only; the archived copy is tracked)
 /tmp/
+
+# Run output (regenerable: fact_sheet.py / holdings_watch.py)
+reports/facts/
+reports/holdings/
