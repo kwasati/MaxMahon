@@ -19,7 +19,6 @@ USER_DATA = ROOT / "user_data.json"
 sys.path.insert(0, str(ROOT / "scripts"))
 from fetch_data import fetch_multi_year_safe
 from data_adapter import compute_normalized_earnings, last_complete_fy
-from flake_queue import add_to_queue
 from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg
 
 GATE_VERSION = "niwes-gate-2026-10"
@@ -340,9 +339,6 @@ def main(argv=None):
                 continue
 
             if status == "PENDING":
-                # yahoo flake: queue for retry in daily price refresh (not on partial runs)
-                if out_dir is None:
-                    add_to_queue(sym, filter_reasons, today)
                 pending_candidates.append({
                     "symbol": sym,
                     "sector": data.get("sector", "N/A"),

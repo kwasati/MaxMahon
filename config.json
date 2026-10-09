@@ -37,7 +37,5 @@
     "costs": {"AMATA": 26.4, "BBL": 172.1, "TCAP": 59.8, "TISCO": 103.16, "TOA": 12.7, "SISB": 9.54, "SECURE": 12.39, "MOSHI": 36.42},
     "costs_as_of": "2026-10-09",
     "yoc_year": 10
-  },
-  "universe": "set_only",
-  "last_saved_at": "2026-04-25T18:47:46"
+  }
 }
