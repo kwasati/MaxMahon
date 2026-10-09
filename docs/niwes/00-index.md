@@ -55,7 +55,7 @@ If you have **2 hours** and want depth, add:
 
 ## For MaxMahon Framework — File-to-Feature Mapping
 
-แหล่งอ้างอิงของแต่ละฟีเจอร์ (ฟีเจอร์ที่ใช้จริงดู `../niwes-principles.md` ท่อน 2):
+แหล่งอ้างอิงของแต่ละฟีเจอร์ (ฟีเจอร์ที่ใช้จริง ณ 2026-10-09 ดู `../review-2026-10/niwes-vs-system.md` ท่อน 2):
 
 | MaxMahon Feature | Source File(s) | What to extract |
 |---|---|---|

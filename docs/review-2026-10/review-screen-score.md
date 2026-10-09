@@ -1,5 +1,7 @@
 # review-screen-score — review ชั้นคัด + ให้คะแนน + ออกรายงาน (Max Mahon)
 
+> path ในไฟล์นี้เป็นของ ณ วันที่ review (2026-10-09) — ไฟล์ที่ถูกเก็บแล้วอยู่ `_archive\2026-10\`
+
 - job: job-03-review-screen-score · ทำเมื่อ 2026-10-09 · อ่านอย่างเดียว (ไม่แก้ไฟล์ใน `C:\WORKSPACE\projects\4-MaxMahon`)
 - knowledge: ไม่มีใบ knowledge ที่ job ชี้ (ท่อน `## knowledge` มีแต่ `แนะนำ:` 3 บรรทัด) → ทำตามคำแนะนำ: อ่านอย่างเดียว · import จาก scripts ผ่านสคริปต์ใน `C:\WORKSPACE\_desk\maxmahon\krv3\files\` (an1–an12.py) · ไม่ตัดสินว่าเกณฑ์ดีไหม ตัดสินแค่ตรง spec/config ไหม
 - ไม้บรรทัด: `docs\scoring-anchor-spec.md` (v1.2 อ่านครบรวม Change Log) · `config.json` · `docs\niwes\04-criteria.md` `13-threshold-adjustments.md` `15-exit-rules.md`

@@ -1,5 +1,7 @@
 # review-portfolio-misc — ชั้นจัดพอร์ต + Hong scanner + สคริปต์ใช้ครั้งเดียว (Max Mahon)
 
+> path ในไฟล์นี้เป็นของ ณ วันที่ review (2026-10-09) — ไฟล์ที่ถูกเก็บแล้วอยู่ `_archive\2026-10\`
+
 job: job-04-review-portfolio-misc (โต๊ะ krv3) · อ่านอย่างเดียว ไม่แก้โค้ดใน repo · ไม่ commit
 knowledge: ไม่มีใบ knowledge ในใบงาน (มีแต่บรรทัด `แนะนำ:` 3 ข้อ) → ทำตามทั้ง 3: รัน rebalance.py แบบพิมพ์ผล · ไฟล์ >200 บรรทัดอ่านเป็นท่อน · ไม่ตัดสินเป้า/รายชื่อหุ้น
 สคริปต์ตรวจชั่วคราว (อยู่ในโต๊ะ krv3 ไม่ได้ย้ายเข้า project): `check_rebalance.py` (คิดซ้ำด้วย Fraction + fuzz) · `cmp_greedy.py` · `hong_q.py` · `pf_q.py`

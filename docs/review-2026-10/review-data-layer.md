@@ -1,5 +1,7 @@
 # review-data-layer — ชั้นดึงข้อมูล Max Mahon (read-only review)
 
+> path ในไฟล์นี้เป็นของ ณ วันที่ review (2026-10-09) — ไฟล์ที่ถูกเก็บแล้วอยู่ `_archive\2026-10\`
+
 วันที่ตรวจ 2026-10-09 · หลักฐานจาก `data\screener_2026-08-22.json` + `data\set_dividend_cache\` + เรียกฟังก์ชันอ่านอย่างเดียว (สคริปต์ตรวจอยู่ในโต๊ะ krv3 (ไม่ได้ย้ายเข้า project): `recompute.py` `shrink.py` `probe_live.py` `yprobe.py`)
 knowledge: ใบแนะนำ 3 ข้อในใบงาน (ตรวจแบบอ่านอย่างเดียว / อ่านไฟล์ยาวเป็นท่อน / ดึงเน็ตทีละไม่กี่ตัว) → ใช้ครบ: เรียกเฉพาะ `_build_aggregates(symbol=None)` กับ `set_official_adapter.fetch_dividends('BBL')` + yahoo `dividend_history` 3 ตัว (BBL TCAP AMATA) ไม่เขียนอะไรลง `data\`
 

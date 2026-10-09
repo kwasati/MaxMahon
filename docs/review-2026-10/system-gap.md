@@ -1,5 +1,7 @@
 # ช่องว่าง ระบบ Max Mahon เทียบหลัก + ร่างรูปใหม่ (หัวสรุป 2026-10-09)
 
+> path ในไฟล์นี้เป็นของ ณ วันที่ review (2026-10-09) — ไฟล์ที่ถูกเก็บแล้วอยู่ `_archive\2026-10\` · ท่อน 2 3 6 และรหัส M / E ของ `niwes-principles.md` ย้ายมาอยู่ `niwes-vs-system.md` (โฟลเดอร์นี้)
+
 ต้นทาง 4 ใบ (อยู่โฟลเดอร์เดียวกัน): `niwes-principles.md` (หลักนิเวศน์ฉบับยืนยัน) · `review-data-layer.md` · `review-screen-score.md` · `review-portfolio-misc.md`
 รหัส C/Q/P/F/H/X/M/T/D/E ในไฟล์นี้ = รหัสแถวใน `niwes-principles.md`
 
