@@ -34,6 +34,7 @@ DEFAULT_CFG = {
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
+    "max_yahoo_only_share": 0.5,
 }
 
 

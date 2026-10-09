@@ -718,7 +718,8 @@ def refresh_prices_bulk(symbols=None, lookback_days: int = 7, bulk_fetcher=None,
     failed = {}
     missing = [s for s in targets if s not in by_sym]
     for s in missing[max_per_symbol_fallback:]:
-        failed[s] = "ไม่อยู่ในไฟล์ราคาทั้งตลาด %s (เกินโควตา fallback รายตัว)" % day
+        failed[s] = ("ไม่อยู่ในไฟล์ราคาทั้งตลาด %s (ไม่ได้ยิง fallback รายตัว)" % day if max_per_symbol_fallback <= 0
+                     else "ไม่อยู่ในไฟล์ราคาทั้งตลาด %s (เกินโควตา fallback รายตัว %d ตัว)" % (day, max_per_symbol_fallback))
     if missing[:max_per_symbol_fallback]:
         for s, info in refresh_prices(missing[:max_per_symbol_fallback], fetcher=symbol_fetcher).items():
             if info["ok"]:

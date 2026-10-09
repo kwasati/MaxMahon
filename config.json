@@ -4,7 +4,8 @@
     "min_market_cap": 5000000000,
     "growing_yield_floor": 2.0,
     "growing_min_streak": 3,
-    "growing_growth_cap": 0.15
+    "growing_growth_cap": 0.15,
+    "yield_abnormal_pct": 20.0
   },
   "fact_sheet": {
     "yoc_target_low": 7,
@@ -30,7 +31,8 @@
     "price_stale_days": 5,
     "dca_years": 10,
     "dca_report_years": [5, 10, 15],
-    "dca_required_year": 10
+    "dca_required_year": 10,
+    "max_yahoo_only_share": 0.5
   },
   "holdings": {
     "off_plan": ["TISCO"],

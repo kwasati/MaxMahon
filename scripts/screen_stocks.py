@@ -29,6 +29,7 @@ DEFAULT_FILTERS = {
     "growing_min_streak": 3,
     "growing_growth_cap": 0.15,
     "min_market_cap": 5_000_000_000,
+    "yield_abnormal_pct": 20.0,
 }
 
 
@@ -98,7 +99,26 @@ def gate_flags(data: dict) -> list:
     if dy is not None and dy < HARD_FILTERS["min_dividend_yield"] and _passes_growing(data)[0]:
         py, g = projected_yield_5y(data)
         flags.append(f"PASSED_VIA_GROWTH:g={g:.3f},yield5y={py:.1f}%")
+    if dy is not None and dy > HARD_FILTERS["yield_abnormal_pct"]:
+        flags.append(f"YIELD_ABNORMAL:{dy:.1f}%")
     return flags
+
+
+def dividend_source_counts(fetched: dict) -> dict:
+    """Where each fetched stock's dividend history came from: set.or.th (alone or merged) / yahoo only / none."""
+    c = {"set": 0, "yahoo_only": 0, "none": 0, "total": 0}
+    for data in fetched.values():
+        if not data or data.get("delisted"):
+            continue
+        c["total"] += 1
+        src = data.get("dividend_source") or ""
+        if src.startswith("set_official"):
+            c["set"] += 1
+        elif src == "yahoo" and data.get("dividend_history"):
+            c["yahoo_only"] += 1
+        else:
+            c["none"] += 1
+    return c
 
 
 def _passes_growing(data: dict) -> tuple:
@@ -385,6 +405,9 @@ def main(argv=None):
             print(f"  [{i+1}/{len(symbols)}] {sym} — error: {e}")
 
     candidates.sort(key=candidate_sort_key)
+    src_counts = dividend_source_counts(fetched_data)
+    print(f"dividend source: set.or.th {src_counts['set']} · yahoo only {src_counts['yahoo_only']} · "
+          f"none {src_counts['none']} (of {src_counts['total']} fetched)")
     n_main = sum(1 for c in candidates if c["gate_path"] == "main")
     new_finds = [c for c in candidates if not c["in_watchlist"]]
 
@@ -405,6 +428,7 @@ def main(argv=None):
             "pending": len(pending_candidates),
         },
         "hard_filters": HARD_FILTERS,
+        "dividend_sources": src_counts,
         "candidates": candidates,
         "pending_candidates": pending_candidates,
         "filtered_out_stocks": filtered_stocks,

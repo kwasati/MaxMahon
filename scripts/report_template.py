@@ -99,6 +99,21 @@ def stale_price_warning(cands: list, scan_date: str, limit: int) -> str:
             f"(รันสแกนใหม่โดยไม่ใส่ `--no-refresh`): {', '.join(stale[:15])}" + (" ..." if len(stale) > 15 else ""))
 
 
+def source_summary(src: dict | None, max_share: float) -> tuple:
+    """(summary line, top warning) for where dividend data came from. Empty strings when the run has no counts."""
+    if not src or not src.get("total"):
+        return "", ""
+    t = src["total"]
+    line = (f"- แหล่งปันผล (จาก {t} ตัวที่ดึงได้): set.or.th {src.get('set', 0)} · "
+            f"yahoo อย่างเดียว {src.get('yahoo_only', 0)} · ไม่มีข้อมูล {src.get('none', 0)}")
+    share = src.get("yahoo_only", 0) / t
+    warn = ""
+    if share > max_share:
+        warn = (f"> ⏳ ปันผลมาจาก yahoo อย่างเดียว {share * 100:.0f}% ของหุ้นที่ดึงได้ (เกณฑ์เตือน {max_share * 100:.0f}%) — "
+                f"ดึง set.or.th ไม่ได้เป็นส่วนใหญ่ ตัวเลขปันผลอาจต่างจากของจริง (ดู log `set.or.th DPS fetch failed`)")
+    return line, warn
+
+
 def diff_vs_prev(screener_data: dict, prev_scan: dict | None) -> tuple:
     """(new, dropped, has_prev). new = passes now, not in previous. dropped = passed before, scanned now
     and now fails / pending (stocks not scanned this run are not called dropped)."""
@@ -127,10 +142,14 @@ def generate_report_md(screener_data: dict, iso_week: str, scanned_at: datetime,
     if stale_days is None:
         from fact_sheet import load_cfg
         stale_days = load_cfg()["price_stale_days"]
+    from fact_sheet import load_cfg as _load_cfg
+    src_line, src_warn = source_summary(screener_data.get("dividend_sources"), _load_cfg()["max_yahoo_only_share"])
     version = screener_data.get("gate_version", "-")
     cands = screener_data.get("candidates") or []
-    main = [c for c in cands if c.get("gate_path") == "main"]
-    growth = [c for c in cands if c.get("gate_path") != "main"]
+    abnormal = [c for c in cands if any(str(f).startswith("YIELD_ABNORMAL") for f in (c.get("gate_flags") or []))]
+    normal = [c for c in cands if c not in abnormal]
+    main = [c for c in normal if c.get("gate_path") == "main"]
+    growth = [c for c in normal if c.get("gate_path") != "main"]
     failed = screener_data.get("filtered_out_stocks") or []
     pending = screener_data.get("pending_candidates") or []
     new, dropped, has_prev = diff_vs_prev(screener_data, prev_scan)
@@ -148,14 +167,18 @@ def generate_report_md(screener_data: dict, iso_week: str, scanned_at: datetime,
         f"---\nagent: Max Mahon v5\ndate: {date}\ntype: scan\niso_week: {iso_week}\n"
         f"scanned_at: {scanned_at.isoformat(timespec='seconds')}\ngate_version: {version}\n---\n",
         f"# รายงานสแกนหุ้นผ่านด่าน (สัปดาห์ {iso_week})\n",
+        *([src_warn] if src_warn else []),
         *([warn] if (warn := stale_price_warning(cands, date, stale_days)) else []),
         "## สรุป\n\n"
         f"- สแกน {screener_data.get('total_scanned', 0)} ตัว · ผ่านด่าน {len(cands)} ตัว "
         f"(ทางหลัก {len(main)} / ทางอนุโลม {len(growth)})\n"
         f"- ตกด่าน {len(failed)} ตัว · รอข้อมูล {len(pending)} ตัว\n"
-        f"- วันที่ของราคา: {_price_dates(cands)} · วันที่สแกน {date}",
+        f"- วันที่ของราคา: {_price_dates(cands)} · วันที่สแกน {date}"
+        + (f"\n{src_line}" if src_line else "")
+        + (f"\n- ต้องตรวจข้อมูลก่อนเชื่อ {len(abnormal)} ตัว (yield ผิดปกติ) — แยกเป็นส่วนต่างหาก ไม่อยู่ในตารางหลัก" if abnormal else ""),
         "## ผ่านทางหลัก (yield ถึงเกณฑ์)\n\n" + _main_table(main),
         "## ผ่านทางอนุโลม (ปันผลโตจน yield ปีที่ 5 ถึงเกณฑ์)\n\n" + _growth_table(growth),
+        *(["## ต้องตรวจข้อมูลก่อนเชื่อ (yield ผิดปกติ — ผ่านด่านด้วยตัวเลขที่อาจผิด)\n\n" + _main_table(abnormal)] if abnormal else []),
         "## เข้าใหม่รอบนี้\n\n" + new_txt,
         "## หลุดจากรอบก่อน\n\n" + drop_txt,
         "## หุ้นใน watchlist ที่ตกด่าน\n\n" + watch_txt,
