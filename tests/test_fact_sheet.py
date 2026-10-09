@@ -244,6 +244,62 @@ class ComputeAndRenderTest(unittest.TestCase):
         self.assertAlmostEqual(h[1]["pbv"], 2.5)
 
 
+class DcaTest(unittest.TestCase):
+    G, F = fs.PRICE_GROWS, fs.PRICE_FLAT
+
+    def test_zero_growth_both_cases_equal_today_yield(self):
+        # assert: dps 1.00 price 20 (yield 5%) growth 0% -> both price cases 5.0% in years 5 / 10 / 15
+        for n in (5, 10, 15):
+            for m in (self.G, self.F):
+                self.assertAlmostEqual(fs.dca_yoc(1.0, 20.0, 0.0, n, 10, m), 5.0)
+
+    def test_flat_price_beats_growing_price_and_both_within_lump_sum(self):
+        # assert: g>0 -> flat >= grows, both <= lump sum at cost = today's price (dps_N / price), every year
+        for g in (0.02, 0.05, 0.10):
+            for n in (5, 10, 15):
+                lump = 1.0 * (1 + g) ** n / 20.0 * 100
+                a, b = fs.dca_yoc(1.0, 20.0, g, n, 10, self.G), fs.dca_yoc(1.0, 20.0, g, n, 10, self.F)
+                self.assertGreater(b, a)
+                self.assertLessEqual(a, lump + 1e-9)
+                self.assertLessEqual(b, lump + 1e-9)
+
+    def test_year15_not_below_year10_when_growth_nonnegative(self):
+        # assert: g >= 0 -> year 15 >= year 10 in both cases (buying stops after year 10)
+        for g in (0.0, 0.03, 0.10):
+            for m in (self.G, self.F):
+                self.assertGreaterEqual(fs.dca_yoc(1.0, 20.0, g, 15, 10, m) + 1e-9, fs.dca_yoc(1.0, 20.0, g, 10, 10, m))
+
+    def test_hand_calculated_monthly_case(self):
+        # assert: dps 1.00 price 20 g=100%, buy 1 year (12 months), year 1, price grows with dividend.
+        # By hand: month k price = 20 x 2^(k/12) -> shares per money unit = 2^(-k/12)/20; mean over k=0..11 of 2^(-k/12)
+        # = (1-0.5)/(1-2^(-1/12))/12 = 0.74238; DPS_1 = 1 x 2 = 2.00; yoc = 2.00 x 0.74238 / 20 x 100 = 7.42%
+        self.assertAlmostEqual(fs.dca_yoc(1.0, 20.0, 1.0, 1, 1, self.G), 7.42, places=2)
+        self.assertAlmostEqual(fs.dca_yoc(1.0, 20.0, 1.0, 1, 1, self.F), 10.0, places=2)  # flat: 2.00 / 20
+
+    def test_insufficient_data_is_none(self):
+        # assert: no growth scenario / no dps / no price -> None, never a number
+        self.assertIsNone(fs.dca_yoc(1.0, 20.0, None, 10, 10, self.G))
+        self.assertIsNone(fs.dca_yoc(None, 20.0, 0.05, 10, 10, self.G))
+        self.assertIsNone(fs.dca_yoc(1.0, None, 0.05, 10, 10, self.F))
+        self.assertIsNone(fs.dca_required_yield(None, 7, 10))
+
+    def test_required_yield_formula(self):
+        # assert: target 7%, g 5%, year 10 -> 7 / 1.05^10 = 4.30
+        self.assertAlmostEqual(fs.dca_required_yield(0.05, 7, 10), 4.297, places=2)
+
+    def test_sheet_without_scenarios_says_insufficient(self):
+        # assert: history < 10y -> DCA section is ข้อมูลไม่พอ (no table) ; with scenarios the section and heading render
+        short = fs.compute_fact_sheet(make_data(dps={2023: 1.0, 2024: 1.1}), cfg=CFG, today="2026-10-09")
+        self.assertFalse(any(x["ok"] for x in short["dca"]))
+        self.assertIn("ถ้าซื้อทุกเดือน (DCA)", fs.render_markdown(short))
+        full = fs.compute_fact_sheet(make_data(), cfg=CFG, today="2026-10-09")
+        md = fs.render_markdown(full)
+        self.assertTrue(all(x["ok"] for x in full["dca"]))
+        self.assertIn("ราคาโตเท่าปันผล", md)
+        self.assertIn("ก้อนที่ถืออยู่ (ต้นทุนคงที่)", md)
+        self.assertEqual(md, fs.render_markdown(full))
+
+
 class YieldVsNiwesLineTest(unittest.TestCase):
     def test_line_says_below_or_reaches_bar(self):
         # assert: yield 3.6% vs bar 5 -> "ต่ำกว่า" · 5.0% -> "ถึง" · None -> ไม่มีข้อมูล (label alone must not read as passing the bar)

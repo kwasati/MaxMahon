@@ -120,6 +120,29 @@ class RollupTest(unittest.TestCase):
         self.assertLessEqual(roll["mid"]["value"], roll["good"]["value"])
 
 
+class DcaRollupTest(unittest.TestCase):
+    def test_dca_columns_niwes_only_and_weighted_rollup(self):
+        # assert: ขา Niwes row gets DCA mid year 10 (flat = 1.05^10 x 1.0 / 20 = 8.14%, grows < flat); hong + off-plan rows None;
+        # rollup weights by target (30 vs 10) and skips non-Niwes; report has both DCA headers and no banned words
+        e = lambda s, w, leg, ip=True: {"symbol": s, "in_plan": ip, "target": w, "leg": leg}
+        a = hw.summarize(e("A", 30.0, "niwes"), fake_fs("A", price=20, base=1), None, 10)
+        b = hw.summarize(e("B", 10.0, "niwes"), fake_fs("B", price=10, base=1), None, 10)
+        h = hw.summarize(e("H", 10.0, "hong"), fake_fs("H"), None, 10)
+        o = hw.summarize(e("O", None, None, False), fake_fs("O"), None, 10)
+        self.assertAlmostEqual(a["dca"][fsmod.PRICE_FLAT], 1.05 ** 10 / 20 * 100)
+        self.assertLess(a["dca"][fsmod.PRICE_GROWS], a["dca"][fsmod.PRICE_FLAT])
+        self.assertIsNone(h["dca"][fsmod.PRICE_FLAT])
+        self.assertIsNone(o["dca"][fsmod.PRICE_GROWS])
+        roll = hw.portfolio_rollup([a, b, h, o])
+        self.assertAlmostEqual(roll["dca_flat"]["value"], (30 * a["dca"][fsmod.PRICE_FLAT] + 10 * b["dca"][fsmod.PRICE_FLAT]) / 40)
+        self.assertEqual(roll["dca_flat"]["skipped"], [])
+        text = hw.render_report([a, b, h, o], {}, "2026-10-09", CFG, HCFG)
+        self.assertIn("ราคาโตเท่าปันผล", text)
+        self.assertIn("ราคานิ่ง", text)
+        for w in BANNED:
+            self.assertNotIn(w, text)
+
+
 class RunTest(unittest.TestCase):
     NO_CFG = ROOT / "tests" / "_no_such_config.json"  # missing file -> defaults, so real config costs do not leak in
 

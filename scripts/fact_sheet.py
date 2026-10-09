@@ -33,6 +33,7 @@ DEFAULT_CFG = {
     "pe_niwes_max": 10, "yield_niwes_min": 5,
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
+    "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
 }
 
 
@@ -136,6 +137,52 @@ def required_growth(base_dps, costs: list, targets, years) -> list:
                     for t in targets]
             rows.append({"cost": c["cost"], "year": n, "growth": vals})
     return rows
+
+
+PRICE_GROWS, PRICE_FLAT = "grows", "flat"
+
+
+def dca_yoc(base_dps, price, g, year: int, buy_years: int, price_mode: str):
+    """DCA dividend / money invested (%) in `year`. None (ข้อมูลไม่พอ) when g / base_dps / price is missing.
+
+    Rules (our own, fixed - not a forecast): equal money M every month for `buy_years` years (month k = 0..12*buy_years-1
+    at time t_k = k/12 years), then hold. DPS grows g a year from the last full-year dividend: DPS_N = base x (1+g)^N
+    (same convention as yoc_table). Shares bought in month k = M / P_k, P_k = buy price of that month:
+      grows = P_k = price x (1+g)^t_k  (price grows with dividend -> yield at purchase stays = today's yield)
+      flat  = P_k = price              (yield at purchase rises with the dividend)
+    Only months before `year` count (year 5 = 60 months bought; year 15 = still 120, buying stopped after year 10).
+    Dividend in year N = DPS_N x sum(M / P_k); invested = M x months bought, so M cancels:
+      yoc = DPS_N x mean(1 / P_k) x 100.   grows: yoc = today_yield x (1+g)^N x mean((1+g)^-t_k) ; flat: yoc = DPS_N / price."""
+    if g is None or not base_dps or base_dps <= 0 or not price or price <= 0:
+        return None
+    months = 12 * min(year, buy_years)
+    if months <= 0:
+        return None
+    dps_n = base_dps * (1 + g) ** year
+    if price_mode == PRICE_FLAT:
+        inv = [1 / price] * months
+    else:
+        inv = [1 / (price * (1 + g) ** (k / 12)) for k in range(months)]
+    return dps_n * sum(inv) / months * 100
+
+
+def dca_required_yield(g, target, year: int):
+    """Average yield at purchase (today's DPS / average buy price, %) needed so DPS_N / avg buy price reaches target %:
+    DPS_N / avg_cost = target  ->  base / avg_cost = target / (1+g)^N. None when g is missing."""
+    return None if g is None else target / (1 + g) ** year
+
+
+def dca_table(base_dps, price, rates: dict, years, buy_years: int, targets, req_year: int) -> list:
+    """Rows per scenario: rate, [{year, grows, flat}], required avg purchase yield for each target in req_year."""
+    out = []
+    for key in SCENARIOS:
+        g = rates.get(key)
+        ok = g is not None and base_dps and base_dps > 0 and price and price > 0
+        out.append({"scenario": key, "rate": g, "ok": bool(ok),
+                    "years": [{"year": n, PRICE_GROWS: dca_yoc(base_dps, price, g, n, buy_years, PRICE_GROWS),
+                               PRICE_FLAT: dca_yoc(base_dps, price, g, n, buy_years, PRICE_FLAT)} for n in years],
+                    "required": [dca_required_yield(g, t, req_year) if ok else None for t in targets]})
+    return out
 
 
 # --- A5 / A6 / A7 / A12: yearly financials ---
@@ -412,6 +459,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         "costs": levels, "supplied_costs": supplied,
         "yoc": yoc_table(base, rates, levels, cfg["yoc_years"]),
         "required": required_growth(base, levels, targets, cfg["yoc_years"]),
+        "dca": dca_table(base, price, rates, cfg["dca_report_years"], cfg["dca_years"], targets, cfg["dca_required_year"]),
         "targets": targets, "rows": rows, "shares": shares, "cash": cash, "payouts": payouts,
         "debt": debt, "loss_years": losses, "history": hist,
         "today": {"yield": today_yield, "yield_system": _num(data.get("dividend_yield")),
@@ -556,7 +604,7 @@ def _a3(fs):
 def _a4(fs):
     d, r = fs["dividends"], fs["rates"]
     lo, hi = fs["targets"]
-    lines = ["## A4 ปันผลเทียบต้นทุน (ปันผลปีนั้น ÷ ต้นทุน)", "",
+    lines = ["## A4 ปันผลเทียบต้นทุน (ปันผลปีนั้น ÷ ต้นทุน) — ก้อนที่ถืออยู่ (ต้นทุนคงที่)", "",
              f"ฐาน: ปันผลปีบัญชีล่าสุดที่ครบ FY{d['last_fy'] or NA} = {fn(d['base_dps'], 4)} บาท · ปีที่ N = FY{d['last_fy'] or '?'}+N",
              "ฉากอัตราโต (กฎตายตัว **เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย):",
              f"- ต้องมีหน้าต่างอัตราโตตั้งแต่ {fs['cfg']['min_scenario_window_years']} ปีขึ้นไปอย่างน้อย 1 หน้าต่าง ไม่งั้น = ข้อมูลไม่พอ (ไม่สร้างฉาก)",
@@ -576,6 +624,39 @@ def _a4(fs):
     lines += ["", f"อัตราโตต่อปีที่ต้องการ เพื่อให้ปันผลปีที่ N แตะเป้าล่าง {lo:g}% / เป้าบน {hi:g}% ของต้นทุน (จากฐาน {fn(d['base_dps'], 4)}):", ""]
     lines += _table(["ต้นทุน", "ปีที่", f"ถึง {lo:g}%", f"ถึง {hi:g}%"],
                     [[f"{x['cost']:.2f}", x["year"]] + [pct(g) for g in x["growth"]] for x in fs["required"]])
+    return lines + [""] + _a4_dca(fs)
+
+
+def _band_text(v, lo, hi):
+    return "ต่ำกว่าเป้าล่าง" if v < lo else ("สูงกว่าเป้าบน" if v > hi else "อยู่ในช่วงเป้า")
+
+
+def _dca_cell(v, lo, hi):
+    return INSUFFICIENT if v is None else f"{v:.1f}% ({_band_text(v, lo, hi)})"
+
+
+def _a4_dca(fs):
+    lo, hi = fs["targets"]
+    cfg = fs["cfg"]
+    req = cfg["dca_required_year"]
+    lines = [f"### A4 ถ้าซื้อทุกเดือน (DCA) — เงินเท่ากันทุกเดือน {cfg['dca_years']} ปี แล้วถือต่อ", "",
+             "กฎตายตัว (**เราตั้งเอง** ไม่ใช่คำนิเวศน์ ไม่ใช่คำทำนาย): ปันผลต่อหุ้นโตตามฉากเดิมจากปันผลปีครบล่าสุด · "
+             "ราคาที่ซื้อแต่ละเดือนมี 2 กรณี: (ก) ราคาโตเท่าปันผล = yield ตอนซื้อคงที่เท่า yield วันนี้ · "
+             "(ข) ราคานิ่ง = ซื้อที่ราคาวันนี้ตลอด yield ตอนซื้อสูงขึ้นตามปันผล · "
+             f"ผล = ปันผลที่ได้ในปีที่ N ÷ เงินที่ลงทั้งหมดถึงปีนั้น (ปีที่ 5 ลงมาแค่ 5 ปี · ปีที่ 15 หยุดลงหลังปีที่ {cfg['dca_years']})",
+             "เลขนี้ต่ำกว่าตารางก้อนที่ถืออยู่ เพราะเงินที่ลงปีหลัง ๆ มีเวลาให้ปันผลโตน้อยกว่า และราคาที่โตตามปันผลทำให้ต้นทุนเฉลี่ยสูงกว่าราคาวันนี้",
+             f"กรณีราคานิ่งเท่ากับก้อนเดียวที่ต้นทุน = ราคาวันนี้ (ทุกหุ้นรับปันผลต่อหุ้นเท่ากันในปีนั้น) — ต่างกันที่กรณีราคาโตเท่าปันผลเท่านั้น", ""]
+    if not any(x["ok"] for x in fs["dca"]):
+        return lines + [INSUFFICIENT, ""]
+    body = []
+    for x in fs["dca"]:
+        for y in x["years"]:
+            body.append([SCENARIO_TH[x["scenario"]], pct(x["rate"]) if x["rate"] is not None else INSUFFICIENT, y["year"],
+                         _dca_cell(y[PRICE_GROWS], lo, hi), _dca_cell(y[PRICE_FLAT], lo, hi)])
+    lines += _table(["ฉาก", "โต/ปี", "ปีที่", f"ราคาโตเท่าปันผล (เทียบเป้า {lo:g} / {hi:g}%)", "ราคานิ่ง"], body)
+    lines += ["", f"yield เฉลี่ยตอนซื้อ (ปันผลวันนี้ ÷ ราคาซื้อเฉลี่ย) ที่ต้องเป็น เพื่อให้ปันผลปีที่ {req} แตะเป้าล่าง {lo:g}% / เป้าบน {hi:g}%:", ""]
+    lines += _table(["ฉาก", f"ถึง {lo:g}%", f"ถึง {hi:g}%"],
+                    [[SCENARIO_TH[x["scenario"]]] + [f"{v:.2f}%" if v is not None else INSUFFICIENT for v in x["required"]] for x in fs["dca"]])
     return lines + [""]
 
 

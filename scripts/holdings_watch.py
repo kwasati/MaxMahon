@@ -116,6 +116,8 @@ def summarize(entry: dict, fs: dict, cost, year: int) -> dict:
         pnl_pct=(((fs.get("price") / cost) - 1) * 100 if cost and fs.get("price") else None),
         yoc_now=(base / used * 100 if base and used else None),
         yoc_scen={k: (None if hong else yoc_at(fs, k, year, idx)) for k in fsmod.SCENARIOS},
+        dca={m: (None if row["leg"] != LEG_NIWES else fsmod.dca_yoc(base, fs.get("price"), (fs.get("rates") or {}).get("mid"), year,
+                                                                   fs["cfg"]["dca_years"], m)) for m in (fsmod.PRICE_GROWS, fsmod.PRICE_FLAT)},
         rates=dict(fs.get("rates") or {}), scenario_ok=(not hong) and (fs.get("rates") or {}).get("mid") is not None,
         price_label=fs["price_label"]["label"], gate=("—" if hong else (fs.get("gate") or {}).get("status", NA)),
         status=(HONG_STATUS if hong else status_of(fs)),
@@ -143,6 +145,7 @@ def portfolio_rollup(rows: list) -> dict:
     """Target-weighted dividend/cost for ขา Niwes rows only (base re-weighted to 100%). A stock lacking a number is skipped for that column (and named)."""
     plan = [r for r in rows if r["in_plan"] and r.get("leg") == LEG_NIWES]
     cols = {"now": lambda r: r.get("yoc_now")}
+    cols.update({"dca_" + m: (lambda r, m=m: (r.get("dca") or {}).get(m)) for m in (fsmod.PRICE_GROWS, fsmod.PRICE_FLAT)})
     cols.update({k: (lambda r, k=k: (r.get("yoc_scen") or {}).get(k) if r.get("scenario_ok") else None) for k in fsmod.SCENARIOS})
     out = {}
     for name, get in cols.items():
@@ -193,13 +196,15 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
             f"{s} {i['close']:g}@{i['date']}" if i["ok"] else f"{s} ไม่ได้ ({i['error']})" for s, i in refresh.items()), ""]
     lines += ["> ข้อเท็จจริงให้คนอ่าน — ไม่ใช่คำสั่งทำรายการ · สถานะ: `เปิดทบทวน` = T1 ปันผลต่อหุ้นลดครบ "
               f"{cfg['t1_cut_years']} ปีติด · `เฝ้า` = ติดธงอื่นอย่างน้อย 1 ตัว · `ปกติ` = ไม่ติดธง",
-              f"> ปันผลเทียบต้นทุน = ปันผลต่อหุ้นปีบัญชีล่าสุดที่ครบ ÷ ต้นทุน · ปีที่ {year} = ปันผลปีที่ {year} ตามฉากโต ÷ ต้นทุนเดียวกัน", ""]
+              f"> ปันผลเทียบต้นทุน = ปันผลต่อหุ้นปีบัญชีล่าสุดที่ครบ ÷ ต้นทุน · ปีที่ {year} = ปันผลปีที่ {year} ตามฉากโต ÷ ต้นทุนเดียวกัน (ก้อนที่ถืออยู่)",
+              f"> DCA (ขา Niwes เท่านั้น) = ลงเงินเท่ากันทุกเดือน {cfg['dca_years']} ปีแล้วถือต่อ · ราคาโตเท่าปันผล = yield ตอนลงคงที่ · ราคานิ่ง = ลงที่ราคาวันนี้ตลอด · สูตรเต็มในใบข้อเท็จจริง", ""]
     head = ["หุ้น", "ขา", "แผน", "เป้า%", "ราคา", "อายุราคา(วัน)", "yield วันนี้", "ต้นทุนที่ใช้", "กำไร/ขาดทุนเทียบต้นทุน", "ปันผล/ต้นทุน วันนี้",
-            "โต/ปี แย่ / กลาง / ดี", f"ปีที่ {year} แย่", f"ปีที่ {year} กลาง", f"ปีที่ {year} ดี", "ป้ายราคา", "ผลด่าน", "ธงที่ติด", "สถานะ"]
+            "โต/ปี แย่ / กลาง / ดี", f"ปีที่ {year} แย่", f"ปีที่ {year} กลาง", f"ปีที่ {year} ดี",
+            f"DCA ปีที่ {year} กลาง: ราคาโตเท่าปันผล", f"DCA ปีที่ {year} กลาง: ราคานิ่ง", "ป้ายราคา", "ผลด่าน", "ธงที่ติด", "สถานะ"]
     body = []
     for r in rows:
         if r.get("error") is not None:
-            body.append([r["symbol"], r["leg_text"], r["plan_text"], ("—" if r["target"] is None else _f(r["target"], 2, "")), "ดึงข้อมูลไม่ได้", f"เหตุ: {r['error']}"] + [""] * 11)
+            body.append([r["symbol"], r["leg_text"], r["plan_text"], ("—" if r["target"] is None else _f(r["target"], 2, "")), "ดึงข้อมูลไม่ได้", f"เหตุ: {r['error']}"] + [""] * 13)
             continue
         flags = ", ".join(r["flags"]) or "—"
         if r["missing"]:
@@ -210,6 +215,7 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
                      NA if r["age"] is None else r["age"], _f(r["yield_today"]), r["cost_text"],
                      ("—" if r["pnl_pct"] is None else f"{r['pnl_pct']:+,.1f}%"), _f(r["yoc_now"]),
                      dash(_rates(r)), dash(_scen(r, "bad")), dash(_scen(r, "mid")), dash(_scen(r, "good")),
+                     dash(_f((r.get("dca") or {}).get(fsmod.PRICE_GROWS))), dash(_f((r.get("dca") or {}).get(fsmod.PRICE_FLAT))),
                      dash(r["price_label"]), dash(r["gate"]), dash(flags), r["status"]])
     lines += fsmod._table(head, body)
     lines += ["", "ขาเซียนฮง (TOA SISB SECURE MOSHI) คัดด้วย `scripts\\hong_stage1_scanner.py` ตาม `hong-lens\\CLAUDE.md` — ตารางนี้ไม่ใช้ผลด่าน/ธง T/ฉากปีที่ "
@@ -219,7 +225,9 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
         lines.append(f"ต้นทุนเฉลี่ยในตาราง ณ วันที่ {asof} (จาก config `holdings.costs`)")
     lines += ["", f"## รวมเฉพาะขา Niwes (AMATA BBL TCAP · ถ่วงน้ำหนักตามเป้าสัดส่วน ปรับฐานเป็น 100% · เทียบเป้า {lo:g}–{hi:g}%)", ""]
     roll = portfolio_rollup(rows)
-    names = {"now": "วันนี้", "bad": f"ปีที่ {year} แย่", "mid": f"ปีที่ {year} กลาง", "good": f"ปีที่ {year} ดี"}
+    names = {"now": "วันนี้ (ก้อนที่ถืออยู่)", "bad": f"ก้อนที่ถืออยู่ ปีที่ {year} แย่", "mid": f"ก้อนที่ถืออยู่ ปีที่ {year} กลาง",
+             "good": f"ก้อนที่ถืออยู่ ปีที่ {year} ดี", "dca_grows": f"DCA ปีที่ {year} กลาง ราคาโตเท่าปันผล",
+             "dca_flat": f"DCA ปีที่ {year} กลาง ราคานิ่ง"}
     prow = []
     for k, label in names.items():
         v = roll[k]
