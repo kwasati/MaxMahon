@@ -248,7 +248,11 @@ def main(argv=None):
     if args.no_refresh:
         print("price refresh: skipped (--no-refresh) — using the SETSMART cache as is")
     else:
-        refresh_market_prices(None if not args.symbols else symbols)
+        if args.symbols:
+            refresh_market_prices(symbols)
+        else:  # whole market: one bulk call, no per-symbol fallback (the dead/fund tickers just get listed as failed)
+            refresh_market_prices([s for s in symbols if s not in blacklisted],
+                                  refresher=lambda syms: refresh_prices_bulk(syms, max_per_symbol_fallback=0))
 
     # ===== Phase A — parallel fetch =====
     fetch_targets = [s for s in symbols if s not in blacklisted]

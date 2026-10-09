@@ -292,6 +292,24 @@ class RefreshPricesBulkTest(unittest.TestCase):
                                   cached_price_as_of={"AAA": "2026-08-26", "BBB": day})
         self.assertEqual(left, ["BBB.BK.json"])
 
+    def test_zero_fallback_quota_lists_missing_without_per_symbol_calls(self):
+        # assert: max_per_symbol_fallback=0 -> symbol absent from bulk is in failed with a reason, per-symbol fetcher never called
+        import data_adapter as da
+        day = da.datetime.now().strftime("%Y-%m-%d")
+        per = []
+        import tempfile
+        old, tmp = da.ROOT, tempfile.TemporaryDirectory()
+        try:
+            da.ROOT = Path(tmp.name)
+            res = da.refresh_prices_bulk(["AAA", "ZZZ"], bulk_fetcher=lambda d: [{"symbol": "AAA", "date": d, "close": 1.0}],
+                                         symbol_fetcher=lambda *a: per.append(a) or [], max_per_symbol_fallback=0)
+        finally:
+            da.ROOT = old
+            tmp.cleanup()
+        self.assertEqual(per, [])
+        self.assertEqual(list(res["ok"]), ["AAA"])
+        self.assertIn("ZZZ", res["failed"])
+
 
 if __name__ == "__main__":
     unittest.main()
