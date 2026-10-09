@@ -97,49 +97,49 @@ Final 4: TOA + SECURE + SISB + MOSHI
 
 ## 4. 4 Final picks — เทียบกัน
 
-### Snapshot ตัวเลขสำคัญ
+### Snapshot ตัวเลขสำคัญ — แถวราคา / PE / Forward PE / NP CAGR / Yield / D/E / PEG = ค่า 2026-10-09 (ท่อน 3 ของ deep dive แต่ละเล่ม) · แถวอื่นยังเป็นค่า พ.ค. 2026
 
 | | **TOA** | **SECURE** | **SISB** | **MOSHI** |
 |---|---|---|---|---|
 | **Sector** | สีทาบ้าน | IT Cybersecurity | การศึกษา | Retail Lifestyle |
-| **ราคา (พ.ค. 2026)** | 11.80 | 11.30 | 10.10 | 35.25 |
+| **ราคา (9 ต.ค. 2026)** | 15.00 | 12.80 | 8.50 | 34.75 |
 | **Market Cap (พันล้าน)** | 25.8 | 1.16 | 10.5 | 11.6 |
-| **PE (trailing)** | 7.84 | 9.14 | 9.87 | 16.50 |
-| **Forward PE** | n/a | 7.52 | 10.27 | 13.30 |
+| **PE (trailing)** | 9.1 | 12.1 (TTM) | 8.7 | 15.7 (4 ไตรมาสล่าสุด) |
+| **Forward PE** | 9.9 | 8.4 (cache เก่า ก่อน Q2) | 9.0 | 12.8 |
 | **P/BV** | 1.58 | 1.44 | 2.40 | 3.98 |
 | **ROE 2025** | 20.7% | 16.3% | 26.3% | 26.5% |
 | **NP 2025 (MB)** | 2,917 | 121.5 | 962 | 670 |
 | **NP YoY** | +52% | +5% | +9% | +29% |
-| **NP CAGR 3y** | +27% | +31% | +50% | +38% |
-| **Yield (cur)** | 6.36% | 7.20% | 5.05% | 3.46% |
+| **NP CAGR 3y (2022→25)** | +27% | +30% | +38% | +38% |
+| **Yield (9 ต.ค. 2026)** | 5.0% | 7.8% | 6.0% | 3.5% |
 | **DPS growth streak** | 1 ปี (2024 เคยลด) | **4 ปีติด** | **7 ปีติด** | 3 ปีติด |
 | **Payout 2025** | 47.8% | 53% | 42% | 41% |
-| **D/E** | 0.42 | 0.50 | 0.56 | 0.85 |
-| **PEG** | 0.15 | 0.31 | 1.18 | 0.57 |
+| **D/E (หนี้สินรวม/ทุน)** | 0.47 | 0.27 | 0.70 | 0.88 |
+| **PEG (โตปีเดียว / โตทบ 3 ปี)** | 0.19 / 0.36 | 2.37 / 0.40 | 0.96 / 0.22 | 0.55 / 0.41 |
 | **ราคาห่างจาก peak** | -68% | -10% | **-42%** | -18% |
 | **Listed ปี** | 2017 | 2021 | 2018 | 2022 |
 | **ก่อตั้งปี** | 1964 | 2014 | 2001 | 2000 |
 
-### Hong 9-criteria scoring — รวมทุกตัว
+### Hong 9-criteria scoring — รวมทุกตัว (ค่า 2026-10-09 จากท่อน 3 ของ deep dive แต่ละเล่ม)
 
 | เกณฑ์ | TOA | SECURE | SISB | MOSHI |
 |---|---|---|---|---|
-| 1. D/E ≤ 1 | ✅ 0.42 | ✅ 0.50 | ✅ 0.56 | ✅ 0.85 |
-| 2. Cash ≥ short-debt | ✅ 19.62x | ✅ ∞ | ✅ ∞ | ✅ ∞ |
-| 3. Margin trend | ✅ improving | ✅ stable | ✅✅ expanding | ✅ improving |
-| 4. CFO ≈ NP | ✅ 1.38 | ✅ 1.65 | ✅ 1.31 | ✅ 1.70 |
-| 5. ROE relative | ✅ 21% > industry | ✅ 16% > industry | ✅✅ 26% top tier | ✅✅ 27% top retail |
-| 6. NP new high | ✅ 2,917 (peak) | ✅ 4 ปีติด | ✅ 4 ปีติด | ✅ 4 ปีติด |
-| 7. CAGR 26%/3y | ✅ 27% | ✅✅ 31% | ✅✅ 50% | ✅✅ 38% |
-| 8. Forward PE ≤ 15 | ✅ 7.8 | ✅✅ 7.5 | ✅✅ 10.3 | ✅ 13.3 |
-| 9. Yield 4-7% | ✅ 6.4% | ⚠️ 7.2% (สูงกว่ากรอบบน) | ⚠️ 5.0% | ❌ 3.5% (ต่ำ) |
-| **PEG ≤ 0.67** | ✅✅✅ 0.15 | ✅✅✅ 0.31 | ⚠️ 1.18 | ✅✅ 0.57 |
+| 1. D/E ≤ 1 | ✅ 0.47 | ✅ 0.27 | ✅ 0.70 | ✅ 0.88 |
+| 2. Cash ≥ short-debt | ✅ 22.5x | ✅ 5.7x | ✅ 3.9x | ⚠️ 0.17x (ไม่มีเงินกู้สั้น · CFO จ่ายได้) |
+| 3. Margin trend | ✅ GM 40% NM 14.8% | ⚠️ ผ่านรายปี · Q2/26 NM 6.6% | ❌ GM 54→51.5 · NPM 36.7→31.0 | ✅ GM 56.5 NM 18.1 |
+| 4. CFO ≈ NP | ✅ 1.38 | ✅ 1.74 | ✅ 1.31 (FY25) | ✅ 1.70 |
+| 5. ROE relative | ✅ 20.7% | ⚠️ 16.3% FY25 · 12.8% annualised 1H/26 | ✅ 26.2% (ลดลง) | ✅ 29.1% (H1/26) |
+| 6. NP new high | ⚠️ 2,917 ATH แต่ไม่ต่อเนื่อง | ⚠️ ผ่านตามปี · TTM ต่ำกว่า | ❌ 2026F ต่ำกว่า 2024 | ✅ 4 ปีติด |
+| 7. CAGR 26%/3y | ❌ 27% ฐานต่ำ · 2024 −25% | ❌ 30% แต่ 2025 +5% · TTM −6% | ⚠️ 37.6% ผ่านเฉพาะอดีต | ✅ 38% · ⚠️ ปีนี้ชะลอ |
+| 8. Forward PE ≤ 15 | ✅ 9.9 | ✅ 10.8 (TTM 12.1) | ✅ 9.0 | ✅ 12.8 |
+| 9. Yield 4-7% | ✅ 5.0% | ⚠️ 7.8% (สูงกว่ากรอบบน) | ✅ 6.0% | ❌ 3.5% (ต่ำ) |
+| **PEG ≤ 0.67** | ✅ 0.19 / 0.36 (ทบ TTM 0.93 ❌) | ❌ 2.37 ปีเดียว · ✅ 0.40 ทบ 3 ปี | ❌ 0.96 ปีเดียว · ✅ 0.22 ทบ 3 ปี | ✅ 0.55 / 0.41 (โบรกคาด 1.12 ❌) |
 
 **สรุป pass rate:**
-- TOA: 9/9 + PEG ดีเด่น
-- SECURE: 9/9 + PEG เด่น
-- SISB: 8/9 (PEG borderline เพราะ growth decelerate) + valuation ถูก
-- MOSHI: 7/9 (yield ต่ำ + PE ค่อนข้างแพง) + growth ดี
+- TOA: ผ่าน 7/9 + PEG (ข้อ 6 มีเงื่อนไข · ข้อ 7 ไม่ผ่านแบบเข้ม)
+- SECURE: ผ่าน 4/9 · มีเงื่อนไข 4 (ข้อ 3, 5, 6, 9) · ไม่ผ่าน 1 (ข้อ 7) · PEG ไม่ผ่านแบบปีเดียว
+- SISB: ผ่าน 6/9 · ไม่ผ่าน 2 (ข้อ 3, 6) · ข้อ 7 ผ่านเฉพาะอดีต · PEG ไม่ผ่านแบบปีเดียว
+- MOSHI: ผ่าน 7/9 · review 1 (ข้อ 2) · ไม่ผ่าน 1 (ข้อ 9 yield ต่ำ)
 
 ### ผู้บริหาร 3 ข้อ — Comparison
 
@@ -349,7 +349,7 @@ Total liquid assets 100%
 - ✅ **DPS streak** ต่อเป็นปีที่ 8
 - ⚠️ **Teacher attrition** — ถ้าครู foreign ลาออกเยอะ = quality risk
 - ⚠️ **Thai birth rate** — long-term demographic concern
-- 🚨 **New campus delay** — ถ้าสร้างใหม่ไม่ on schedule = growth runway ยืดออก
+- 🚨 **New campus delay** — Marina ปทุมธานี (เปิด ส.ค. 2027 · เลื่อนมาแล้ว 1 ครั้งจาก 2026) ถ้าเลื่อนอีก = growth runway ยืดออก
 
 #### MOSHI — ค้าปลีก lifestyle
 - ✅ **Same-store sales growth** — ดูจาก MD&A (target > 0%)
@@ -547,14 +547,14 @@ Niwes pillar 1 (จาก BACKLOG): AMATA 35 + BBL 17.5 + TCAP 17.5 + เซี�
 
 อ่านรายละเอียดเต็ม 12 layer ต่อตัวที่:
 
-- **TOA:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_TOA_2026-05-21.md`
-- **SECURE:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_SECURE_2026-05-21.md`
-- **SISB:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_SISB_2026-05-21.md`
-- **MOSHI:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_MOSHI_2026-05-21.md`
+- **TOA:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_TOA_2026-10-09.md` (รุ่น พ.ค. 2026 เก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\hong-lens\research\_deep_TOA_2026-05-21.md`)
+- **SECURE:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_SECURE_2026-10-09.md` (รุ่น พ.ค. 2026 เก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\hong-lens\research\_deep_SECURE_2026-05-21.md`)
+- **SISB:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_SISB_2026-10-09.md` (รุ่น พ.ค. 2026 เก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\hong-lens\research\_deep_SISB_2026-05-21.md`)
+- **MOSHI:** `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\_deep_MOSHI_2026-10-09.md` (รุ่น พ.ค. 2026 เก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\hong-lens\research\_deep_MOSHI_2026-05-21.md`)
 
 **Supporting documents:**
 - Stage 2 mini-cards 15 ตัว: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\stage2-12-stocks-2026-05-21.md`
-- Scanner output v5 rerun (39 pass): `C:\WORKSPACE\projects\4-MaxMahon\research\hong-v5-rerun.md`
+- Scanner output v5 (ผู้รอด 29 ตัว · สูตร PEG แก้ทิศแล้ว): `C:\WORKSPACE\projects\4-MaxMahon\research\hong-v5-scan-2026-10-09.md` (รุ่น 39 ตัวที่ PEG กลับด้านเก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\hong-v5-rerun.md`)
 - Hong philosophy research: `C:\WORKSPACE\_shared\docs\research-sianhong-stock-picking.md`
 - Project memory: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\MEMORY.md`
 
