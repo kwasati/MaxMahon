@@ -677,6 +677,7 @@ def _a4(fs):
     lo, hi = fs["targets"]
     rs = fs.get("rates_source") or {"kind": "fixed"}
     dd = rs["kind"] == "deep_dive"
+    rule = fs.get("rates_fixed") or r  # the fixed-rule bullets always show the fixed rates
     lines = ["## A4 ปันผลเทียบต้นทุน (ปันผลปีนั้น ÷ ต้นทุน) — ก้อนที่ถืออยู่ (ต้นทุนคงที่)", "",
              f"ฐาน: ปันผลปีบัญชีล่าสุดที่ครบ FY{d['last_fy'] or NA} = {fn(d['base_dps'], 4)} บาท · ปีที่ N = FY{d['last_fy'] or '?'}+N"]
     if dd:
@@ -687,9 +688,9 @@ def _a4(fs):
     lines += ["ฉากอัตราโตตามกฎตายตัว (**เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย)" + (" — ไม่ได้ใช้ในตารางหลักของหุ้นนี้:" if dd else ":"),
              f"- ต้องมีหน้าต่างอัตราโตตั้งแต่ {fs['cfg']['min_scenario_window_years']} ปีขึ้นไปอย่างน้อย 1 หน้าต่าง ไม่งั้น = ข้อมูลไม่พอ (ไม่สร้างฉาก)",
              f"- เพดานอัตราโตทุกฉาก {fs['cfg']['growth_cap']*100:g}% ต่อปี",
-             f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(r['bad']) if r['bad'] is not None else 'ข้อมูลไม่พอ'}",
-             f"- ดี = ค่าสูงสุดของอัตราโตทุกหน้าต่างที่มี ตัดที่เพดาน → {pct(r['good']) if r['good'] is not None else 'ข้อมูลไม่พอ'}",
-             f"- กลาง = ค่าเฉลี่ยของแย่กับดี → {pct(r['mid']) if r['mid'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(rule['bad']) if rule['bad'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- ดี = ค่าสูงสุดของอัตราโตทุกหน้าต่างที่มี ตัดที่เพดาน → {pct(rule['good']) if rule['good'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- กลาง = ค่าเฉลี่ยของแย่กับดี → {pct(rule['mid']) if rule['mid'] is not None else 'ข้อมูลไม่พอ'}",
              "- ต้นทุน = ที่ส่งมาด้วย `--cost` + ราคาวันนี้ + ราคาวันนี้ x 0.8 และ x 0.6 "
              + ("" if fs["supplied_costs"] else "(ยังไม่ได้ส่งต้นทุน — ใช้ราคาวันนี้แทน)"), ""]
     if not fs["costs"]:

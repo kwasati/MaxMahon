@@ -72,6 +72,8 @@ class GrowthOverrideTest(unittest.TestCase):
         self.assertIn("อัตราโตจาก deep dive 2026-10-09 — สมมติฐานของคน รอ Art เคาะ", md)
         self.assertIn("เทียบกฎตายตัว:", md)
         self.assertIn("research/x.md ท่อน 4.1", md)
+        rule_line = next(l for l in md.splitlines() if l.startswith("- กลาง = ค่าเฉลี่ย"))
+        self.assertNotIn("7.0%", rule_line)   # rule bullets show the fixed rate, not the override
         mid10 = next(r for r in out["yoc"] if r["scenario"] == "mid" and r["year"] == 10)
         base = out["dividends"]["base_dps"]
         self.assertAlmostEqual(mid10["dps"], base * 1.07 ** 10)
