@@ -98,9 +98,9 @@ class PriceLabelTest(unittest.TestCase):
 
     def test_three_labels_and_insufficient(self):
         # assert: top 25% of own yields = ถูก · bottom 25% = แพง · middle = กลาง · <5 yrs / no value = ข้อมูลไม่พอ
-        self.assertEqual(fs.price_label(9.5, self.H, CFG)["label"], "ถูก")
-        self.assertEqual(fs.price_label(1.0, self.H, CFG)["label"], "แพง")
-        self.assertEqual(fs.price_label(5.5, self.H, CFG)["label"], "กลาง")
+        self.assertEqual(fs.price_label(9.5, self.H, CFG)["label"], "ถูกเทียบตัวเอง")
+        self.assertEqual(fs.price_label(1.0, self.H, CFG)["label"], "แพงเทียบตัวเอง")
+        self.assertEqual(fs.price_label(5.5, self.H, CFG)["label"], "กลางเทียบตัวเอง")
         self.assertEqual(fs.price_label(5.5, self.H[:4], CFG)["label"], "ข้อมูลไม่พอ")
         self.assertEqual(fs.price_label(None, self.H, CFG)["label"], "ข้อมูลไม่พอ")
 
@@ -223,6 +223,14 @@ class ComputeAndRenderTest(unittest.TestCase):
         self.assertAlmostEqual(h[1]["pe"], 12.5)
         self.assertAlmostEqual(h[1]["yield"], 4.0)
         self.assertAlmostEqual(h[1]["pbv"], 2.5)
+
+
+class YieldVsNiwesLineTest(unittest.TestCase):
+    def test_line_says_below_or_reaches_bar(self):
+        # assert: yield 3.6% vs bar 5 -> "ต่ำกว่า" · 5.0% -> "ถึง" · None -> ไม่มีข้อมูล (label alone must not read as passing the bar)
+        self.assertIn("ต่ำกว่า เกณฑ์ 5% ของนิเวศน์", fs.yield_vs_niwes_line(3.6, 5))
+        self.assertIn("yield วันนี้ 5.0% ถึง เกณฑ์ 5%", fs.yield_vs_niwes_line(5.0, 5))
+        self.assertIn(fs.NA, fs.yield_vs_niwes_line(None, 5))
 
 
 if __name__ == "__main__":

@@ -40,6 +40,11 @@
     "loss_window_years": 10,
     "price_stale_days": 5
   },
+  "holdings": {
+    "off_plan": ["TISCO"],
+    "costs": {},
+    "yoc_year": 10
+  },
   "universe": "set_only",
   "last_saved_at": "2026-04-25T18:47:46"
 }

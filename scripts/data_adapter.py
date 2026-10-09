@@ -631,6 +631,51 @@ def ensure_interest_bearing_debt(symbol: str) -> dict:
     return stale
 
 
+def refresh_prices(symbols, lookback_days: int = 14, fetcher=None) -> dict:
+    """Pull the latest SETSMART EOD row per symbol into the cache that fetch_fundamentals reads.
+
+    fetch_fundamentals (_fetch_setsmart) walks data/setsmart_cache/eod_*.json newest->older and takes the
+    first file holding the symbol. Rows are written to eod_<row date>_refresh.json (never to eod_<date>.json,
+    which cached_eod_bulk treats as the whole-market file); a later real bulk file still sorts after it and wins.
+    Today's screener_cache entry for each refreshed symbol is dropped so the next fetch re-reads the cache.
+    Returns {SYM: {"ok", "date", "close", "error"}} - a failed symbol never raises.
+    """
+    from datetime import timedelta
+    if fetcher is None:
+        from setsmart_adapter import fetch_eod_by_symbol as fetcher
+    today = datetime.now().date()
+    start = (today - timedelta(days=lookback_days)).isoformat()
+    cache_dir = ROOT / "data" / "setsmart_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    result, new_rows = {}, {}
+    for raw in symbols:
+        sym = _to_tf_symbol(raw)
+        try:
+            rows = [r for r in (fetcher(sym, start, today.isoformat()) or []) if r.get("close") is not None]
+            if not rows:
+                result[sym] = {"ok": False, "date": None, "close": None, "error": "SETSMART ไม่ส่งราคาช่วง %s..%s" % (start, today)}
+                continue
+            last = max(rows, key=lambda r: r["date"])
+            new_rows.setdefault(last["date"], []).append(last)
+            result[sym] = {"ok": True, "date": last["date"], "close": last["close"], "error": None}
+        except Exception as e:  # noqa: BLE001 - one bad symbol must not stop the rest
+            result[sym] = {"ok": False, "date": None, "close": None, "error": f"{type(e).__name__}: {e}"}
+    for day, rows in new_rows.items():
+        p = cache_dir / f"eod_{day}_refresh.json"
+        kept = []
+        if p.exists():
+            try:
+                kept = [r for r in json.loads(p.read_text(encoding="utf-8")) if r.get("symbol") not in {x["symbol"] for x in rows}]
+            except (OSError, ValueError):
+                kept = []
+        _atomic_write_json(p, kept + rows)
+    day_cache = ROOT / "data" / "screener_cache" / today.strftime("%Y-%m-%d")
+    for sym, info in result.items():
+        if info["ok"]:
+            (day_cache / f"{sym}.BK.json").unlink(missing_ok=True)
+    return result
+
+
 # --- Dividend history: merge set.or.th + yahoo, completeness, crisis facts ---
 DPS_MISMATCH_REL_TOL = 0.10   # |set - yahoo| / max(set, yahoo) above this → flag
 DPS_MISMATCH_ABS_TOL = 0.005  # ignore sub-satang rounding noise

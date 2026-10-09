@@ -231,11 +231,11 @@ def price_label(today_yield, hist: list, cfg: dict) -> dict:
         return {"label": "ข้อมูลไม่พอ", "rank": None, "years": len(ys)}
     r = rank_in(today_yield, ys)
     if r >= 1 - cfg["price_cheap_top_pct"] / 100:
-        label = "ถูก"
+        label = "ถูกเทียบตัวเอง"
     elif r <= cfg["price_expensive_bottom_pct"] / 100:
-        label = "แพง"
+        label = "แพงเทียบตัวเอง"
     else:
-        label = "กลาง"
+        label = "กลางเทียบตัวเอง"
     return {"label": label, "rank": r, "years": len(ys), "min": min(ys), "max": max(ys)}
 
 
@@ -622,6 +622,14 @@ def _a12(fs):
     return lines + (_table(["ปี", "ปันผลต่อหุ้น", "กำไรต่อหุ้น", "จ่ายต่อกำไร"], body) if body else [NA]) + [""]
 
 
+def yield_vs_niwes_line(today_yield, niwes_min) -> str:
+    """The line printed under the price label: the label is relative to the stock itself, not to the 5% bar."""
+    if today_yield is None:
+        return f"yield วันนี้ {NA} เกณฑ์ {niwes_min:g}% ของนิเวศน์"
+    rel = "ถึง" if today_yield >= niwes_min else "ต่ำกว่า"
+    return f"yield วันนี้ {today_yield:.1f}% {rel} เกณฑ์ {niwes_min:g}% ของนิเวศน์"
+
+
 def _a10(fs):
     cfg, t, pl, pp = fs["cfg"], fs["today"], fs["price_label"], fs["pbv_position"]
     lines = ["## A10 ประวัติราคาของตัวเอง (ณ สิ้นปี) และป้ายราคา", "",
@@ -638,6 +646,7 @@ def _a10(fs):
     else:
         lines.append(f"ยีลด์วันนี้ {t['yield']:.1f}% อยู่ที่ตำแหน่ง {pl['rank']*100:.0f}% ของยีลด์สิ้นปีตัวเอง {pl['years']} ปี "
                      f"(ช่วง {pl['min']:.1f}–{pl['max']:.1f}%) · ตำแหน่งสูง = ราคาถูกเมื่อเทียบกับปันผล")
+    lines.append(yield_vs_niwes_line(t["yield"], cfg["yield_niwes_min"]))
     lines += [f"กฎ (**เราตั้งเอง** ไม่ใช่คำนิเวศน์): ยีลด์วันนี้อยู่ในช่วงสูงสุด {cfg['price_cheap_top_pct']:g}% ของยีลด์สิ้นปีตัวเอง = ถูก · "
               f"ต่ำสุด {cfg['price_expensive_bottom_pct']:g}% = แพง · ที่เหลือ = กลาง · ประวัติน้อยกว่า {cfg['price_min_years']} ปี = ข้อมูลไม่พอ", ""]
     pe = t["pe"]
@@ -701,11 +710,16 @@ def main(argv=None):
     ap.add_argument("symbols", nargs="+")
     ap.add_argument("--cost", action="append", default=[], help="SYM=ราคา (ส่งซ้ำได้)")
     ap.add_argument("--out", default=str(ROOT / "reports" / "facts"))
+    ap.add_argument("--refresh", action="store_true", help="ดึงราคาล่าสุดของหุ้นที่ระบุก่อนสร้างใบ")
     args = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     costs, out_dir = parse_costs(args.cost), Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+    if args.refresh:
+        import data_adapter
+        for sym, info in data_adapter.refresh_prices(args.symbols).items():
+            print(f"refresh {sym}: " + (f"{info['close']} @ {info['date']}" if info["ok"] else f"ไม่ได้ — {info['error']}"))
     for raw in args.symbols:
         sym = bare_symbol(raw)
         fs = build_fact_sheet(sym, costs.get(sym))
