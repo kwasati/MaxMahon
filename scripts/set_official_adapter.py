@@ -262,11 +262,31 @@ def dps_by_fiscal_year(symbol: str) -> dict[int, float]:
     return {fy: round(v, 4) for fy, v in totals.items()}
 
 
+def window_first_fy(symbol: str) -> int | None:
+    """First FY present in the set.or.th window (None if no events).
+
+    The API only returns ~5 years of corporate actions, so this FY has only
+    the events whose ex-date falls inside the window (typically the final
+    payment, not the earlier interim) — callers must not treat its DPS as a
+    full year. Use `dividend_window_start` for the earliest ex-date itself.
+    """
+    fys = dps_by_fiscal_year(symbol)
+    return min(fys) if fys else None
+
+
+def dividend_window_start(symbol: str) -> str | None:
+    """Earliest ex-date (YYYY-MM-DD) in the cached set.or.th events, or None."""
+    xdates = [ev.get('xdate') for ev in cached_dividends(symbol) if ev.get('xdate')]
+    return min(xdates) if xdates else None
+
+
 def fy_is_complete_by_year(symbol: str) -> dict[int, bool]:
     """Synthesize fy_is_complete dict from set.or.th events.
 
     Logic: every FY present in cached events is marked complete (True),
     except the current calendar year (False — fiscal year not yet closed).
+    NOTE: the first FY of the window is flagged True here but its DPS is
+    partial — data_adapter.merge_dividend_sources replaces it with yahoo's.
     This mirrors yahoo's yf_fy_complete dict so downstream count_dividend_streak
     and snapshot DPS picker work uniformly when dividend_source='set_official'.
 

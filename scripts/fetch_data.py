@@ -24,6 +24,13 @@ if _project_root not in sys.path:
 
 from scripts.data_adapter import fetch_fundamentals as _adapter_fetch
 from scripts.data_adapter import fetch_from_thaifin
+from scripts.data_adapter import (
+    classify_sector_profile,
+    complete_dividend_by_year,
+    dividend_crisis_facts,
+    last_complete_fy,
+    load_crisis_bars,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 USER_DATA = ROOT / "user_data.json"
@@ -75,47 +82,52 @@ def compute_cagr(values, reject_negatives=False):
 
 
 def count_dividend_streak(dps_by_year, fy_is_complete=None):
-    """Streak นับเฉพาะ FY ที่ is_complete=True เท่านั้น.
+    """Consecutive complete FYs with DPS > 0, counted back from the latest complete FY.
 
-    ถ้า fy_is_complete=None (backward compat) → filter y < current_year แบบเดิม.
+    Stops at the first missing year (a gap) or a zero-DPS year. Incomplete FYs are
+    excluded via complete_dividend_by_year. fy_is_complete=None → every FY before
+    the current calendar year counts as complete.
     """
-    if not dps_by_year:
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete)
+    if not complete:
         return 0
-    if fy_is_complete is not None:
-        years = [y for y in sorted(dps_by_year.keys(), reverse=True)
-                 if fy_is_complete.get(y) is True]
-    else:
-        current_year = datetime.now().year
-        years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
+    y = max(complete)
     streak = 0
-    for y in years:
-        if dps_by_year[y] > 0:
-            streak += 1
-        else:
-            break
+    while complete.get(y) is not None and complete[y] > 0:
+        streak += 1
+        y -= 1
     return streak
 
 
 def count_dividend_growth_streak(dps_by_year, fy_is_complete=None):
-    """Growth streak นับเฉพาะ FY ที่ is_complete=True เท่านั้น.
+    """Consecutive complete FYs (from the latest) where DPS rose vs the previous FY.
 
-    ถ้า fy_is_complete=None (backward compat) → filter y < current_year แบบเดิม.
+    Stops at a gap in the years, a non-increase, or a zero base year.
     """
-    if not dps_by_year:
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete)
+    if not complete:
         return 0
-    if fy_is_complete is not None:
-        years = [y for y in sorted(dps_by_year.keys(), reverse=True)
-                 if fy_is_complete.get(y) is True]
-    else:
-        current_year = datetime.now().year
-        years = [y for y in sorted(dps_by_year.keys(), reverse=True) if y < current_year]
+    y = max(complete)
     streak = 0
-    for i in range(len(years) - 1):
-        if dps_by_year[years[i]] > dps_by_year[years[i + 1]] and dps_by_year[years[i + 1]] > 0:
-            streak += 1
-        else:
-            break
+    while (y - 1) in complete and complete[y - 1] > 0 and complete[y] > complete[y - 1]:
+        streak += 1
+        y -= 1
     return streak
+
+
+def compute_dps_cagr(dps_by_year, fy_is_complete=None, years=5):
+    """CAGR of DPS over exactly `years` complete years: (DPS[L] / DPS[L-years])^(1/years) - 1.
+
+    L = latest complete FY. None if either end is missing or not > 0.
+    """
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete)
+    if not complete:
+        return None
+    last = max(complete)
+    first_v, last_v = complete.get(last - years), complete[last]
+    if first_v is None or first_v <= 0 or last_v is None or last_v <= 0:
+        return None
+    return (last_v / first_v) ** (1 / years) - 1
 
 
 def validate_metrics(info, yearly_metrics):
@@ -159,45 +171,27 @@ def _year_int(m):
 #   - payout_ratio_year → use field 'payout_ratio'
 #   - All other plan-referenced fields match actual schema.
 
+def _dps_transitions(dps_by_year: dict, fy_is_complete) -> list:
+    """(prev, curr) DPS pairs for consecutive complete FYs with prev > 0."""
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete)
+    return [(complete[y - 1], complete[y]) for y in sorted(complete)
+            if (y - 1) in complete and complete[y - 1] > 0]
+
+
 def _compute_rising_ratio(dps_by_year: dict, fy_is_complete) -> "float | None":
-    """Ratio of YoY transitions where DPS increased (complete FY only)."""
-    if not dps_by_year:
+    """Ratio of YoY transitions where DPS increased (complete, consecutive FYs only)."""
+    pairs = _dps_transitions(dps_by_year, fy_is_complete)
+    if not pairs:
         return None
-    if fy_is_complete is not None:
-        years = sorted(y for y in dps_by_year if fy_is_complete.get(y) is True)
-    else:
-        years = sorted(dps_by_year.keys())
-    if len(years) < 2:
-        return None
-    transitions = 0
-    rising = 0
-    for i in range(1, len(years)):
-        prev = dps_by_year[years[i - 1]]
-        curr = dps_by_year[years[i]]
-        if prev is not None and prev > 0 and curr is not None:
-            transitions += 1
-            if curr > prev:
-                rising += 1
-    return rising / transitions if transitions > 0 else None
+    return sum(1 for prev, curr in pairs if curr > prev) / len(pairs)
 
 
 def _compute_avg_yoy_growth(dps_by_year: dict, fy_is_complete) -> "float | None":
-    """Arithmetic mean of YoY DPS % changes (complete FY only)."""
-    if not dps_by_year:
+    """Arithmetic mean of YoY DPS % changes (complete, consecutive FYs only)."""
+    pairs = _dps_transitions(dps_by_year, fy_is_complete)
+    if not pairs:
         return None
-    if fy_is_complete is not None:
-        years = sorted(y for y in dps_by_year if fy_is_complete.get(y) is True)
-    else:
-        years = sorted(dps_by_year.keys())
-    if len(years) < 2:
-        return None
-    growths = []
-    for i in range(1, len(years)):
-        prev = dps_by_year[years[i - 1]]
-        curr = dps_by_year[years[i]]
-        if prev is not None and prev > 0 and curr is not None:
-            growths.append((curr / prev) - 1)
-    return sum(growths) / len(growths) if growths else None
+    return sum(curr / prev - 1 for prev, curr in pairs) / len(pairs)
 
 
 def _compute_roe_trend(yearly_metrics: list) -> str:
@@ -393,79 +387,32 @@ def _compute_eps_cv_10y(yearly_metrics: list, current_year: int) -> dict:
     return {"eps_cv_10y": stdev / abs(mean), "eps_mean_10y": mean}
 
 
-def _compute_crisis_drop(yearly_metrics: list, pre_year: int, crisis_year: int,
-                         field: str = "close") -> "float | None":
-    """Fallback: yearly close-to-close % change of `field` from pre_year to crisis_year.
+def _crisis_drop_from_bars(bars: list, pre_year: int, crisis_year: int) -> "float | None":
+    """Peak-to-trough drawdown from cached monthly bars (one formula, no network, no fallback).
 
-    Less precise than monthly drawdown (misses intra-year low). Used as fallback
-    when monthly yahoo fetch fails.
+    drop = min(low in crisis_year) / max(high in pre_year) - 1  (negative = drawdown).
+    Uses 'close' for a month only when its high/low is missing. None if either year has no data.
     """
-    by_year = {}
-    for m in yearly_metrics:
-        y = _year_int(m)
-        if y in (pre_year, crisis_year):
-            by_year[y] = m
-    pre = (by_year.get(pre_year) or {}).get(field)
-    crisis = (by_year.get(crisis_year) or {}).get(field)
-    if pre is None or crisis is None or pre == 0:
+    def _vals(year, primary, secondary):
+        out = []
+        for b in bars or []:
+            if str(b.get("date", ""))[:4] != str(year):
+                continue
+            v = b.get(primary)
+            if v is None:
+                v = b.get(secondary)
+            if v is not None:
+                out.append(v)
+        return out
+
+    peaks = _vals(pre_year, "high", "close")
+    troughs = _vals(crisis_year, "low", "close")
+    if not peaks or not troughs:
         return None
-    return (crisis - pre) / pre
-
-
-def _fetch_crisis_drop_monthly(symbol: str, pre_year: int, crisis_year: int) -> "float | None":
-    """Compute max peak-to-trough drawdown using monthly history.
-
-    drop = (min(low) during crisis_year) / (max(close) during pre_year) - 1
-
-    Returns a negative value (e.g. -0.45 = 45% drawdown peak-to-trough).
-    Uses yahooquery monthly history. Returns None on fetch failure or missing data
-    so the caller can fall back to yearly close-to-close.
-    """
-    try:
-        from yahooquery import Ticker
-        sym_yf = symbol if symbol.endswith('.BK') else f'{symbol}.BK'
-        t = Ticker(sym_yf)
-        hist = t.history(
-            start=f'{pre_year}-01-01',
-            end=f'{crisis_year}-12-31',
-            interval='1mo',
-        )
-        if hist is None:
-            return None
-        # yahooquery may return a string error message on failure
-        if not hasattr(hist, 'empty') or hist.empty:
-            return None
-        hist = hist.reset_index()
-        if 'date' not in hist.columns:
-            return None
-        hist['year'] = pd.to_datetime(hist['date']).dt.year
-        pre_data = hist[hist['year'] == pre_year]
-        crisis_data = hist[hist['year'] == crisis_year]
-        if pre_data.empty or crisis_data.empty:
-            return None
-        # Peak during pre_year: prefer 'high' if available, else 'close'
-        if 'high' in pre_data.columns and pre_data['high'].notna().any():
-            pre_peak = pre_data['high'].max()
-        elif 'close' in pre_data.columns and pre_data['close'].notna().any():
-            pre_peak = pre_data['close'].max()
-        else:
-            return None
-        # Trough during crisis_year: prefer 'low' if available, else 'close'
-        if 'low' in crisis_data.columns and crisis_data['low'].notna().any():
-            crisis_trough = crisis_data['low'].min()
-        elif 'close' in crisis_data.columns and crisis_data['close'].notna().any():
-            crisis_trough = crisis_data['close'].min()
-        else:
-            return None
-        if pre_peak is None or pre_peak == 0 or crisis_trough is None:
-            return None
-        try:
-            return float((crisis_trough - pre_peak) / pre_peak)
-        except (TypeError, ZeroDivisionError):
-            return None
-    except Exception as e:
-        logger.warning(f"crisis_drop monthly fetch failed for {symbol} {pre_year}-{crisis_year}: {e}")
+    peak = max(peaks)
+    if peak == 0:
         return None
+    return float((min(troughs) - peak) / peak)
 
 
 def _get_ocf_for_year(yearly_metrics: list, year: int) -> "float | None":
@@ -475,16 +422,54 @@ def _get_ocf_for_year(yearly_metrics: list, year: int) -> "float | None":
     return None
 
 
+def _compute_data_gaps(yearly_metrics, aggregates, dps_by_year, fy_is_complete, current_year) -> list:
+    """Names of aggregates that silently fell to a default because the data was too short.
+
+    Only flags — never changes a value. Scoring still sees the same defaults as before.
+    """
+    def _prior(field):
+        return [m for m in yearly_metrics
+                if (_year_int(m) or current_year) < current_year and m.get(field) is not None]
+
+    gaps = []
+    if len([m for m in yearly_metrics if m.get("roe") is not None]) < 6:
+        gaps.append("roe_trend")            # default ROE_STABLE
+    if len(_prior("gross_margin")) < 6:
+        gaps.append("gm_trend")             # default "stable"
+    if aggregates.get("net_debt_history_5y") is None:
+        gaps.append("net_debt_increases_in_3y")  # default 0
+    n_ocf = len(_prior("ocf"))
+    if n_ocf < 3:
+        gaps.append("ocf_positive_3y")      # default False
+    if n_ocf == 0:
+        gaps.append("ocf_negative_count_3y")  # default 0
+    if not _prior("roe"):
+        gaps.append("roe_consecutive_15plus_years")  # default 0
+    if aggregates.get("avg_roe") is None:
+        gaps.append("avg_roe")              # screen reads None as 0
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete)
+    if aggregates.get("rising_ratio") is None:
+        gaps.append("rising_ratio")         # screen reads None as 0
+    if aggregates.get("avg_yoy_growth") is None:
+        gaps.append("avg_yoy_growth")       # screen reads None as 0
+    if not complete:
+        gaps.append("dividend_growth_streak")  # default 0
+    if len(complete) < 10:
+        gaps.append("dividend_history_short")  # <10 complete FYs
+    return gaps
+
+
 def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=None):
     """Compute aggregates from yearly_metrics and dividend history.
 
-    fy_is_complete: optional dict {year: bool} — when provided, streak functions
-    use it to exclude incomplete fiscal years. CAGR excludes current calendar
-    year regardless (thaifin has no is_complete equivalent for EPS/revenue).
+    fy_is_complete: optional dict {year: bool} — every DPS aggregate (streaks, rising_ratio,
+    avg_yoy_growth, dps_cagr, crisis facts) reads dividends through
+    data_adapter.complete_dividend_by_year, so incomplete FYs never enter. Revenue/EPS
+    CAGR excludes the current calendar year (thaifin has no is_complete flag).
 
-    symbol: optional ticker (e.g. 'BBL') — when provided, crisis_drop computation
-    uses monthly yahoo history (intra-year peak-to-trough) for higher precision,
-    falling back to yearly close-to-close on fetch failure.
+    symbol: optional ticker (e.g. 'BBL') — when provided, crisis_drop is computed from
+    the monthly bars cached on disk by data_adapter.ensure_crisis_bars (no network;
+    no cache → None).
     """
     revenues = [m["revenue"] for m in yearly_metrics]
     eps_list = [m["diluted_eps"] for m in yearly_metrics]
@@ -527,18 +512,9 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=N
     div_streak = count_dividend_streak(dps_by_year, fy_is_complete=fy_is_complete)
     div_growth_streak = count_dividend_growth_streak(dps_by_year, fy_is_complete=fy_is_complete)
 
-    # dps_cagr from dividend_history
-    dps_years = sorted([y for y in dps_by_year if dps_by_year[y] and dps_by_year[y] > 0])
-    if len(dps_years) >= 2:
-        first_dps = dps_by_year[dps_years[0]]
-        last_dps = dps_by_year[dps_years[-1]]
-        n_years = dps_years[-1] - dps_years[0]
-        if first_dps > 0 and n_years > 0:
-            dps_cagr = (last_dps / first_dps) ** (1 / n_years) - 1
-        else:
-            dps_cagr = None
-    else:
-        dps_cagr = None
+    # dps_cagr: exactly 5 complete years (L-5 → L); dps_10y_cagr likewise over 10
+    dps_cagr = compute_dps_cagr(dps_by_year, fy_is_complete, years=5)
+    dps_10y_cagr = compute_dps_cagr(dps_by_year, fy_is_complete, years=10)
 
     latest = yearly_metrics[-1] if yearly_metrics else {}
 
@@ -549,6 +525,7 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=N
         "revenue_cagr": revenue_cagr,
         "eps_cagr": eps_cagr,
         "dps_cagr": dps_cagr,
+        "dps_10y_cagr": dps_10y_cagr,
         "avg_roe": avg_roe,
         "min_roe": min_roe,
         "avg_net_margin": avg_net_margin,
@@ -602,27 +579,24 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=N
     aggregates["eps_cv_10y"] = eps_stats["eps_cv_10y"]
     aggregates["eps_mean_10y"] = eps_stats["eps_mean_10y"]
 
-    # crisis_drop: prefer monthly intra-year peak-to-trough (more precise).
-    # Falls back to yearly close-to-close when monthly fetch fails or symbol is unknown.
-    crisis_2011 = None
-    crisis_2020 = None
-    if symbol:
-        crisis_2011 = _fetch_crisis_drop_monthly(symbol, 2010, 2011)
-        crisis_2020 = _fetch_crisis_drop_monthly(symbol, 2019, 2020)
-    if crisis_2011 is None:
-        crisis_2011 = _compute_crisis_drop(yearly_metrics, 2010, 2011, "close")
-    if crisis_2020 is None:
-        crisis_2020 = _compute_crisis_drop(yearly_metrics, 2019, 2020, "close")
-    aggregates["crisis_2011_drop_pct"] = crisis_2011
-    aggregates["crisis_2020_drop_pct"] = crisis_2020
+    # crisis_drop: one formula over the monthly bars cached on disk by data_adapter
+    # (no network here). No bars → None; running twice gives the same value.
+    bars = load_crisis_bars(symbol) if symbol else []
+    aggregates["crisis_2011_drop_pct"] = _crisis_drop_from_bars(bars, 2010, 2011)
+    aggregates["crisis_2020_drop_pct"] = _crisis_drop_from_bars(bars, 2019, 2020)
+
+    # Dividend facts for crisis years + last complete FY (all read through complete_dividend_by_year)
+    aggregates.update(dividend_crisis_facts(dps_by_year, fy_is_complete))
+    aggregates["dividend_last_complete_fy"] = last_complete_fy(dps_by_year, fy_is_complete)
 
     aggregates["ocf_2011"] = _get_ocf_for_year(yearly_metrics, 2011)
     aggregates["ocf_2020"] = _get_ocf_for_year(yearly_metrics, 2020)
 
-    # FIX 3: dps_5y_cagr alias for spec consistency
-    # Spec uses 'dps_5y_cagr' in DEFAULT_SCORING_CONFIG bonus_metrics;
-    # existing data key is 'dps_cagr'. Both point to the same 5-year CAGR value.
+    # dps_5y_cagr alias — same value as dps_cagr (both are the true 5-complete-year CAGR)
     aggregates["dps_5y_cagr"] = aggregates.get("dps_cagr")
+
+    aggregates["data_gaps"] = _compute_data_gaps(yearly_metrics, aggregates, dps_by_year,
+                                                 fy_is_complete, current_year)
 
     return aggregates
 
@@ -696,8 +670,11 @@ def fetch_multi_year(symbol: str) -> dict:
         }
         warnings = validate_metrics(info_for_validate, yearly_metrics)
 
+        aggregates["sector_profile"] = (adapter_result.get("sector_profile")
+                                        or classify_sector_profile(adapter_result.get("sector")))
         adapter_result["aggregates"] = aggregates
-        adapter_result["warnings"] = warnings
+        # keep the adapter's own flags (DPS_SOURCE_YAHOO / DPS_SOURCE_MISMATCH) next to validate's
+        adapter_result["warnings"] = list(adapter_result.get("warnings") or []) + warnings
         adapter_result["fetched_at"] = datetime.now().isoformat()
         return adapter_result
 

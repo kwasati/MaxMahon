@@ -441,6 +441,229 @@ def _attribute_dividends_to_fiscal_years(divs) -> dict:
     return {'by_fy': by_fy, 'is_complete': is_complete, 'events_per_fy': events_per_fy, 'typical_count': typical_count}
 
 
+# --- Disk caches for yahoo data (so a re-run gives the same numbers) ---
+YAHOO_DIV_CACHE_DIR = ROOT / "data" / "yahoo_dividend_cache"
+YAHOO_DIV_CACHE_TTL_DAYS = 7
+PRICE_HISTORY_DIR = ROOT / "data" / "price_history"
+CRISIS_BARS_START = "2010-01-01"
+CRISIS_BARS_END = "2020-12-31"
+
+
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _read_yahoo_div_cache(yq_sym: str, max_age_days: int = YAHOO_DIV_CACHE_TTL_DAYS):
+    """Return yahoo dividend Series from disk cache, or None if missing/stale/corrupt."""
+    p = YAHOO_DIV_CACHE_DIR / f"{yq_sym}.json"
+    if not p.exists():
+        return None
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        fetched_at = datetime.fromisoformat(payload["fetched_at"])
+        if (datetime.now() - fetched_at).total_seconds() >= max_age_days * 86400:
+            return None
+        events = payload["events"]
+        if not events:
+            return None
+        idx = pd.to_datetime([e[0] for e in events])
+        return pd.Series([float(e[1]) for e in events], index=idx, name="dividends")
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        return None
+
+
+def _write_yahoo_div_cache(yq_sym: str, divs) -> None:
+    try:
+        events = [[str(idx)[:10], float(val)] for idx, val in divs.items()]
+        _atomic_write_json(
+            YAHOO_DIV_CACHE_DIR / f"{yq_sym}.json",
+            {"symbol": yq_sym, "fetched_at": datetime.now().isoformat(), "events": events},
+        )
+    except Exception as e:  # cache is best-effort
+        logger.warning("yahoo dividend cache write failed for %s: %s", yq_sym, e)
+
+
+def _crisis_bars_path(symbol: str) -> Path:
+    sym = symbol.upper()
+    if not sym.endswith(".BK"):
+        sym += ".BK"
+    return PRICE_HISTORY_DIR / f"{sym}_monthly_crisis.json"
+
+
+def load_crisis_bars(symbol: str) -> list:
+    """Read cached monthly bars [{date, high, low, close}] 2010-2020. No network. [] if absent."""
+    p = _crisis_bars_path(symbol)
+    if not p.exists():
+        return []
+    try:
+        bars = json.loads(p.read_text(encoding="utf-8")).get("bars") or []
+        return bars if isinstance(bars, list) else []
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+def ensure_crisis_bars(symbol: str) -> list:
+    """Return cached monthly bars, fetching from yahoo once if the cache is absent.
+
+    Past prices never change, so the cache has no TTL. A failed fetch writes
+    nothing (next run retries) and returns [].
+    """
+    bars = load_crisis_bars(symbol)
+    if bars:
+        return bars
+    try:
+        from yahooquery import Ticker
+        yq_sym = _to_yf_symbol(symbol)
+        hist = Ticker(yq_sym).history(start=CRISIS_BARS_START, end=CRISIS_BARS_END, interval="1mo")
+        if hist is None or not hasattr(hist, "empty") or hist.empty:
+            return []
+        hist = hist.reset_index()
+        if "date" not in hist.columns:
+            return []
+        bars = []
+        for _, row in hist.iterrows():
+            def _num(k):
+                v = row.get(k)
+                return None if v is None or pd.isna(v) else float(v)
+            bars.append({"date": str(row["date"])[:10], "high": _num("high"),
+                         "low": _num("low"), "close": _num("close")})
+        if bars:
+            _atomic_write_json(_crisis_bars_path(symbol),
+                               {"symbol": yq_sym, "fetched_at": datetime.now().isoformat(), "bars": bars})
+        return bars
+    except Exception as e:
+        logger.warning("crisis bars fetch failed for %s: %s", symbol, e)
+        return []
+
+
+# --- Dividend history: merge set.or.th + yahoo, completeness, crisis facts ---
+DPS_MISMATCH_REL_TOL = 0.10   # |set - yahoo| / max(set, yahoo) above this → flag
+DPS_MISMATCH_ABS_TOL = 0.005  # ignore sub-satang rounding noise
+
+BANK_PROFILE_SECTORS = {"Banking", "Finance & Securities", "Insurance"}
+REIT_PROFILE_SECTORS = {"Property Fund & REIT", "Property Fund & REITs"}
+
+
+def classify_sector_profile(sector) -> str:
+    """Label only (no scoring change): 'bank' | 'reit' | 'general'."""
+    if sector in BANK_PROFILE_SECTORS:
+        return "bank"
+    if sector in REIT_PROFILE_SECTORS:
+        return "reit"
+    return "general"
+
+
+def _int_keys(d) -> dict:
+    out = {}
+    for k, v in (d or {}).items():
+        try:
+            out[int(k)] = v
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def complete_dividend_by_year(dps_by_year, fy_is_complete=None, current_year=None) -> dict:
+    """The one place that decides which FYs count: {FY: DPS} for COMPLETE years only.
+
+    A year is complete when fy_is_complete[fy] is True; with no flags given
+    (legacy callers) every FY before the current calendar year is complete.
+    Every year-over-year dividend aggregate must read through this function.
+    """
+    dps = _int_keys(dps_by_year)
+    if fy_is_complete is not None:
+        flags = _int_keys(fy_is_complete)
+        return {y: v for y, v in dps.items() if flags.get(y) is True and v is not None}
+    cy = current_year or datetime.now().year
+    return {y: v for y, v in dps.items() if y < cy and v is not None}
+
+
+def last_complete_fy(dps_by_year, fy_is_complete=None, current_year=None):
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete, current_year)
+    return max(complete) if complete else None
+
+
+def merge_dividend_sources(set_by_fy: dict, yahoo_by_fy: dict) -> dict:
+    """Merge DPS-by-FY from set.or.th (raw, ~5y window) and yahoo (split-adjusted, long).
+
+    - FY after the first FY of the set window → set.or.th (full year).
+    - first FY of the window (interim fell outside it) and older → yahoo.
+      If yahoo lacks the first window FY, keep set's partial value, source 'set_partial'.
+    - Overlapping years are compared; a difference above tolerance is NOT merged
+      silently: it is returned in `mismatches` {fy: {'set': x, 'yahoo': y}}.
+    Returns {'history', 'source_by_fy', 'mismatches', 'overlap_years', 'overlap_matches'}.
+    """
+    set_d = {int(k): float(v) for k, v in (set_by_fy or {}).items() if v is not None}
+    yh_d = {int(k): float(v) for k, v in (yahoo_by_fy or {}).items() if v is not None}
+    history, source, mismatches = {}, {}, {}
+    overlap_years = overlap_matches = 0
+
+    def _differs(a, b):
+        return abs(a - b) > DPS_MISMATCH_ABS_TOL and abs(a - b) / max(abs(a), abs(b)) > DPS_MISMATCH_REL_TOL
+
+    if not set_d:
+        return {"history": dict(sorted(yh_d.items())), "source_by_fy": {y: "yahoo" for y in sorted(yh_d)},
+                "mismatches": {}, "overlap_years": 0, "overlap_matches": 0}
+
+    f0 = min(set_d)
+    for fy in sorted(set(set_d) | set(yh_d)):
+        s_val, y_val = set_d.get(fy), yh_d.get(fy)
+        if fy > f0:
+            if s_val is not None:
+                history[fy], source[fy] = s_val, "set"
+                if y_val is not None:
+                    overlap_years += 1
+                    if _differs(s_val, y_val):
+                        mismatches[fy] = {"set": s_val, "yahoo": y_val}
+                    else:
+                        overlap_matches += 1
+            elif y_val is not None and y_val > 0:
+                # inside the set window but set has no payment: not merged, flagged
+                mismatches[fy] = {"set": None, "yahoo": y_val}
+        elif y_val is not None:
+            history[fy], source[fy] = y_val, "yahoo"
+            if fy == f0 and s_val is not None:
+                overlap_years += 1
+                # set only has part of FY0, so yahoo must be >= set; yahoo below set is a conflict
+                if y_val < s_val and _differs(s_val, y_val):
+                    mismatches[fy] = {"set": s_val, "yahoo": y_val}
+                else:
+                    overlap_matches += 1
+        elif s_val is not None:
+            history[fy], source[fy] = s_val, "set_partial"
+    return {"history": history, "source_by_fy": source, "mismatches": mismatches,
+            "overlap_years": overlap_years, "overlap_matches": overlap_matches}
+
+
+def dividend_crisis_facts(dps_by_year, fy_is_complete=None, current_year=None) -> dict:
+    """DPS change vs previous FY in 2008/2009/2011/2020 + years to regain the pre-cut level.
+
+    `dps_change_<Y>` is a fraction (-0.25 = -25%), None if either year is missing.
+    `dps_recovery_years_<Y>`: 0 if no cut, k = first later complete FY (Y+k) whose DPS
+    >= DPS(Y-1), None if not yet recovered / no data.
+    """
+    complete = complete_dividend_by_year(dps_by_year, fy_is_complete, current_year)
+    facts = {}
+    for y in (2008, 2009, 2011, 2020):
+        pre, cur = complete.get(y - 1), complete.get(y)
+        change = recovery = None
+        if pre is not None and pre > 0 and cur is not None:
+            change = cur / pre - 1
+            if cur >= pre:
+                recovery = 0
+            else:
+                for later in sorted(k for k in complete if k > y):
+                    if complete[later] >= pre:
+                        recovery = later - y
+                        break
+        facts[f"dps_change_{y}"] = change
+        facts[f"dps_recovery_years_{y}"] = recovery
+    return facts
+
+
 def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
     """Fetch supplementary data from yahooquery (price, 52w, forward PE, etc.).
 
@@ -528,9 +751,13 @@ def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
         # silently returned empty before, poisoning the day's cache.
         DIV_RETRY_ATTEMPTS = 3
         DIV_RETRY_DELAYS = [0.5, 1.0]  # seconds, applied between attempts (last has no follow-up)
+        _cached_divs = _read_yahoo_div_cache(yq_sym)  # disk cache → re-runs give identical DPS
         for attempt in range(DIV_RETRY_ATTEMPTS):
             try:
-                divs_df = tk.dividend_history(start="2000-01-01")
+                if _cached_divs is not None:
+                    divs_df = _cached_divs.to_frame("dividends")
+                else:
+                    divs_df = tk.dividend_history(start="2000-01-01")
                 if hasattr(divs_df, 'shape') and not divs_df.empty:
                     if hasattr(divs_df.index, 'get_level_values'):
                         levels = divs_df.index.get_level_values(0)
@@ -540,6 +767,8 @@ def _fetch_yahoo_supplement(symbol: str, snapshot: bool = True) -> dict:
                         divs = divs_df['dividends']
                     else:
                         divs = divs_df.iloc[:, 0]
+                    if _cached_divs is None and len(divs) > 0:
+                        _write_yahoo_div_cache(yq_sym, divs)
                     recent_divs = divs.tail(8).tolist() if len(divs) > 0 else []
                     for idx, val in divs.items():
                         try:
@@ -790,30 +1019,45 @@ def fetch_fundamentals(symbol: str) -> dict:
         yf_oi_by_year = yf_supp.get("operating_income_by_year", {})
         yf_ie_by_year = yf_supp.get("interest_expense_by_year", {})
 
-        # Build dividend_history + fy_is_complete — set.or.th primary, yahoo fallback
+        # Build dividend_history + fy_is_complete — set.or.th for the full years inside its
+        # ~5y window, yahoo for the first (partial) window year and everything older.
         sym_clean = symbol.replace('.BK', '').upper()
         dividend_source = 'unknown'
         _dps_fallback_to_yahoo = False
-        set_fy_complete_dict: dict = {}
+        set_fy_dps: dict = {}
         try:
             if not _SET_OFFICIAL_AVAILABLE:
                 raise RuntimeError('set_official_adapter import failed at module load')
             set_fy_dps = _set_dps_by_fy(sym_clean)
-            if set_fy_dps:
-                dividend_history = {y: round(dps, 4) for y, dps in set_fy_dps.items()}
-                dividend_source = 'set_official'
-                set_fy_complete_dict = _set_fy_complete(sym_clean)
-            else:
+            if not set_fy_dps:
                 raise ValueError('set.or.th returned empty')
         except Exception as e:
             logger.warning(f'set.or.th DPS fetch failed for {symbol}: {e}; falling back to yahoo')
-            dividend_history = {y: round(dps, 4) for y, dps in yf_dps_by_fy.items()}
-            dividend_source = 'yahoo'
+            set_fy_dps = {}
             _dps_fallback_to_yahoo = True
 
-        # Source-resolved fy_is_complete: use set.or.th synthesis when set_official wins,
-        # fall back to yahoo's calendar-based dict otherwise.
-        fy_is_complete = set_fy_complete_dict if (dividend_source == 'set_official' and set_fy_complete_dict) else yf_fy_complete
+        merged = merge_dividend_sources(set_fy_dps, yf_dps_by_fy)
+        dividend_history = {y: round(dps, 4) for y, dps in merged['history'].items()}
+        dividend_history_source = merged['source_by_fy']
+        dps_mismatches = merged['mismatches']
+        dividend_warnings = ['DPS_SOURCE_YAHOO'] if _dps_fallback_to_yahoo else []
+        if dps_mismatches:
+            parts = [f"FY{y} set={m['set']} yahoo={m['yahoo']}" for y, m in sorted(dps_mismatches.items())]
+            dividend_warnings.append('DPS_SOURCE_MISMATCH ' + '; '.join(parts))
+
+        if set_fy_dps:
+            dividend_source = ('set_official+yahoo'
+                               if any(v == 'yahoo' for v in dividend_history_source.values())
+                               else 'set_official')
+            _cy = datetime.now().year
+            # past years are complete; the first set-window year kept as set_partial is not
+            fy_is_complete = {y: (y < _cy and dividend_history_source.get(y) != 'set_partial')
+                              for y in dividend_history}
+        else:
+            dividend_source = 'yahoo'
+            fy_is_complete = yf_fy_complete
+
+        crisis_bars = ensure_crisis_bars(symbol)  # disk-cached yahoo monthly bars for crisis_* drops
 
         # Patch yearly_metrics with capex, operating_income, interest data from Yahoo
         for m in yearly_metrics:
@@ -1022,7 +1266,14 @@ def fetch_fundamentals(symbol: str) -> dict:
         "dividend_history": dividend_history,
         "fy_is_complete": fy_is_complete,
         "dividend_source": dividend_source,
-        "warnings": (['DPS_SOURCE_YAHOO'] if _dps_fallback_to_yahoo else []),
+        "dividend_history_source": dividend_history_source,  # {FY: 'set'|'yahoo'|'set_partial'}
+        "dividend_last_complete_fy": last_complete_fy(dividend_history, fy_is_complete),
+        "dividend_source_mismatch": dps_mismatches,  # {FY: {'set': x, 'yahoo': y}}
+        "dividend_overlap_years": merged['overlap_years'],
+        "dividend_overlap_matches": merged['overlap_matches'],
+        "crisis_bars_available": bool(crisis_bars),
+        "sector_profile": classify_sector_profile(sector),
+        "warnings": dividend_warnings,
     }
 
 
