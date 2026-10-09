@@ -23,6 +23,7 @@ from data_adapter import (
     compute_normalized_earnings,
     compute_payout_sustainability,
     check_hidden_value,
+    last_complete_fy,
 )
 from case_study_detector import detect_case_study_tags, detect_moat_tags, load_patterns
 from flake_queue import add_to_queue
@@ -36,6 +37,7 @@ DEFAULT_FILTERS = {
     "min_dividend_streak": 5,
     "growing_yield_floor": 2.0,
     "growing_min_streak": 3,
+    "growing_growth_cap": 0.15,
     "min_eps_positive_years": 5,
     "max_pe": 15.0,
     "bonus_pe": 8.0,
@@ -60,96 +62,107 @@ def load_filters() -> dict:
 HARD_FILTERS = load_filters()
 
 
-def hard_filter(data: dict) -> tuple:
-    """Niwes 5-5-5-5 hard filter — 4-tier (PASS/REVIEW/FAIL/PENDING).
-
-    1. dividend_yield ≥ 5% (main path) OR 2.0%-5% AND growth_streak ≥ 3 (Niwes growing exception) — else FAIL
-    3. EPS: 5/5 positive PASS / 4/5 & last 3 positive REVIEW / else FAIL
-    4. P/E ≤ 15 (hard FAIL)
-    5. P/BV ≤ 1.5 (hard FAIL)
-    6. market_cap ≥ 5B THB (hard FAIL, early return)
-
-    Returns (status, reasons) where status ∈ {'PASS','REVIEW','FAIL','PENDING'}.
-    Rule: data integrity guard (yahoo flake) → 'PENDING' (queued for retry, not a verdict);
-    any FAIL → 'FAIL'; no FAIL + any REVIEW → 'REVIEW'; else 'PASS'.
-    """
-    fail_reasons: list[str] = []
-    review_reasons: list[str] = []
+def _last_complete_dps(data: dict):
+    """(fy, dps) of the latest complete dividend year, or (None, None)."""
     agg = data.get("aggregates") or {}
-    info_mcap = data.get("market_cap") or 0
+    hist = {int(k): v for k, v in (data.get("dividend_history") or {}).items() if v is not None}
+    fy = agg.get("dividend_last_complete_fy")
+    if fy is None:
+        fy = last_complete_fy(hist)
+    if fy is None or hist.get(int(fy)) is None:
+        return None, None
+    return int(fy), float(hist[int(fy)])
 
-    # 6. Market cap — hard gate with early return (unchanged)
-    if info_mcap < HARD_FILTERS["min_market_cap"]:
-        fail_reasons.append(f"market cap {info_mcap/1e9:.1f}B < {HARD_FILTERS['min_market_cap']/1e9:.0f}B")
-        return "FAIL", fail_reasons
 
-    # Data integrity guard — yahoo flake (yield > 0 but no DPS history after Stage 2 retry)
-    # filter-07: return PENDING (was FAIL) so caller can queue for retry instead of false-FAIL.
-    streak = agg.get("dividend_streak", 0)
-    dy_check = data.get("dividend_yield")
-    div_history = data.get("dividend_history") or {}
-    if dy_check is not None and dy_check > 0 and streak == 0 and not div_history:
-        pending_reasons = ["ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — queued for retry)"]
-        return "PENDING", pending_reasons
+def projected_yield_5y(data: dict):
+    """Niwes C2/C3: yield in year 5 vs today's price = last-complete-FY DPS x (1+g)^5 / price (%).
 
-    # 3. EPS — 3-tier (exclude current calendar year — partial-year row safety)
+    g = lower of dps_cagr (5y) and dps_10y_cagr (one None -> use the other), capped at growing_growth_cap.
+    Returns (projected_yield_pct, g) or (None, g) when it cannot be computed / g <= 0.
+    """
+    agg = data.get("aggregates") or {}
+    cands = [g for g in (agg.get("dps_cagr"), agg.get("dps_10y_cagr")) if g is not None]
+    if not cands:
+        return None, None
+    g = min(min(cands), HARD_FILTERS["growing_growth_cap"])
+    _, dps = _last_complete_dps(data)
+    price = data.get("price")
+    if g <= 0 or not dps or not price or price <= 0:
+        return None, g
+    return dps * (1 + g) ** 5 / price * 100, g
+
+
+def gate_flags(data: dict) -> list:
+    """Warning flags for a stock (never change PASS/FAIL). Own thresholds, not Niwes quotes."""
+    flags: list[str] = []
+    agg = data.get("aggregates") or {}
     norm_eps = compute_normalized_earnings(data)
-    if norm_eps:
-        current_year = datetime.now().year
-        sorted_years = sorted(
-            (y for y in norm_eps.keys() if int(y) < current_year),
-            key=lambda y: int(y),
-        )[-5:]
-        eps_recent = [norm_eps[y] for y in sorted_years]
-        pos = sum(1 for e in eps_recent if e is not None and e > 0)
-        total = len(eps_recent)
-        if total < 5:
-            fail_reasons.append(f"EPS history {total}yr (need 5)")
-        elif pos == HARD_FILTERS["min_eps_positive_years"]:
-            pass  # PASS
-        elif pos == 4 and all(e is not None and e > 0 for e in eps_recent[-3:]):
-            review_reasons.append("EPS 4/5 & last 3 positive (COVID exception = REVIEW)")
-        else:
-            fail_reasons.append(f"EPS positive {pos}/5 (FAIL)")
-    else:
-        fail_reasons.append("ไม่มีข้อมูล EPS")
-
-    # 1. Dividend yield — hard, with Niwes growing-dividend exception
+    current_year = datetime.now().year
+    years = sorted((y for y in norm_eps if int(y) < current_year), key=lambda y: int(y))[-5:]
+    eps = [norm_eps[y] for y in years]
+    if eps and any(e is not None and e <= 0 for e in eps):
+        flags.append(f"LOSS_YEARS:{sum(1 for e in eps if e is not None and e <= 0)}/5")
+    if len(eps) < 5:
+        flags.append(f"EPS_HISTORY_SHORT:{len(eps)}")
+    payout = data.get("payout_ratio")
+    if payout is not None and payout > 1.0:
+        flags.append("PAYOUT_OVER_100")
+    if "dividend_history_short" in (agg.get("data_gaps") or []):
+        flags.append("DIVIDEND_HISTORY_SHORT")
     dy = data.get("dividend_yield")
-    growth_streak = agg.get("dividend_growth_streak", 0)
+    if dy is not None and dy < HARD_FILTERS["min_dividend_yield"] and _passes_growing(data)[0]:
+        py, g = projected_yield_5y(data)
+        flags.append(f"PASSED_VIA_GROWTH:g={g:.3f},yield5y={py:.1f}%")
+    return flags
+
+
+def _passes_growing(data: dict) -> tuple:
+    """Niwes C3 exception path. Returns (ok, why_not)."""
+    dy = data.get("dividend_yield")
+    streak = (data.get("aggregates") or {}).get("dividend_growth_streak", 0) or 0
+    if dy is None or dy < HARD_FILTERS["growing_yield_floor"]:
+        return False, f"yield < {HARD_FILTERS['growing_yield_floor']:.0f}%"
+    if streak < HARD_FILTERS["growing_min_streak"]:
+        return False, f"growth_streak {streak}yr < {HARD_FILTERS['growing_min_streak']}"
+    py, g = projected_yield_5y(data)
+    if py is None:
+        return False, "คำนวณ yield ปีที่ 5 ไม่ได้ (g ไม่มีหรือ <= 0)"
+    if py < HARD_FILTERS["min_dividend_yield"]:
+        return False, f"yield ปีที่ 5 {py:.1f}% (g={g:.3f}) < {HARD_FILTERS['min_dividend_yield']:.0f}%"
+    return True, ""
+
+
+def hard_filter(data: dict) -> tuple:
+    """Gate = junk screen using only what Dr.Niwes said. Returns (status, reasons), status in PASS/FAIL/PENDING.
+
+    Passes when all hold:
+    1. market cap >= min_market_cap — our own number for C5 "large enough"
+    2. data sane — yahoo flake (yield > 0, no DPS history) -> PENDING
+    3. dividend, either path:
+       - C1: dividend_yield >= min_dividend_yield (5%)
+       - C3: yield >= growing_yield_floor, DPS rising >= growing_min_streak complete years,
+         and projected year-5 yield (last complete DPS x (1+g)^5 / price) >= 5% (C2)
+         growing_yield_floor / growing_min_streak / growing_growth_cap are our own numbers
+       - no dividend data = FAIL
+    PE, PBV, EPS-positive years are not gate conditions; see gate_flags() for warnings.
+    """
+    info_mcap = data.get("market_cap") or 0
+    if info_mcap < HARD_FILTERS["min_market_cap"]:
+        return "FAIL", [f"market cap {info_mcap/1e9:.1f}B < {HARD_FILTERS['min_market_cap']/1e9:.0f}B"]
+
+    agg = data.get("aggregates") or {}
+    dy = data.get("dividend_yield")
+    if dy is not None and dy > 0 and agg.get("dividend_streak", 0) == 0 and not (data.get("dividend_history") or {}):
+        return "PENDING", ["ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — queued for retry)"]
+
     if dy is None:
-        fail_reasons.append("ไม่มีข้อมูลปันผล")
-    elif dy >= HARD_FILTERS["min_dividend_yield"]:
-        pass
-    elif (dy >= HARD_FILTERS["growing_yield_floor"]
-          and growth_streak >= HARD_FILTERS["growing_min_streak"]):
-        pass
-    else:
-        fail_reasons.append(
-            f"dividend yield {dy:.1f}% < {HARD_FILTERS['min_dividend_yield']:.0f}% "
-            f"(growing exception not met: growth_streak {growth_streak}yr < {HARD_FILTERS['growing_min_streak']})"
-        )
-
-    # 4. P/E — hard
-    pe = data.get("pe_ratio")
-    if pe is None or pe <= 0:
-        fail_reasons.append("ไม่มี P/E ที่ใช้ได้")
-    elif pe > HARD_FILTERS["max_pe"]:
-        fail_reasons.append(f"P/E {pe:.1f} > {HARD_FILTERS['max_pe']:.0f}")
-
-    # 5. P/BV — hard
-    pbv = data.get("pb_ratio")
-    if pbv is None or pbv <= 0:
-        fail_reasons.append("ไม่มี P/BV ที่ใช้ได้")
-    elif pbv > HARD_FILTERS["max_pbv"]:
-        fail_reasons.append(f"P/BV {pbv:.2f} > {HARD_FILTERS['max_pbv']:.1f}")
-
-    # Aggregate 3-tier result
-    if fail_reasons:
-        return "FAIL", fail_reasons + review_reasons
-    if review_reasons:
-        return "REVIEW", review_reasons
-    return "PASS", []
+        return "FAIL", ["ไม่มีข้อมูลปันผล"]
+    if dy >= HARD_FILTERS["min_dividend_yield"]:
+        return "PASS", []
+    ok, why = _passes_growing(data)
+    if ok:
+        return "PASS", []
+    return "FAIL", [f"dividend yield {dy:.1f}% < {HARD_FILTERS['min_dividend_yield']:.0f}% (growing exception not met: {why})"]
 
 
 def detect_exit_signal(symbol: str, current_data: dict, historical_baseline: dict | None = None) -> list[dict]:
@@ -925,6 +938,7 @@ def main():
                 "yearly_metrics": data.get("yearly_metrics", []),
                 "dividend_history": data.get("dividend_history", {}),
                 "exit_triggers": exit_triggers,
+                "gate_flags": gate_flags(data),
             }
             candidates.append(entry)
 
