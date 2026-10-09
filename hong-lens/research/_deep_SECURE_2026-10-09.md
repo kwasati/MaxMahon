@@ -3,7 +3,7 @@
 - job: `job-13-hong-dive-secure.md` (โต๊ะ krv3 ที่เก็บแล้ว) · สเปคกลาง `โต๊ะ krv3 ที่เก็บแล้ว (C:\WORKSPACE\_archive\desk\2026-10\) files\hong-dive-common.md`
 - ราคาปิด 12.80 (2026-10-09 · yfinance SECURE.BK ราคาจริงไม่ปรับปันผล ตรงกับหน้า set.or.th 09 Oct 2026) · จำนวนหุ้น 102,741,000 (งบ Q2/2026 หมายเหตุ 19: ปันผล 102.74 ล้าน ÷ 1.00) · มูลค่าตลาด 1,315 ล้านบาท
 - ที่ Art ถือ: 17,100 หุ้น ต้นทุนเฉลี่ย 12.39 (รูปพอร์ต 2026-10-09) · เป้าสัดส่วน 6.25% ของพอร์ต (F1)
-- knowledge: `โต๊ะ krv3 ที่เก็บแล้ว hong-dive-common.md` → โครง 10 ท่อน + acceptance + Files · `hong-lens\CLAUDE.md` → audit กับเอกสาร SET จริงก่อนสรุป ห้ามเดา · `_master_hong-lens_2026-05-21.md` → 9 เกณฑ์ + PEG ≤ 0.67 + soft/hard trigger + KPI ของ SECURE · `_deep_SECURE_2026-05-21.md` → วัตถุดิบเทียบ 5 เดือน · `hong-v5-scan-2026-10-09.md/.csv` → อันดับ 14 / PEG 1.635 (yoy) · `job-06 ข้อ 2` → scanner ใช้กำไรโตปีเดียว งานวิจัยใช้โตทบ 3 ปี · `agreed-portfolio-framework.md` → F1 F3 F4 R6 (ไม่สั่งซื้อ/ขาย เขียนเป็นรายการให้ตัดสิน) · ใบข้อเท็จจริงระบบ `โต๊ะ krv3 ที่เก็บแล้ว files\secure\SECURE_2026-10-09.md` → ข้อเท็จจริงกลาง ๆ (ธง/ด่านเป็นเกณฑ์นิเวศน์ ไม่ใช้ตัดสิน)
+- knowledge: `โต๊ะ krv3 ที่เก็บแล้ว hong-dive-common.md` → โครง 10 ท่อน + acceptance + Files · `hong-lens\CLAUDE.md` → audit กับเอกสาร SET จริงก่อนสรุป ห้ามเดา · `_master_hong-lens_2026-05-21.md` → 9 เกณฑ์ + PEG ≤ 0.67 + soft/hard trigger + KPI ของ SECURE · `_archive\2026-10\hong-lens\research\_deep_SECURE_2026-05-21.md` → วัตถุดิบเทียบ 5 เดือน · `hong-v5-scan-2026-10-09.md/.csv` → อันดับ 14 / PEG 1.635 (yoy) · `job-06 ข้อ 2` → scanner ใช้กำไรโตปีเดียว งานวิจัยใช้โตทบ 3 ปี · `agreed-portfolio-framework.md` → F1 F3 F4 R6 (ไม่สั่งซื้อ/ขาย เขียนเป็นรายการให้ตัดสิน) · ใบข้อเท็จจริงระบบ `โต๊ะ krv3 ที่เก็บแล้ว files\secure\SECURE_2026-10-09.md` → ข้อเท็จจริงกลาง ๆ (ธง/ด่านเป็นเกณฑ์นิเวศน์ ไม่ใช้ตัดสิน)
 - แหล่งใหม่ที่ใช้ (ไฟล์ดิบอยู่ใน `โต๊ะ krv3 ที่เก็บแล้ว files\secure\`): One Report 2025 ภาษาไทย 264 หน้า (`onereport2025.txt` ดึงจาก IR site 2026) · MD&A Q2/2026 EN (`nforce_secure_MDA_2026Q2_EN.pdf.txt` ออก 13 ส.ค. 2026) · งบสอบทาน Q2/2026 EN (`nforce_secure_FS-2026Q2_EN.pdf.txt`) · งบรายไตรมาสจาก yfinance (ตรงกับ MD&A ทุกตัวที่เทียบ) · บทวิเคราะห์ InnovestX 20 มี.ค. 2026 / 19 มิ.ย. 2026 / 8 ต.ค. 2025 · สคริปต์ DCA `โต๊ะ krv3 ที่เก็บแล้ว files\secure\dca_secure.py`
 
 ---
@@ -276,7 +276,7 @@ F3 เขียนจากมุมปันผล (ปันผลลด 2 ป
 
 | ที่ | อะไร | ที่ถูก |
 |---|---|---|
-| `hong-lens\research\_deep_SECURE_2026-05-21.md:62-70` | vendor หลัก Fortinet + รายชื่อ 15 vendor (estimate) | Palo Alto 70.49% ของรายได้ 2025 (One Report ส่วนความเสี่ยง) · Trend Micro รายรอง |
+| `_archive\2026-10\hong-lens\research\_deep_SECURE_2026-05-21.md:62-70` | vendor หลัก Fortinet + รายชื่อ 15 vendor (estimate) | Palo Alto 70.49% ของรายได้ 2025 (One Report ส่วนความเสี่ยง) · Trend Micro รายรอง |
 | เดียวกัน `:105-107`, `:183-186`, `:40-50` | recurring 30–50% / service 25–35% / MSSP 24/7 | MA 33.2% (2025) · บริการที่ทำเอง 2.5% · ไม่ใช่ MSSP — ขายผ่าน SI |
 | เดียวกัน `:589-592` (เกณฑ์ 2) | ปันผลปีละ ~195 ล้าน (รวม 0.90+1.00) | จ่ายปีละครั้ง 102.7 ล้าน (ปี 2026) |
 | เดียวกัน `:593-600`, `:751` | Q1/26 +18.7% = กลับ growth track | Q2/26 −59% · 1H −22% |

@@ -25,7 +25,7 @@
 | PW | policywatch.thaipbs.or.th/article/investment-23 (7 ม.ค. 2568) — EV หั่นราคาตั้งแต่ 2566 → ราคามือสองลง → LGD ของเช่าซื้อสูงขึ้น สถาบันการเงินเข้มขึ้น · รถยึดเข้าลานประมูลมาก 2566–67 | ม.ค. 2025 | 2026-10-09 |
 | MPC | ดอกเบี้ยนโยบาย 1.00% (ลด 25 ก.พ. 2569 · คง 29 เม.ย. / 24 มิ.ย. / 26 ส.ค. 2569) — แหล่งเดียวกับเล่ม BBL (thaipublica / infoquest / posttoday / naewna) | 26 ส.ค. 2026 | 2026-10-09 (ยกจากเล่ม BBL) |
 | SNIP | ตัวเลขที่ได้จาก search snippet เท่านั้น ยังไม่เห็นหน้าจริง: ดัชนีราคารถมือสอง พ.ค. 69 = 75.15 (เม.ย. 72.75) (kaohoon 835764 — หน้า 403) · ยอดขายรถในประเทศ 8 เดือน 69 +16.6% ~466,000 คัน (thereporter/TRIS ต.ค. 69) · C/I 2019 47.7 / 2020 42.4 / 2023 49.0 / 2024 48.1 (KS/DBS snippet) · CEO ศักดิ์ชัย พีชะพัฒน์ ตั้งแต่ 21 เม.ย. 2019 (marketscreener) · Q3/69 ประกาศ 14 ต.ค. 2026 (ad-hoc-news) | — | 2026-10-09 |
-| RS | ของเดิม `research/portfolio-snapshot-2026-07-20.md` + `C:\WORKSPACE\.claude\artifacts\notes\fable-amata-bbl-deep.md` ท่อน TISCO (ก.ค. 2026) — ตรวจในข้อ 10 | ก.ค. 2026 | — |
+| RS | ของเดิม `_archive\2026-10\research\portfolio-snapshot-2026-07-20.md` + `C:\WORKSPACE\.claude\artifacts\notes\fable-amata-bbl-deep.md` ท่อน TISCO (ก.ค. 2026) — ตรวจในข้อ 10 | ก.ค. 2026 | — |
 
 ดึงไม่ได้รอบนี้: bangkokpost (402/307 tollbit) · kaohoon.com ข่าว 686902 / 835764 / 846094 (403) · thereporter.asia (หน้าว่าง) · MDA-4Q25 (404) · ค่า NIM 2015–2018 และ 2020–2022, C/I 2015–2018, Tier1 2015–2016 = **หาไม่ได้** ในรอบนี้ (ต้องเปิด annual report 2016–2018, 2021–2022 เพิ่ม)
 

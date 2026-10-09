@@ -21,3 +21,11 @@
 - บล็อกหมายเหตุ `⛔ 2026-10-09` ที่เคยติดหัวไฟล์เหล่านี้ถูกเอาออก (เหตุอยู่ในรายการข้างบนแล้ว · รายการ E1–E17 ที่ `docs\review-2026-10\niwes-vs-system.md`)
 - เอากลับ: `git mv` ไฟล์กลับที่เดิม (`docs\` / `docs\niwes\` / `research\`) · ไฟล์เหล่านี้ไม่มีใครชี้แล้ว ณ วันเก็บ — กลับมาต้องแก้ path ที่อ้างในไฟล์ `docs\niwes-principles.md` ด้วย
 - `scripts\flake_queue.py` (ย้าย 2026-10-09): คิวหุ้นที่ yahoo flake เขียน `data\flake_queue.json` — เหลือแต่ฝั่งเขียน ไม่มีใครอ่านคิว · เอากลับ: `git mv` กลับ `scripts\` แล้วเติม `from flake_queue import add_to_queue` + เรียก `add_to_queue(sym, filter_reasons, today)` ตอนสถานะ PENDING ใน `screen_stocks.py`
+
+## เก็บเพิ่ม 2026-10-09 (รอบ deep dive 7 เล่ม — job-15 code-wrap-up)
+
+- เหตุ: deep dive รอบนี้เขียนใหม่ทับ 7 ตัว (`research\bbl-deep-dive-2026-10-09.md` `tcap-` `tisco-` · `hong-lens\research\_deep_<TOA|SISB|SECURE|MOSHI>_2026-10-09.md`) · ท่อน 10 ของแต่ละเล่มบอกจุดผิด/เก่าของงานเดิมแล้ว · `hong-v5-rerun` คิดอันดับจากสูตร PEG ที่กลับด้าน (แก้ 2026-10-09) แทนด้วย `research\hong-v5-scan-2026-10-09.md` + `.csv` · `portfolio-snapshot-*` ตัวเลขพอร์ต / ยอดเติม / projection ถูกแทนด้วย `scripts\holdings_watch.py` + deep dive รอบนี้
+- ย้ายเข้า `research\` (ในโฟลเดอร์นี้): `_full_BBL_2026-05-21.md` `_business_BBL_2026-05-20.md` `_deep_BBL_2026-05-20.md` `_full_TCAP_2026-05-21.md` `hong-v5-rerun.md` `hong-v5-rerun.csv` `portfolio-snapshot-2026-07-20.md` `portfolio-snapshot-2026-05-22.md` · `refs\setsmart-xls-2026-05-21\companyprofile_excel_bbl.xls` `factsheet_excel_bbl.xls` (มีแต่ `_full_BBL` ชี้ · xls ของ AMATA / HTC / PTTEP ยังอยู่ที่เดิม)
+- ย้ายเข้า `hong-lens\research\` (ในโฟลเดอร์นี้): `_deep_TOA_2026-05-21.md` `_deep_SISB_2026-05-21.md` `_deep_SECURE_2026-05-21.md` `_deep_MOSHI_2026-05-21.md`
+- path ที่อ้างในไฟล์ใต้ `research\` `hong-lens\research\` ถูกแก้ให้ชี้มาที่นี่แล้ว · `docs\review-2026-10\` ไม่แก้ (บันทึกมีวันที่)
+- เอากลับ: `git mv` ไฟล์กลับที่เดิม แล้วแก้ path ที่อ้างในไฟล์ `research\*-2026-10-09.md` `hong-lens\research\_deep_*_2026-10-09.md` `hong-lens\research\_master_hong-lens_2026-05-21.md` กลับ

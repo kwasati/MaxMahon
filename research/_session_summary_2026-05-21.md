@@ -38,8 +38,8 @@ resume_keyword: "ต่อ pillar 1 portfolio" / "ต่อ niwes 70" / "ต่�
 
 ### 2.1 Full reports (8 sections + Hidden businesses + Anti-thesis)
 - `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\_full_AMATA_2026-05-21.md` (updated with 10 hidden businesses + anti-thesis)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_BBL_2026-05-21.md` (updated with 7 hidden businesses + anti-thesis)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_TCAP_2026-05-21.md` (updated with NPA business detail + counter-cyclical thesis)
+- `_archive\2026-10\research\_full_BBL_2026-05-21.md` (updated with 7 hidden businesses + anti-thesis)
+- `_archive\2026-10\research\_full_TCAP_2026-05-21.md` (updated with NPA business detail + counter-cyclical thesis)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_SCB_2026-05-21.md` (created — payout 86% risk analysis)
 
 ### 2.2 Source data backup
@@ -195,8 +195,8 @@ Iteration vote:
 
 ### Reports (new today)
 - `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\_full_AMATA_2026-05-21.md` (created + updated 2x)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_BBL_2026-05-21.md` (created + updated 2x)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_TCAP_2026-05-21.md` (created + updated 1x with NPA)
+- `_archive\2026-10\research\_full_BBL_2026-05-21.md` (created + updated 2x)
+- `_archive\2026-10\research\_full_TCAP_2026-05-21.md` (created + updated 1x with NPA)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_SCB_2026-05-21.md` (created)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_session_summary_2026-05-21.md` (this file)
 
