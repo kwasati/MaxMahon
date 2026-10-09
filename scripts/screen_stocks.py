@@ -18,7 +18,7 @@ USER_DATA = ROOT / "user_data.json"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from fetch_data import fetch_multi_year_safe
-from data_adapter import compute_normalized_earnings, last_complete_fy
+from data_adapter import compute_normalized_earnings, last_complete_fy, refresh_prices_bulk
 from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg
 
 GATE_VERSION = "niwes-gate-2026-10"
@@ -211,10 +211,27 @@ def parse_symbols(text: str) -> list:
     return out
 
 
+def refresh_market_prices(symbols=None, refresher=None) -> dict:
+    """Refresh prices before the scan (whole market = one bulk call) and print what was and wasn't refreshed."""
+    if refresher is None:
+        refresher = refresh_prices_bulk
+    res = refresher(symbols)
+    ok, failed = res.get("ok") or {}, res.get("failed") or {}
+    dates = sorted(set(ok.values()))
+    print(f"price refresh: {len(ok)} refreshed, {len(failed)} failed · price date "
+          f"{dates[0] if len(dates) == 1 else (dates[0] + '..' + dates[-1] if dates else '-')} · bulk calls {res.get('bulk_calls')}")
+    for s, why in sorted(failed.items())[:20]:
+        print(f"  refresh failed {s}: {why}")
+    if len(failed) > 20:
+        print(f"  ... and {len(failed) - 20} more")
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Max Mahon gate screener")
     ap.add_argument("--symbols", help="comma-separated symbols to scan instead of the whole universe")
     ap.add_argument("--out-dir", help="write the screener json here instead of data/ (also skips the flake queue)")
+    ap.add_argument("--no-refresh", action="store_true", help="skip the price refresh and use the SETSMART cache as is")
     args = ap.parse_args(argv)
     out_dir = Path(args.out_dir) if args.out_dir else None
 
@@ -227,6 +244,11 @@ def main(argv=None):
     else:
         symbols = json.loads(UNIVERSE.read_text(encoding="utf-8"))["symbols"]
     print(f"Max Mahon gate screening {len(symbols)} stocks ({GATE_VERSION})...")
+
+    if args.no_refresh:
+        print("price refresh: skipped (--no-refresh) — using the SETSMART cache as is")
+    else:
+        refresh_market_prices(None if not args.symbols else symbols)
 
     # ===== Phase A — parallel fetch =====
     fetch_targets = [s for s in symbols if s not in blacklisted]

@@ -80,6 +80,25 @@ def _price_dates(cands: list) -> str:
     return dates[0] if len(dates) == 1 else f"{dates[0]} ถึง {dates[-1]}"
 
 
+def stale_price_warning(cands: list, scan_date: str, limit: int) -> str:
+    """Top-of-report line when any passer's price is older than `limit` days (same key as the fact sheet)."""
+    from datetime import date
+    stale = []
+    for c in cands:
+        pd_ = c.get("price_as_of")
+        try:
+            age = (date.fromisoformat(str(scan_date)[:10]) - date.fromisoformat(str(pd_)[:10])).days
+        except (TypeError, ValueError):
+            stale.append(_bare(c["symbol"]))   # no readable price date = can't call it fresh
+            continue
+        if age > limit:
+            stale.append(_bare(c["symbol"]))
+    if not stale:
+        return ""
+    return (f"> ⏳ ราคาเก่าเกิน {limit} วัน {len(stale)} จาก {len(cands)} ตัวที่ผ่านด่าน — yield/PE/PBV ตามราคาเก่า "
+            f"(รันสแกนใหม่โดยไม่ใส่ `--no-refresh`): {', '.join(stale[:15])}" + (" ..." if len(stale) > 15 else ""))
+
+
 def diff_vs_prev(screener_data: dict, prev_scan: dict | None) -> tuple:
     """(new, dropped, has_prev). new = passes now, not in previous. dropped = passed before, scanned now
     and now fails / pending (stocks not scanned this run are not called dropped)."""
@@ -102,8 +121,12 @@ def diff_vs_prev(screener_data: dict, prev_scan: dict | None) -> tuple:
     return new, dropped, True
 
 
-def generate_report_md(screener_data: dict, iso_week: str, scanned_at: datetime, prev_scan: dict | None = None) -> str:
+def generate_report_md(screener_data: dict, iso_week: str, scanned_at: datetime, prev_scan: dict | None = None,
+                       stale_days: int | None = None) -> str:
     date = screener_data.get("date", scanned_at.strftime("%Y-%m-%d"))
+    if stale_days is None:
+        from fact_sheet import load_cfg
+        stale_days = load_cfg()["price_stale_days"]
     version = screener_data.get("gate_version", "-")
     cands = screener_data.get("candidates") or []
     main = [c for c in cands if c.get("gate_path") == "main"]
@@ -125,6 +148,7 @@ def generate_report_md(screener_data: dict, iso_week: str, scanned_at: datetime,
         f"---\nagent: Max Mahon v5\ndate: {date}\ntype: scan\niso_week: {iso_week}\n"
         f"scanned_at: {scanned_at.isoformat(timespec='seconds')}\ngate_version: {version}\n---\n",
         f"# รายงานสแกนหุ้นผ่านด่าน (สัปดาห์ {iso_week})\n",
+        *([warn] if (warn := stale_price_warning(cands, date, stale_days)) else []),
         "## สรุป\n\n"
         f"- สแกน {screener_data.get('total_scanned', 0)} ตัว · ผ่านด่าน {len(cands)} ตัว "
         f"(ทางหลัก {len(main)} / ทางอนุโลม {len(growth)})\n"

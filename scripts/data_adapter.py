@@ -676,6 +676,69 @@ def refresh_prices(symbols, lookback_days: int = 14, fetcher=None) -> dict:
     return result
 
 
+def refresh_prices_bulk(symbols=None, lookback_days: int = 7, bulk_fetcher=None, symbol_fetcher=None,
+                        max_per_symbol_fallback: int = 60) -> dict:
+    """Refresh the whole market's latest close with ONE SETSMART bulk request (eod-price-by-security-type).
+
+    Walks today -> lookback_days back; the first non-empty day wins and is written to
+    data/setsmart_cache/eod_<date>.json (the same whole-market file cached_eod_bulk uses, always re-fetched here
+    so an early-in-the-day partial file is replaced). symbols=None means every symbol in that bulk file.
+    Symbols missing from the bulk file get the per-symbol refresh_prices (capped at max_per_symbol_fallback
+    so a bad bulk day can't turn into ~900 calls); the rest are reported with the reason. A day-cache entry in
+    data/screener_cache/<today>/ is dropped when its price_as_of differs from the refreshed date.
+    Returns {"date", "bulk_calls", "ok": {SYM: date}, "failed": {SYM: reason}}.
+    """
+    from datetime import timedelta
+    if bulk_fetcher is None:
+        from setsmart_adapter import fetch_eod_all as bulk_fetcher
+    today = datetime.now().date()
+    cache_dir = ROOT / "data" / "setsmart_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    calls, day, rows, last_err = 0, None, [], None
+    for delta in range(lookback_days + 1):
+        d = (today - timedelta(days=delta)).isoformat()
+        calls += 1
+        try:
+            got = bulk_fetcher(d) or []
+        except Exception as e:  # noqa: BLE001 - one bad day must not stop the walk
+            last_err = f"{type(e).__name__}: {e}"
+            continue
+        got = [r for r in got if r.get("symbol") and r.get("close") is not None]
+        if got:
+            day, rows = d, got
+            break
+    wanted = None if symbols is None else [_to_tf_symbol(s) for s in symbols]
+    if day is None:
+        why = last_err or "SETSMART ไม่ส่งราคาทั้งตลาดย้อน %d วัน" % lookback_days
+        return {"date": None, "bulk_calls": calls, "ok": {}, "failed": {s: why for s in (wanted or [])}}
+    _atomic_write_json(cache_dir / f"eod_{day}.json", rows)
+    by_sym = {r["symbol"]: r for r in rows}
+    targets = list(by_sym) if wanted is None else wanted
+    ok = {s: day for s in targets if s in by_sym}
+    failed = {}
+    missing = [s for s in targets if s not in by_sym]
+    for s in missing[max_per_symbol_fallback:]:
+        failed[s] = "ไม่อยู่ในไฟล์ราคาทั้งตลาด %s (เกินโควตา fallback รายตัว)" % day
+    if missing[:max_per_symbol_fallback]:
+        for s, info in refresh_prices(missing[:max_per_symbol_fallback], fetcher=symbol_fetcher).items():
+            if info["ok"]:
+                ok[s] = info["date"]
+            else:
+                failed[s] = info["error"]
+    day_cache = ROOT / "data" / "screener_cache" / today.strftime("%Y-%m-%d")
+    for s, d in ok.items():
+        p = day_cache / f"{s}.BK.json"
+        if not p.exists():
+            continue
+        try:
+            old = json.loads(p.read_text(encoding="utf-8")).get("price_as_of")
+        except (OSError, ValueError):
+            old = None
+        if str(old)[:10] != d:
+            p.unlink(missing_ok=True)
+    return {"date": day, "bulk_calls": calls, "ok": ok, "failed": failed}
+
+
 # --- Dividend history: merge set.or.th + yahoo, completeness, crisis facts ---
 DPS_MISMATCH_REL_TOL = 0.10   # |set - yahoo| / max(set, yahoo) above this → flag
 DPS_MISMATCH_ABS_TOL = 0.005  # ignore sub-satang rounding noise

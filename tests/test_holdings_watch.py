@@ -221,6 +221,78 @@ class RefreshPricesTest(unittest.TestCase):
             tmp.cleanup()
 
 
+class RefreshPricesBulkTest(unittest.TestCase):
+    def _run(self, bulk, per_symbol, symbols=None, cached_price_as_of=None):
+        import json
+        import tempfile
+        import data_adapter as da
+        old, tmp, calls = da.ROOT, tempfile.TemporaryDirectory(), []
+
+        def bulk_fetcher(d):
+            calls.append(d)
+            return bulk.get(d, [])
+
+        try:
+            da.ROOT = Path(tmp.name)
+            day = da.datetime.now().strftime("%Y-%m-%d")
+            dc = da.ROOT / "data" / "screener_cache" / day
+            dc.mkdir(parents=True)
+            for s, pa in (cached_price_as_of or {}).items():
+                (dc / f"{s}.BK.json").write_text(json.dumps({"price_as_of": pa}), encoding="utf-8")
+            res = da.refresh_prices_bulk(symbols, bulk_fetcher=bulk_fetcher, symbol_fetcher=per_symbol)
+            files = sorted(p.name for p in (da.ROOT / "data" / "setsmart_cache").iterdir())
+            left = sorted(p.name for p in dc.iterdir())
+            return res, calls, files, left
+        finally:
+            da.ROOT = old
+            tmp.cleanup()
+
+    def test_whole_market_is_one_bulk_call_and_writes_bulk_file(self):
+        # assert: first day with rows wins -> exactly 1 bulk call, 0 per-symbol calls; file eod_<day>.json (not _refresh);
+        #         all 3 bulk symbols ok with that date
+        import data_adapter as da
+        day = da.datetime.now().strftime("%Y-%m-%d")
+        rows = [{"symbol": s, "date": day, "close": 1.0} for s in ("AAA", "BBB", "CCC")]
+        per = []
+        res, calls, files, _ = self._run({day: rows}, lambda *a: per.append(a) or [])
+        self.assertEqual(calls, [day])
+        self.assertEqual(per, [])
+        self.assertEqual(files, [f"eod_{day}.json"])
+        self.assertEqual(res["ok"], {"AAA": day, "BBB": day, "CCC": day})
+        self.assertEqual(res["failed"], {})
+
+    def test_empty_days_are_walked_back_and_missing_symbol_is_isolated(self):
+        # assert: today empty -> walks to the earlier day (2 bulk calls); symbol absent from bulk goes to per-symbol fallback,
+        #         raising fallback -> in failed with the reason; the others stay ok (no whole-batch failure)
+        import data_adapter as da
+        from datetime import timedelta
+        d1 = (da.datetime.now().date() - timedelta(days=1)).isoformat()
+        rows = [{"symbol": "AAA", "date": d1, "close": 1.0}]
+
+        def per(sym, start, end):
+            raise RuntimeError("down")
+        res, calls, _, _ = self._run({d1: rows}, per, symbols=["AAA.BK", "ZZZ.BK"])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(res["ok"], {"AAA": d1})
+        self.assertIn("down", res["failed"]["ZZZ"])
+
+    def test_nothing_from_bulk_reports_all_failed_without_raising(self):
+        # assert: no day has rows -> date None, every requested symbol in failed, nothing raised
+        res, calls, _, _ = self._run({}, lambda *a: [], symbols=["AAA", "BBB"])
+        self.assertIsNone(res["date"])
+        self.assertEqual(sorted(res["failed"]), ["AAA", "BBB"])
+        self.assertEqual(len(calls), 8)
+
+    def test_day_cache_dropped_only_when_price_date_differs(self):
+        # assert: cached entry with an old price_as_of is deleted; one already at the refreshed date is kept
+        import data_adapter as da
+        day = da.datetime.now().strftime("%Y-%m-%d")
+        rows = [{"symbol": s, "date": day, "close": 1.0} for s in ("AAA", "BBB")]
+        _, _, _, left = self._run({day: rows}, lambda *a: [],
+                                  cached_price_as_of={"AAA": "2026-08-26", "BBB": day})
+        self.assertEqual(left, ["BBB.BK.json"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

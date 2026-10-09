@@ -149,5 +149,57 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(passed_of({"iso_week": "x"}), {})
 
 
+class RefreshAndStaleTest(unittest.TestCase):
+    def test_refresh_called_for_full_scan_with_none_and_for_symbols_with_list(self):
+        # assert: refresh_market_prices passes the refresher None (whole market) or the given list; summary printed with counts + date
+        import io
+        from contextlib import redirect_stdout
+        import screen_stocks as ss
+        seen = []
+
+        def fake(syms):
+            seen.append(syms)
+            return {"date": "2026-10-08", "bulk_calls": 1, "ok": {"A": "2026-10-08"}, "failed": {"B": "no row"}}
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ss.refresh_market_prices(None, refresher=fake)
+            ss.refresh_market_prices(["A.BK"], refresher=fake)
+        self.assertEqual(seen, [None, ["A.BK"]])
+        self.assertIn("1 refreshed, 1 failed", buf.getvalue())
+        self.assertIn("refresh failed B: no row", buf.getvalue())
+
+    def test_no_refresh_flag_never_calls_refresher(self):
+        # assert: main(--no-refresh) with refresh_prices_bulk patched to raise -> not called (stops at empty fake universe)
+        import tempfile
+        import screen_stocks as ss
+        tmp = tempfile.TemporaryDirectory()
+        uni, ud = Path(tmp.name) / "u.json", Path(tmp.name) / "ud.json"
+        uni.write_text('{"symbols": []}', encoding="utf-8")
+        ud.write_text("{}", encoding="utf-8")
+        old = (ss.refresh_prices_bulk, ss.UNIVERSE, ss.USER_DATA)
+
+        def boom(*a, **k):
+            raise AssertionError("refresh must not run")
+        try:
+            ss.refresh_prices_bulk, ss.UNIVERSE, ss.USER_DATA = boom, uni, ud
+            ss.main(["--no-refresh", "--out-dir", str(Path(tmp.name) / "o")])
+            with self.assertRaises(AssertionError):
+                ss.main(["--out-dir", str(Path(tmp.name) / "o")])
+        finally:
+            ss.refresh_prices_bulk, ss.UNIVERSE, ss.USER_DATA = old
+            tmp.cleanup()
+
+    def test_report_warns_on_old_price_and_stays_silent_when_fresh(self):
+        # assert: price 2026-08-26 vs scan 2026-10-09, limit 5 -> top warning with "1 จาก 2"; all fresh -> no warning text
+        old = cand("OLD.BK", "main", 6.0)
+        old["price_as_of"] = "2026-08-26"
+        data = screener([old, cand("NEW.BK", "main", 5.5)])
+        md = generate_report_md(data, "2026-W41", NOW, None, stale_days=5)
+        self.assertIn("ราคาเก่าเกิน 5 วัน 1 จาก 2", md)
+        self.assertLess(md.index("ราคาเก่าเกิน"), md.index("## สรุป"))
+        fresh = generate_report_md(screener([cand("NEW.BK", "main", 5.5)]), "2026-W41", NOW, None, stale_days=5)
+        self.assertNotIn("ราคาเก่าเกิน", fresh)
+
+
 if __name__ == "__main__":
     unittest.main()
