@@ -21,11 +21,12 @@ from fetch_data import compute_dps_cagr  # noqa: E402
 
 CONFIG_PATH = ROOT / "config.json"
 NA = "ไม่มีข้อมูล"
+INSUFFICIENT = "ข้อมูลไม่พอ"
 SCENARIOS = ("bad", "mid", "good")
 SCENARIO_TH = {"bad": "แย่", "mid": "กลาง", "good": "ดี"}
 
 DEFAULT_CFG = {
-    "yoc_target_low": 7, "yoc_target_high": 12, "growth_cap": 0.15,
+    "yoc_target_low": 7, "yoc_target_high": 12, "growth_cap": 0.10, "min_scenario_window_years": 10,
     "cost_discounts": [0.8, 0.6], "cagr_windows": [5, 10, 15, 20], "yoc_years": [5, 10, 15],
     "cut_material_pct": 10, "crisis_years": [2008, 2009, 2011, 2020],
     "price_cheap_top_pct": 25, "price_expensive_bottom_pct": 25, "price_min_years": 5,
@@ -89,14 +90,15 @@ def cagr_windows(data: dict, windows) -> dict:
 
 # --- A4: scenarios, cost levels, dividend-vs-cost table ---
 
-def growth_scenarios(cagrs: dict, cap: float) -> dict:
-    """Fixed rules (our own): bad = lowest window CAGR (not below 0) · good = 5y CAGR capped · mid = mean."""
-    avail = [v for v in cagrs.values() if v is not None]
-    bad = max(0.0, min(avail)) if avail else None
-    c5 = cagrs.get(5)
-    good = min(c5, cap) if c5 is not None else None
-    mid = (bad + good) / 2 if bad is not None and good is not None else None
-    return {"bad": bad, "mid": mid, "good": good}
+def growth_scenarios(cagrs: dict, cap: float, min_window: int = 10) -> dict:
+    """Fixed rules (our own): needs a window >= min_window years, else every scenario is None (ข้อมูลไม่พอ).
+    bad = lowest window CAGR (0..cap) · good = highest window CAGR, capped · mid = mean(bad, good). Always bad <= mid <= good."""
+    avail = {n: v for n, v in cagrs.items() if v is not None}
+    if not any(n >= min_window for n in avail):
+        return {"bad": None, "mid": None, "good": None}
+    bad = min(cap, max(0.0, min(avail.values())))
+    good = max(bad, min(cap, max(avail.values())))  # all windows negative: good floored at bad (0) to keep the order
+    return {"bad": bad, "mid": (bad + good) / 2, "good": good}
 
 
 def cost_levels(price, supplied: list, discounts) -> list:
@@ -275,7 +277,7 @@ def flag_t2(base_dps, rates: dict, cost_list: list, year: int, low: float) -> di
     name = f"ปันผลเทียบต้นทุนปีที่ {year} (ฉากกลาง) ต่ำกว่าเป้าล่าง {low:g}%"
     g = rates.get("mid")
     if g is None or not base_dps or base_dps <= 0 or not cost_list:
-        return _flag("T2", name, None, "คำนวณฉากกลางไม่ได้ (ข้อมูลปันผลไม่ถึง 5 ปี หรือไม่มีราคา)")
+        return _flag("T2", name, None, "ข้อมูลไม่พอ — ต้องมีหน้าต่างอัตราโตปันผล 10 ปีขึ้นไป (หรือไม่มีราคา/ปันผลฐาน) จึงสร้างฉากกลางไม่ได้")
     dps_n = base_dps * (1 + g) ** year
     parts, hit = [], False
     for c in cost_list:
@@ -375,7 +377,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     shares = shares_outstanding(data)
     cuts = dividend_cuts(complete, cfg["cut_material_pct"])
     cagrs = cagr_windows(data, cfg["cagr_windows"])
-    rates = growth_scenarios(cagrs, cfg["growth_cap"])
+    rates = growth_scenarios(cagrs, cfg["growth_cap"], cfg["min_scenario_window_years"])
     supplied = normalize_costs(costs)
     levels = cost_levels(price, supplied, cfg["cost_discounts"])
     targets = [cfg["yoc_target_low"], cfg["yoc_target_high"]]
@@ -557,17 +559,20 @@ def _a4(fs):
     lines = ["## A4 ปันผลเทียบต้นทุน (ปันผลปีนั้น ÷ ต้นทุน)", "",
              f"ฐาน: ปันผลปีบัญชีล่าสุดที่ครบ FY{d['last_fy'] or NA} = {fn(d['base_dps'], 4)} บาท · ปีที่ N = FY{d['last_fy'] or '?'}+N",
              "ฉากอัตราโต (กฎตายตัว **เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย):",
-             f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(r['bad'])}",
-             f"- ดี = อัตราโต 5 ปี ตัดเพดาน {fs['cfg']['growth_cap']*100:g}% → {pct(r['good'])}",
-             f"- กลาง = ค่าเฉลี่ยของแย่กับดี → {pct(r['mid'])}",
+             f"- ต้องมีหน้าต่างอัตราโตตั้งแต่ {fs['cfg']['min_scenario_window_years']} ปีขึ้นไปอย่างน้อย 1 หน้าต่าง ไม่งั้น = ข้อมูลไม่พอ (ไม่สร้างฉาก)",
+             f"- เพดานอัตราโตทุกฉาก {fs['cfg']['growth_cap']*100:g}% ต่อปี",
+             f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(r['bad']) if r['bad'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- ดี = ค่าสูงสุดของอัตราโตทุกหน้าต่างที่มี ตัดที่เพดาน → {pct(r['good']) if r['good'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- กลาง = ค่าเฉลี่ยของแย่กับดี → {pct(r['mid']) if r['mid'] is not None else 'ข้อมูลไม่พอ'}",
              "- ต้นทุน = ที่ส่งมาด้วย `--cost` + ราคาวันนี้ + ราคาวันนี้ x 0.8 และ x 0.6 "
              + ("" if fs["supplied_costs"] else "(ยังไม่ได้ส่งต้นทุน — ใช้ราคาวันนี้แทน)"), ""]
     if not fs["costs"]:
         return lines + [NA, ""]
     head = ["ฉาก", "โต/ปี", "ปีที่", "DPS"] + [f"@{c['cost']:.2f}" for c in fs["costs"]]
     lines += ["ระดับต้นทุน: " + " · ".join(f"@{c['cost']:.2f} = {c['label']}" for c in fs["costs"]), ""]
-    lines += _table(head, [[SCENARIO_TH[x["scenario"]], pct(x["rate"]), x["year"], fn(x["dps"], 3)] +
-                           [fn(y, 1, suffix="%") for y in x["yoc"]] for x in fs["yoc"]])
+    lines += _table(head, [[SCENARIO_TH[x["scenario"]], pct(x["rate"]) if x["rate"] is not None else INSUFFICIENT, x["year"],
+                            fn(x["dps"], 3) if x["rate"] is not None else INSUFFICIENT] +
+                           [fn(y, 1, suffix="%") if x["rate"] is not None else INSUFFICIENT for y in x["yoc"]] for x in fs["yoc"]])
     lines += ["", f"อัตราโตต่อปีที่ต้องการ เพื่อให้ปันผลปีที่ N แตะเป้าล่าง {lo:g}% / เป้าบน {hi:g}% ของต้นทุน (จากฐาน {fn(d['base_dps'], 4)}):", ""]
     lines += _table(["ต้นทุน", "ปีที่", f"ถึง {lo:g}%", f"ถึง {hi:g}%"],
                     [[f"{x['cost']:.2f}", x["year"]] + [pct(g) for g in x["growth"]] for x in fs["required"]])

@@ -26,6 +26,7 @@ def fake_fs(sym, price=20.0, base=1.0, trig=(), age=1, missing=()):
     return {"symbol": sym + ".BK", "price": price, "price_date": "2026-10-08", "price_age_days": age,
             "dividends": {"base_dps": base}, "today": {"yield": base / price * 100},
             "costs": [{"cost": price, "label": "ราคาวันนี้"}], "yoc": yoc,
+            "rates": {"bad": 0.0, "mid": 0.05, "good": 0.10},
             "price_label": {"label": "กลางเทียบตัวเอง"}, "gate": {"status": "PASS"}, "flags": flags,
             "date": "2026-10-09", "cfg": CFG}
 
@@ -102,6 +103,21 @@ class RollupTest(unittest.TestCase):
         self.assertAlmostEqual(roll["now"]["value"], (30 * 5 + 10 * 10) / 40)
         self.assertAlmostEqual(roll["mid"]["value"], (30 * 10 + 10 * 20) / 40)
         self.assertEqual(roll["now"]["skipped"], ["C"])
+
+
+    def test_insufficient_scenarios_skipped_in_rollup_and_cell_says_so(self):
+        # assert: stock with rates None -> year-10 cells "ข้อมูลไม่พอ"; skipped (named) in the 3 scenario rollups but kept in "วันนี้"; rollup bad<=mid<=good
+        e = lambda s, w: {"symbol": s, "in_plan": True, "target": w}
+        a = hw.summarize(e("A", 30.0), fake_fs("A", price=20, base=1), None, 10)
+        d = fake_fs("D", price=10, base=1)
+        d["rates"] = {"bad": None, "mid": None, "good": None}
+        b = hw.summarize(e("D", 10.0), d, None, 10)
+        self.assertEqual(hw._scen(b, "mid"), fsmod.INSUFFICIENT)
+        roll = hw.portfolio_rollup([a, b])
+        self.assertEqual(roll["mid"]["skipped"], ["D"])
+        self.assertEqual(roll["now"]["skipped"], [])
+        self.assertLessEqual(roll["bad"]["value"], roll["mid"]["value"])
+        self.assertLessEqual(roll["mid"]["value"], roll["good"]["value"])
 
 
 class RunTest(unittest.TestCase):

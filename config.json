@@ -21,7 +21,8 @@
   "fact_sheet": {
     "yoc_target_low": 7,
     "yoc_target_high": 12,
-    "growth_cap": 0.15,
+    "growth_cap": 0.10,
+    "min_scenario_window_years": 10,
     "cost_discounts": [0.8, 0.6],
     "cagr_windows": [5, 10, 15, 20],
     "yoc_years": [5, 10, 15],

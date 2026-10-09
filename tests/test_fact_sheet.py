@@ -57,20 +57,39 @@ class GrowthTest(unittest.TestCase):
         self.assertIsNone(c[20])
 
     def test_scenarios_rule(self):
-        # assert: bad = min window (floored at 0) · good = 5y capped · mid = mean
-        r = fs.growth_scenarios({5: 0.30, 10: 0.09, 15: 0.04, 20: None}, 0.15)
+        # assert: bad = min window (0..cap) - good = max window capped - mid = mean
+        r = fs.growth_scenarios({5: 0.30, 10: 0.09, 15: 0.04, 20: None}, 0.10)
         self.assertAlmostEqual(r["bad"], 0.04)
-        self.assertAlmostEqual(r["good"], 0.15)
-        self.assertAlmostEqual(r["mid"], 0.095)
-        r = fs.growth_scenarios({5: 0.02, 10: -0.03}, 0.15)
+        self.assertAlmostEqual(r["good"], 0.10)
+        self.assertAlmostEqual(r["mid"], 0.07)
+        r = fs.growth_scenarios({5: 0.02, 10: -0.03}, 0.10)
         self.assertEqual(r["bad"], 0.0)
+        self.assertAlmostEqual(r["good"], 0.02)
 
-    def test_scenarios_without_5y(self):
-        # assert: no 5y window -> good and mid are None, bad still from available windows
-        r = fs.growth_scenarios({5: None, 10: 0.06}, 0.15)
-        self.assertAlmostEqual(r["bad"], 0.06)
-        self.assertIsNone(r["good"])
-        self.assertIsNone(r["mid"])
+    def test_scenario_order_always_holds(self):
+        # assert: SISB-like (huge 5y window) and negative / mixed windows keep bad <= mid <= good
+        for cagrs in ({5: 0.463, 10: 0.20}, {5: 0.463, 10: 0.30, 15: 0.5}, {5: -0.2, 10: -0.1}, {5: 0.5, 10: 0.0, 20: 0.02},
+                      {10: 0.05}, {5: 0.12, 10: 0.12}):
+            r = fs.growth_scenarios(cagrs, 0.10)
+            self.assertLessEqual(r["bad"], r["mid"])
+            self.assertLessEqual(r["mid"], r["good"])
+
+    def test_cap_applies_to_every_scenario(self):
+        # assert: all windows above the cap -> bad = mid = good = cap (cap is not only for good)
+        r = fs.growth_scenarios({5: 0.463, 10: 0.25}, 0.10)
+        self.assertEqual((r["bad"], r["mid"], r["good"]), (0.10, 0.10, 0.10))
+
+    def test_history_under_min_window_is_insufficient(self):
+        # assert: no window >= 10y -> all None; T2 flag None; yoc rows have no DPS; render says ข้อมูลไม่พอ; required-growth table still printed
+        r = fs.growth_scenarios({5: 0.20, 10: None, 15: None}, 0.10)
+        self.assertEqual(r, {"bad": None, "mid": None, "good": None})
+        self.assertIsNone(fs.flag_t2(1.0, r, [{"cost": 20, "label": "x"}], 10, 7)["triggered"])
+        d = make_data(dps={y: 1.0 + 0.1 * (y - 2018) for y in range(2018, 2025)}, n_years=7)
+        out = fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09")
+        self.assertIsNone(out["rates"]["mid"])
+        self.assertTrue(all(x["dps"] is None for x in out["yoc"]))
+        self.assertIn(fs.INSUFFICIENT, fs.render_markdown(out))
+        self.assertTrue(out["required"])
 
 
 class YocTableTest(unittest.TestCase):

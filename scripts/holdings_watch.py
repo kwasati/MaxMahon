@@ -104,6 +104,7 @@ def summarize(entry: dict, fs: dict, cost, year: int) -> dict:
         yield_today=fs["today"]["yield"], cost_text=(f"{cost:g}" if cost else NO_COST_TEXT), cost_used=used,
         yoc_now=(base / used * 100 if base and used else None),
         yoc_scen={k: yoc_at(fs, k, year, idx) for k in fsmod.SCENARIOS},
+        rates=dict(fs.get("rates") or {}), scenario_ok=(fs.get("rates") or {}).get("mid") is not None,
         price_label=fs["price_label"]["label"], gate=(fs.get("gate") or {}).get("status", NA),
         status=status_of(fs), flags=[f["code"] for f in triggered_flags(fs)],
         missing=[f["code"] for f in fs.get("flags", []) if f.get("triggered") is None])
@@ -129,7 +130,7 @@ def portfolio_rollup(rows: list) -> dict:
     """Target-weighted dividend/cost for in-plan rows. A stock lacking a number is skipped for that column (and named)."""
     plan = [r for r in rows if r["in_plan"]]
     cols = {"now": lambda r: r.get("yoc_now")}
-    cols.update({k: (lambda r, k=k: (r.get("yoc_scen") or {}).get(k)) for k in fsmod.SCENARIOS})
+    cols.update({k: (lambda r, k=k: (r.get("yoc_scen") or {}).get(k) if r.get("scenario_ok") else None) for k in fsmod.SCENARIOS})
     out = {}
     for name, get in cols.items():
         use = [(r["target"], get(r)) for r in plan if r.get("error") is None and get(r) is not None]
@@ -148,6 +149,17 @@ def _band(v, lo, hi):
 QUESTION = ("ตัวเลขข้างบนคือข้อเท็จจริงที่ติดเกณฑ์ — คำถามที่คนต้องตอบ: เหตุของธงนี้ **ชั่วคราวหรือถาวร**? "
             "T3 กำไรปกติ (ตัด one-off) ลดตามไหม หรือ payout ลดแต่กำไรโต · "
             "T5 อุตสาหกรรมตกต่ำ/ถูกรบกวนอยู่ไหม (ไม่มีเลข ต้องหาข้อมูลเอง) · Art กับหัวเป็นคนตัดสิน")
+
+
+def _scen(r, k):
+    """Year-N cell: ข้อมูลไม่พอ when the stock has no scenarios (history < min window), else the number."""
+    return fsmod.INSUFFICIENT if not r["scenario_ok"] else _f(r["yoc_scen"][k])
+
+
+def _rates(r):
+    if not r["scenario_ok"]:
+        return fsmod.INSUFFICIENT
+    return " / ".join(_f(r["rates"][k] * 100) for k in fsmod.SCENARIOS)
 
 
 def _f(v, nd=1, suffix="%"):
@@ -170,18 +182,18 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
               f"{cfg['t1_cut_years']} ปีติด · `เฝ้า` = ติดธงอื่นอย่างน้อย 1 ตัว · `ปกติ` = ไม่ติดธง",
               f"> ปันผลเทียบต้นทุน = ปันผลต่อหุ้นปีบัญชีล่าสุดที่ครบ ÷ ต้นทุน · ปีที่ {year} = ปันผลปีที่ {year} ตามฉากโต ÷ ต้นทุนเดียวกัน", ""]
     head = ["หุ้น", "แผน", "เป้า%", "ราคา", "อายุราคา(วัน)", "yield วันนี้", "ต้นทุนที่ใช้", "ปันผล/ต้นทุน วันนี้",
-            f"ปีที่ {year} แย่", f"ปีที่ {year} กลาง", f"ปีที่ {year} ดี", "ป้ายราคา", "ผลด่าน", "ธงที่ติด", "สถานะ"]
+            "โต/ปี แย่ / กลาง / ดี", f"ปีที่ {year} แย่", f"ปีที่ {year} กลาง", f"ปีที่ {year} ดี", "ป้ายราคา", "ผลด่าน", "ธงที่ติด", "สถานะ"]
     body = []
     for r in rows:
         if r.get("error") is not None:
-            body.append([r["symbol"], r["plan_text"], ("—" if r["target"] is None else _f(r["target"], 2, "")), "ดึงข้อมูลไม่ได้", f"เหตุ: {r['error']}"] + [""] * 10)
+            body.append([r["symbol"], r["plan_text"], ("—" if r["target"] is None else _f(r["target"], 2, "")), "ดึงข้อมูลไม่ได้", f"เหตุ: {r['error']}"] + [""] * 11)
             continue
         flags = ", ".join(r["flags"]) or "—"
         if r["missing"]:
             flags += f" (ไม่มีข้อมูล: {', '.join(r['missing'])})"
         body.append([r["symbol"], r["plan_text"], ("—" if r["target"] is None else _f(r["target"], 2, "")), _f(r["price"], 2, ""),
                      NA if r["age"] is None else r["age"], _f(r["yield_today"]), r["cost_text"], _f(r["yoc_now"]),
-                     _f(r["yoc_scen"]["bad"]), _f(r["yoc_scen"]["mid"]), _f(r["yoc_scen"]["good"]),
+                     _rates(r), _scen(r, "bad"), _scen(r, "mid"), _scen(r, "good"),
                      r["price_label"], r["gate"], flags, r["status"]])
     lines += fsmod._table(head, body)
     lines += ["", f"## รวมพอร์ตในแผน (ถ่วงน้ำหนักตามเป้าสัดส่วน · เทียบเป้า {lo:g}–{hi:g}%)", ""]
@@ -191,7 +203,7 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
     for k, label in names.items():
         v = roll[k]
         prow.append([label, _f(v["value"]), _band(v["value"], lo, hi), ", ".join(v["skipped"]) or "—"])
-    lines += fsmod._table(["ช่วง", "ปันผล/ต้นทุน ถ่วงน้ำหนัก", f"เทียบเป้า {lo:g}–{hi:g}%", "ข้ามตัวที่ไม่มีข้อมูล"], prow)
+    lines += fsmod._table(["ช่วง", "ปันผล/ต้นทุน ถ่วงน้ำหนัก", f"เทียบเป้า {lo:g}–{hi:g}%", "ข้ามตัวที่ข้อมูลไม่พอ/ไม่มีข้อมูล"], prow)
     lines += ["", "ตัวที่ไม่ได้กรอกต้นทุนใช้ราคาวันนี้เป็นต้นทุน — ตัวเลขรวมจึงไม่ใช่ผลตอบแทนจริงของ Art จนกว่าจะกรอกต้นทุน (`--cost` หรือ config `holdings.costs`)"]
     flagged = [r for r in rows if r.get("status") in (REVIEW, WATCH)]
     lines += ["", "## ตัวที่สถานะไม่ใช่ปกติ", ""]
