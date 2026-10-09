@@ -216,7 +216,7 @@ Cross-check ระบบกับ SETSMART (paid subscription = ground truth) + 
 
 ### Niwes weighting (ส่วนตัวจาก spirit ของแก)
 
-อาร์ทเขียนใน niwes-analysis-master.md ว่า Niwes ดู: dividend + hidden value + moat + valuation + 5-pillar binary
+อาร์ทเขียนใน _archive/2026-10/research/niwes-analysis-master.md ว่า Niwes ดู: dividend + hidden value + moat + valuation + 5-pillar binary
 
 ใน 4 ตัวนี้:
 - **AMATA + BBL** = primary Niwes-style DCA candidates

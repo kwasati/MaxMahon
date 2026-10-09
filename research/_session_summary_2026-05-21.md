@@ -37,7 +37,7 @@ resume_keyword: "ต่อ pillar 1 portfolio" / "ต่อ niwes 70" / "ต่�
 ## 2. Work เสร็จแล้ว — Reports + Backup
 
 ### 2.1 Full reports (8 sections + Hidden businesses + Anti-thesis)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_AMATA_2026-05-21.md` (updated with 10 hidden businesses + anti-thesis)
+- `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\_full_AMATA_2026-05-21.md` (updated with 10 hidden businesses + anti-thesis)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_BBL_2026-05-21.md` (updated with 7 hidden businesses + anti-thesis)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_TCAP_2026-05-21.md` (updated with NPA business detail + counter-cyclical thesis)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_SCB_2026-05-21.md` (created — payout 86% risk analysis)
@@ -47,7 +47,7 @@ resume_keyword: "ต่อ pillar 1 portfolio" / "ต่อ niwes 70" / "ต่�
 
 ### 2.3 Reference (existing)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\manual-niwes-ranking-2026-05-20.md` — Tier S/A/B/C/D/F ranking
-- `C:\WORKSPACE\projects\4-MaxMahon\research\amata_report.md` — AMATA Layer 1-6 deep dig
+- `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\amata_report.md` — AMATA Layer 1-6 deep dig
 - `C:\WORKSPACE\projects\4-MaxMahon\data\screener_cache\2026-05-20\*.json` — fresh data
 
 ---
@@ -194,7 +194,7 @@ Iteration vote:
 ## 7. Files ทั้งหมด session นี้
 
 ### Reports (new today)
-- `C:\WORKSPACE\projects\4-MaxMahon\research\_full_AMATA_2026-05-21.md` (created + updated 2x)
+- `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\_full_AMATA_2026-05-21.md` (created + updated 2x)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_BBL_2026-05-21.md` (created + updated 2x)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_TCAP_2026-05-21.md` (created + updated 1x with NPA)
 - `C:\WORKSPACE\projects\4-MaxMahon\research\_full_SCB_2026-05-21.md` (created)

@@ -2,7 +2,7 @@
 
 - สร้าง 2026-10-09 · job job-01-niwes-principles (โต๊ะ krv3)
 - knowledge: `docs/niwes/00-research-rules.md` → ใช้กติกา "ยกคำจริง + แหล่ง" และแยกคำนิเวศน์ออกจากการตีความทุกแถว · ใบ `แนะนำ:` ในงาน → อ่านไฟล์ >200 บรรทัดเป็นท่อน · เขียนของที่ขัดความเชื่อตรง ๆ
-- อ่านครบ: `docs/niwes/00-index 00-research-rules 00-sources 00-backtest-protocol 00-data-schema(grep) 01–16` · `research/niwes-analysis-master.md` · `niwes-criteria-coverage-map.md` · `_niwes_5axis_synthesis_2026-05-20.md` · `manual-niwes-ranking-2026-05-20.md` · `docs/scoring-anchor-spec.md` · `docs/RESEARCH-LESSONS.md` · `roadmap/queue-scripts-review.md` · `config.json` · grep `scripts/screen_stocks.py` + `anchor_scoring.py`
+- อ่านครบ: `docs/niwes/00-index 00-research-rules 00-sources 00-data-schema(grep) 01–12` + `_archive/2026-10/docs/niwes/00-backtest-protocol 13–16` · `_archive/2026-10/research/niwes-analysis-master.md` · `_archive/2026-10/research/niwes-criteria-coverage-map.md` · `_niwes_5axis_synthesis_2026-05-20.md` · `manual-niwes-ranking-2026-05-20.md` · `_archive/2026-10/docs/scoring-anchor-spec.md` · `docs/RESEARCH-LESSONS.md` · `roadmap/queue-scripts-review.md` · `config.json` · grep `scripts/screen_stocks.py` + `anchor_scoring.py`
 - ค้นเว็บ 2026-10-09: ดึงได้ = S1 S2 S3 S4 S5 · ถูกบล็อก 403 = prachachat ทุก URL (S7 S9 S12b) → ใช้ได้แค่หัวข่าว/ข้อความที่ search engine แสดง
 
 ## ป้าย
@@ -30,7 +30,7 @@
 | S10 | คอลัมน์นิเวศน์ "30 ปีในตลาดหุ้น" https://www.finnomena.com/dr-niwes/30-years-in-stock-market/ | 14 ก.พ. 2560 | ฐานเรา |
 | S11 | คอลัมน์นิเวศน์ Property Grand Sale https://www.bangkokbiznews.com/blog/detail/649682 | ไม่ระบุ | ฐานเรา |
 | S12 | Finnomena เวียดนาม https://www.finnomena.com/starlit/vietnam-opportunity-by-dr-niwes/ | 11 ส.ค. 2566 | ฐานเรา |
-| S13 | "Niwes ch3–ch7" ที่ `docs/scoring-anchor-spec.md` อ้าง → ต้นทาง `C:\WORKSPACE\reMarkable\scripts\tmp\niwes-book\chapters\ch01-ch08.md` (ระบุใน `_archive/2026-10/plans/_archive/niwes-refactor-v2-design.md:5`) | — | **ไฟล์ไม่มีในเครื่อง** (`ls` 2026-10-09 = No such file) · ไม่มีคำพวกนี้ใน docs/niwes หรือ 00-sources เลย |
+| S13 | "Niwes ch3–ch7" ที่ `_archive/2026-10/docs/scoring-anchor-spec.md` อ้าง → ต้นทาง `C:\WORKSPACE\reMarkable\scripts\tmp\niwes-book\chapters\ch01-ch08.md` (ระบุใน `_archive/2026-10/plans/_archive/niwes-refactor-v2-design.md:5`) | — | **ไฟล์ไม่มีในเครื่อง** (`ls` 2026-10-09 = No such file) · ไม่มีคำพวกนี้ใน docs/niwes หรือ 00-sources เลย |
 
 ---
 
@@ -87,7 +87,7 @@
 | P2 | แพนิก = โอกาสซื้อ ถ้ามีเงินสดรอ | "การเกิดแพนิกนั้นมักจะก่อให้เกิด 'โอกาส' ในการซื้อหุ้นที่ยิ่งใหญ่" + เงื่อนไข "ถ้าคุณมีเงินสดรอช้อนเก็บมากพอ" · บทความเตือนถือเต็มพอร์ต/กู้เงิน | S3 (25 ต.ค. 2561) | นิเวศน์พูดจริง | ไม่มีเลข — "ถูกพอ" = คน |
 | P3 | ตลาดซบ: ถือเงินสดให้มากที่สุด · ที่ยังถือได้ = PE <10 + ปันผล 5-6% | "ถือเงินสดให้มากที่สุด" "ปันผลตอบแทนปีละ 5-6% ขึ้นไป" · PE <10 (สรุป) | S2 (2 ก.พ. 2568) | นิเวศน์พูดจริง | PE <10 วัดได้ — เป็นเลขราคาเดียวที่นิเวศน์ให้ในช่วง 2568 |
 | P4 | หุ้นปันผล >5% "ควรเป็นหุ้นที่มีราคาเหมาะสม" | "มองหาหุ้นที่จ่ายปันผลได้ดีเกิน 5% และควรเป็นหุ้นที่มีราคาเหมาะสม" | S5 | นิเวศน์พูดจริง | "เหมาะสม" ไม่มีเลข = คน |
-| P5 | PBV <1 / "ซื้อทรัพย์สินต่ำกว่ามูลค่า" | ไม่มีคำนิเวศน์ — `13-threshold-adjustments.md:49` อ้างว่า "มี quote verbatim ใน 03-philosophy.md" แต่ 03 มีแค่ประโยค P1 ของ Investerest | `docs/niwes/13-threshold-adjustments.md:49` | เราตั้งเอง (อ้างผิด) | ได้ แต่เกณฑ์ 1.0/1.5 เราตั้ง |
+| P5 | PBV <1 / "ซื้อทรัพย์สินต่ำกว่ามูลค่า" | ไม่มีคำนิเวศน์ — `_archive/2026-10/docs/niwes/13-threshold-adjustments.md:49` อ้างว่า "มี quote verbatim ใน 03-philosophy.md" แต่ 03 มีแค่ประโยค P1 ของ Investerest | `_archive/2026-10/docs/niwes/13-threshold-adjustments.md:49` | เราตั้งเอง (อ้างผิด) | ได้ แต่เกณฑ์ 1.0/1.5 เราตั้ง |
 | P6 | Property ยีลด์ 6-8% ทุกปี ตลาดเกลียดแต่ซื้อได้ | "หุ้น Property นั้นเป็นหุ้นที่เหมือนถูกสาป" "ปันผลตอบแทนของบริษัทนั้นสูงตั้งแต่ 6-8% ต่อปีทุกปี" | S11 | นิเวศน์พูดจริง | ยีลด์วัดได้ |
 
 ### 1.4 หมวด จัดพอร์ต
@@ -108,7 +108,7 @@
 | H1 | ตั้งเป้าถือ 5 ปี | "เราจะต้องตั้งเป้าหมายว่าพอร์ตนี้จะต้องถือต่อไปซัก 5 ปี ถึงจะเห็นผลชัดเจน" | S1 | นิเวศน์พูดจริง | ได้ |
 | H2 | ผลตอบแทนบางปีต่ำกว่าคาด → ประเมินก่อน ชั่วคราวไม่ต้องทำอะไร | "แต่ถ้าผลตอบแทนบางปีต่ำกว่าที่คาด ก็ต้องประเมินว่าเกิดจากอะไร บางทีอาจจะเป็นสถานการณ์ชั่วคราว ก็ไม่ต้องทำอะไร" | S1 | นิเวศน์พูดจริง | "ชั่วคราว vs ถาวร" = คน (ตัวเลขช่วยได้ ดูข้อ 4) |
 | H3 | ถือจริง 17 ปี (CPALL) 11 ปี (TCAP) ผ่านโควิด/H1 2568 ขาดทุน 91 ล้านไม่ขาย | ตัวเลขข่าว | `06-case-cpall.md` `11-current-portfolio.md` ฐานเรา | คนอื่นตีความ (พฤติกรรม ไม่ใช่คำสอน) | — |
-| H4 | ราคาตก <30% ห้ามขาย / Mr. Market | ไม่มีคำนิเวศน์ — `15-exit-rules.md:119-131` ตั้งเลข 30% เอง | `docs/niwes/15-exit-rules.md:119` | เราตั้งเอง | ได้ แต่เลขไม่มีที่มา |
+| H4 | ราคาตก <30% ห้ามขาย / Mr. Market | ไม่มีคำนิเวศน์ — `_archive/2026-10/docs/niwes/15-exit-rules.md:119-131` ตั้งเลข 30% เอง | `_archive/2026-10/docs/niwes/15-exit-rules.md:119` | เราตั้งเอง | ได้ แต่เลขไม่มีที่มา |
 
 ### 1.6 หมวด ขาย
 
@@ -117,8 +117,8 @@
 | X1 | ปันผลลดลงมากและถาวร (หรือเลือกหุ้นผิด) → ปรับพอร์ต | "แต่ถ้าเกิดการเปลี่ยนแปลงหรืออาจจะเป็นเรื่องที่เราเลือกหุ้นผิด คือปันผลของหุ้นบางตัวลดลงมากและถาวร ก็ต้องปรับพอร์ตตามสถานการณ์" | S1 | **นิเวศน์พูดจริง — กฎขายเดียวที่ยืนยันได้** | "มาก" "ถาวร" ไม่มีเลข — ตัววัดเสนอในข้อ 4 |
 | X2 | ย้ายเงินไปที่ดีกว่า (rotate ไทย→US/VN) | S8 ประโยค F3 | S8 | นิเวศน์พูดจริง (การกระทำ) | — |
 | X3 | OR / EASTW / BAFS ขายเพราะ thesis เปลี่ยน (EV, regulate) | ไม่มีคำนิเวศน์ — `09-case-or-exit.md:27-35` ติด [VERIFY] ทุกข้อ · เหตุผลขาย = "paraphrase from VI community talk" | `docs/niwes/09-case-or-exit.md` | ยังไม่ยืนยัน | — |
-| X4 | "Thesis change = ขายได้แม้ขาดทุน" · "Disruption risk ต้องประเมิน upfront" | เป็นประโยค Lessons ที่ผู้รวบรวมเขียนใน 09 แล้ว 15 นำมาติดป้าย "Verbatim quote" | `docs/niwes/15-exit-rules.md:19-27` อ้าง `09-case-or-exit.md:70-71` | **คนอื่นตีความ (ติดป้ายผิดว่าเป็นคำพูดจริง)** | — |
-| X5 | PE >3x baseline = ขาย (bubble) | ไม่มีคำนิเวศน์ — มีแต่ "ch7 P/E > 3x historic" (S13 ยังไม่ยืนยัน) | `15-exit-rules.md:57,71` · `16-exit-decision-template.md` | เราตั้งเอง / ยังไม่ยืนยัน | ได้ แต่เลขไม่มีที่มา |
+| X4 | "Thesis change = ขายได้แม้ขาดทุน" · "Disruption risk ต้องประเมิน upfront" | เป็นประโยค Lessons ที่ผู้รวบรวมเขียนใน 09 แล้ว 15 นำมาติดป้าย "Verbatim quote" | `_archive/2026-10/docs/niwes/15-exit-rules.md:19-27` อ้าง `09-case-or-exit.md:70-71` | **คนอื่นตีความ (ติดป้ายผิดว่าเป็นคำพูดจริง)** | — |
+| X5 | PE >3x baseline = ขาย (bubble) | ไม่มีคำนิเวศน์ — มีแต่ "ch7 P/E > 3x historic" (S13 ยังไม่ยืนยัน) | `_archive/2026-10/docs/niwes/15-exit-rules.md:57,71` · `_archive/2026-10/docs/niwes/16-exit-decision-template.md` | เราตั้งเอง / ยังไม่ยืนยัน | ได้ แต่เลขไม่มีที่มา |
 | X6 | ขายเมื่อราคาเกินมูลค่าจริงมาก / มีตัวใหม่ดีกว่า / พื้นฐานเลวลง คู่แข่งใหญ่เข้ามา | คำแนะนำทั่วไปสาย VI จาก Money Buffalo (ไม่ใช่นิเวศน์) https://www.moneybuffalo.in.th/stock/นักลงทุนสาย-vi-ขายหุ้น | search 2026-10-09 | คนอื่น (ไม่ใช่นิเวศน์) — ใส่ไว้ให้รู้ว่าค้นแล้วเจอแค่นี้ | — |
 
 ---
@@ -201,7 +201,7 @@
 
 - รองรับ "ขายเมื่อผิดทาง" ของ Art **เต็มที่** — โครงเดียวกัน: ผลไม่ตรงคาด → ประเมินเหตุ → ชั่วคราวถือต่อ / ถาวร+เลือกผิด → ปรับพอร์ต
 - สิ่งที่นิเวศน์ **ไม่ให้**: ตัวเลข, จำนวนปี, คำว่า "ขายทั้งหมด" (เขาใช้ "ปรับพอร์ต") · ค้นเพิ่ม 2 รอบ (คำค้นในข้อ 0 #3) ไม่เจอบทความที่ให้เกณฑ์ขายเป็นเลข · บทความ "หุ้นตก" (S3) ไม่สอนขาย · OR/EASTW/BAFS ไม่มีคำอธิบายจากปากเขา (X3 ยังไม่ยืนยัน)
-- กฎใน `15-exit-rules.md` 5+3 ข้อ: Rule 2 (filter degradation) ใกล้ X1 ที่สุดแต่ผูกกับด่าน PE/PBV ที่เราตั้ง · Rule 1 อ้างคำผู้รวบรวมเป็น verbatim (X4) · Rule 3 PE>3x และ Anti-Rule <30% ไม่มีที่มา (X5 H4) · Rule 4 rotate = พฤติกรรมจริง (X2) · Rule 5 เรื่องส่วนตัว
+- กฎใน `_archive/2026-10/docs/niwes/15-exit-rules.md` 5+3 ข้อ: Rule 2 (filter degradation) ใกล้ X1 ที่สุดแต่ผูกกับด่าน PE/PBV ที่เราตั้ง · Rule 1 อ้างคำผู้รวบรวมเป็น verbatim (X4) · Rule 3 PE>3x และ Anti-Rule <30% ไม่มีที่มา (X5 H4) · Rule 4 rotate = พฤติกรรมจริง (X2) · Rule 5 เรื่องส่วนตัว
 
 **ตัววัดที่เป็นไปได้ (เราตั้งเอง — ผูกกับคำนิเวศน์ที่ยืนยันได้ ไม่ใช่คำนิเวศน์):**
 

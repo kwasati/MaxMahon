@@ -21,4 +21,4 @@ Art ส่งรูปหน้า Portfolio จากแอปโบรก + �
 
 ## ที่มา
 - snapshot + projection: `C:\WORKSPACE\projects\4-MaxMahon\research\portfolio-snapshot-2026-07-20.md`
-- กรอบ 70/25/5: `C:\WORKSPACE\projects\4-MaxMahon\research\_portfolio_70-25-5_framework_2026-05-20.md`
+- กรอบ 70/25/5 + เป้า + กฎขาย (F1–F4): `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-portfolio-framework.md` (ตัวเลขเป้าอยู่ใน `scripts\rebalance.py` TARGETS ที่เดียว)

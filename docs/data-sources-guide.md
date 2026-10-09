@@ -141,7 +141,9 @@ Each event is normalized to:
 
 #### Coverage limit
 
-Empirically ~6 years of history per symbol (verified via `docs/dps-set-fix-verification-2026-05-19.md`). Older DPS data from set.or.th appears truncated.
+Empirically ~6 years of history per symbol (verified via `_archive/2026-10/docs/dps-set-fix-verification-2026-05-19.md`). Older DPS data from set.or.th appears truncated.
+
+Since 2026-10-09 (commit cd17f12) `dividend_history` merges both sources: fiscal years fully inside the set.or.th window use set.or.th; the first year of the window (interim payment falls outside it, e.g. FY2020) and all older years use yahoo → ~20 years of history. Per-year origin is in `dividend_history_source`; overlap mismatches raise `DPS_SOURCE_MISMATCH` in `warnings`. Yahoo values are split-adjusted while set.or.th values are raw, so a split between the two ranges is not detectable (no overlapping year). Year-over-year metrics use complete fiscal years only (`dividend_last_complete_fy`).
 
 #### Code
 

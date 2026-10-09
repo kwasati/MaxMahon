@@ -1,11 +1,9 @@
 # 00-index.md — Niwes Research Master Index
 
-> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
-> 'safety net 3 ชั้น' / 'Hard filter rules' ของนิเวศน์ เป็นการตีความของผู้รวบรวมจาก Investerest (E10) · 'Dividend 35 → bump to 45' ไม่มีหลักรองรับ (E11)
-
 > **Purpose:** ดร.นิเวศน์ เหมวชิรวรากร deep research corpus for Karl + MaxMahon Thai stock analyst agent.
 > **Compiled:** 2026-04-20 (niwes-02 plan)
 > **Authority:** [00-research-rules.md](00-research-rules.md) — verbatim quote rule applies to every file.
+> **ไม้บรรทัดหลัก:** `../niwes-principles.md` — หลักที่ยืนยันแหล่งแล้ว · เลข PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ (เป็นเลขที่ Investerest เล่าเคส หรือเราตั้งเอง)
 
 ---
 
@@ -16,7 +14,6 @@
 | 00a | [00-sources.md](00-sources.md) | 57 sources, ≥82% HTTP-verified | ~600 |
 | 00b | [00-research-rules.md](00-research-rules.md) | Verbatim quote rule (5 rules) | ~400 |
 | 00c | [00-data-schema.md](00-data-schema.md) | (from niwes-01) — data schema | — |
-| 00d | [00-backtest-protocol.md](00-backtest-protocol.md) | (from niwes-01) — backtest protocol | — |
 | 01 | [01-biography.md](01-biography.md) | Life, education, 1997 layoff, milestones | ~1,200 |
 | 02 | [02-investment-journey.md](02-investment-journey.md) | Timeline 1997 → 2025 (15+ year-events) | ~1,400 |
 | 03 | [03-philosophy.md](03-philosophy.md) | 8 core principles + Graham/Buffett comparison | ~1,000 |
@@ -31,24 +28,6 @@
 | 12 | [12-recent-views-2025-2026.md](12-recent-views-2025-2026.md) | 10 verbatim quotes + 2024–2025 reasoning | ~1,100 |
 
 **Total niwes-02 output:** 14 files (00-sources, 00-research-rules + 01–12).
-
----
-
-## Integration Loop (niwes-06)
-
-Feedback loop ระหว่าง Niwes framework กับการใช้งานจริงของ Karl — ดูว่า watchlist ปัจจุบันตรงกับ framework แค่ไหน + adjust threshold ถ้าจำเป็น (ต้อง data-driven + หลัง Karl เรียน lessons).
-
-| File | Purpose |
-|---|---|
-| [13-threshold-adjustments.md](13-threshold-adjustments.md) | Decision log — 5 threshold recommendations PENDING Karl review |
-| `../../reports/integration_loop_scan_2026-04-20.md` | Baseline Niwes scan (curated 35 stocks, 11 pass) |
-| `../../reports/integration_loop_watchlist_diff_2026-04-20.md` | Watchlist comparison — 13/15 DROP + pattern analysis |
-| `../../reports/integration_loop_karl_todo_2026-04-20.md` | Karl learning TODO (L01-L05) + decision matrix |
-| `../../reports/_placeholder_integration_loop_after_adjust.md` | Placeholder for post-adjust scan (fill after Karl approves) |
-
-**Workflow:** Karl completes L01-L05 → reviews pattern analysis → approves threshold adjustments in `13-threshold-adjustments.md` → agent applies + reruns scan
-
-**Why integration loop:** framework ที่ไม่ถูกใช้จริง = เสียเปล่า. Pattern analysis ต้องมา feedback เข้า criteria ไม่ใช่ build แล้วทิ้ง
 
 ---
 
@@ -76,15 +55,15 @@ If you have **2 hours** and want depth, add:
 
 ## For MaxMahon Framework — File-to-Feature Mapping
 
-ใช้เป็น input โดยตรงสำหรับ niwes-04-framework-migration:
+แหล่งอ้างอิงของแต่ละฟีเจอร์ (ฟีเจอร์ที่ใช้จริงดู `../niwes-principles.md` ท่อน 2):
 
 | MaxMahon Feature | Source File(s) | What to extract |
 |---|---|---|
-| Hard filter rules (replace Buffett+เซียนฮง) | [04-criteria.md](04-criteria.md) | 5-5-5-5 + PE 7-8 + PBV<1 + yield ≥5% + sector mix |
-| Quality Score weights | [03-philosophy.md](03-philosophy.md) + [04-criteria.md](04-criteria.md) | Dividend 35 → bump to 45 (Niwes prioritizes dividend > growth) |
-| Signal tags (DIVIDEND_KING etc.) | [04-criteria.md](04-criteria.md) | Add NIWES_5555 tag (passes all 4 fives), HIDDEN_VALUE tag (sum-of-parts > mcap) |
+| ด่านคัด (Hard filter) | [04-criteria.md](04-criteria.md) | 5-5-5-5 (ต้นฉบับ) + ยีลด์ ≥5% / ข้อยกเว้นปันผลโต "ภายใน 5 ปี ≥5% ของราคาวันนี้" · PE 7-8 / PBV <1 = Investerest เล่าเคส TCAP ไม่ใช่กฎของนิเวศน์ |
+| ใบข้อเท็จจริงรายตัว (ไม่มีคะแนนรวม) | [03-philosophy.md](03-philosophy.md) + [04-criteria.md](04-criteria.md) | ปรัชญา 8 ข้อ + เกณฑ์ 13 ข้อ — ให้น้ำหนักปันผลมากกว่าการเติบโต แต่ไม่มีตัวเลขน้ำหนักจากนิเวศน์ |
+| ธง (flags) | [04-criteria.md](04-criteria.md) | ธง 5-5-5-5 (ผ่านทั้ง 4 ตัว) · ธง HIDDEN_VALUE (sum-of-parts > mcap) |
 | Portfolio construction (allocation) | [05-portfolio-construction.md](05-portfolio-construction.md) | 30/30/30/Cash + 5-stock concentration in 5 sectors |
-| Sell trigger / exit logic | [09-case-or-exit.md](09-case-or-exit.md) + [02-investment-journey.md](02-investment-journey.md) | Thesis change (not price-based stop) + structural shift |
+| กฎขาย | [09-case-or-exit.md](09-case-or-exit.md) + [02-investment-journey.md](02-investment-journey.md) | Thesis change (not price-based stop) + structural shift · กฎที่ใช้จริง = F3 ใน `../../roadmap/agreed-portfolio-framework.md` |
 | Foreign-stock workflow | [10-case-vietnam-fpt.md](10-case-vietnam-fpt.md) | VN core 8-stock + FPT type, Holding-co structure |
 | Monitoring loop trigger | [12-recent-views-2025-2026.md](12-recent-views-2025-2026.md) | Track macro statements vs portfolio drift |
 

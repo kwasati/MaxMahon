@@ -1,8 +1,5 @@
 # 03-philosophy.md — แก่นความคิดของ ดร.นิเวศน์
 
-> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
-> 'safety net 3 ชั้น' เป็นการตีความของผู้รวบรวมจาก Investerest (E10) · คำ 'รายได้เพิ่มขึ้นทุกปี' / '3 ปีขึ้นไป' ยืนยันซ้ำจากเว็บไม่ได้ (E13)
-
 > **Rules in force:** [00-research-rules.md](00-research-rules.md). All quotes verbatim with source.
 
 ≥6 ปรัชญาหลัก แต่ละข้อมีอย่างน้อย 1 verbatim quote + เปรียบเทียบกับ Graham / Buffett.
@@ -15,7 +12,7 @@
 >
 > — ดร.นิเวศน์ พูดถึงปรัชญาของบริษัท ตีแตก จำกัด, อ้างใน Finnomena 13 มี.ค. 2567 — https://www.finnomena.com/editor/niwes-holding/
 
-ดร.นิเวศน์ มองหุ้นเหมือนการเข้าหุ้นเป็นเจ้าของกิจการ ไม่ใช่กระดาษเก็งกำไร ก่อนซื้อต้องเลือกธุรกิจที่อยู่กับเราตลอดชีวิต หรืออย่างน้อย 3 ปีขึ้นไป โดยดูจาก รายได้เพิ่มขึ้นทุกปี กำไรเพิ่มขึ้นทุกปี ปันผลเพิ่มขึ้นทุกปี (สรุปจาก https://www.prachachat.net/finance/news-1520523).
+ดร.นิเวศน์ มองหุ้นเหมือนการเข้าหุ้นเป็นเจ้าของกิจการ ไม่ใช่กระดาษเก็งกำไร ก่อนซื้อต้องเลือกธุรกิจที่อยู่กับเราตลอดชีวิต หรืออย่างน้อย 3 ปีขึ้นไป โดยดูจาก รายได้เพิ่มขึ้นทุกปี กำไรเพิ่มขึ้นทุกปี ปันผลเพิ่มขึ้นทุกปี (สรุปจาก https://www.prachachat.net/finance/news-1520523 — หน้านี้ 403 ยืนยันซ้ำไม่ได้ ที่มาจริงอาจเป็นหัวข่าว/snippet).
 
 **Graham vs Buffett vs Niwes:**
 - Graham — "treat stocks as fractional ownership" (อ้างอิง: Intelligent Investor)
@@ -78,12 +75,12 @@
 >
 > — ดร.นิเวศน์, แหล่งเดียวกัน — เกี่ยวกับหุ้น PE ต่ำเป็นกันชนเวลาตลาดตก
 
-ดร.นิเวศน์ ใช้ PE 7-8 + PBV<1 + dividend ~5% เป็น **โครงข่าย safety net 3 ชั้น** ก่อนเข้าหุ้น (ดู [04-criteria.md](04-criteria.md))
+Investerest สรุปเคส TCAP ว่าเข้าซื้อตอน PE 7-8 + PBV<1 + dividend ~5% (ดู [04-criteria.md](04-criteria.md) ข้อ 2–4) — เป็นการตีความของผู้รวบรวม ไม่ใช่กฎของนิเวศน์ · เลข PE / PBV ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ
 
 **Graham vs Buffett vs Niwes:**
 - Graham — Margin of Safety = ราคาต่ำกว่า intrinsic value
 - Buffett — ขยับเป็น "wonderful business at a fair price" (เลิกเน้น cigar butt)
-- **Niwes** — ผสม Graham (cheap PE/PBV) + Buffett (quality + ROE) แต่ **เพิ่มปันผลเป็นชั้นที่ 3** ของ safety
+- **Niwes** — ผสม Graham (ราคาถูกเทียบคุณภาพ) + Buffett (quality) แต่ **ใช้ปันผลเป็นตัวตั้ง** (5-5-5-5) — การเทียบนี้เป็นของผู้รวบรวม ไม่ใช่คำนิเวศน์
 
 ---
 
