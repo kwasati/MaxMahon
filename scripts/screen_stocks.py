@@ -251,6 +251,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Max Mahon gate screener")
     ap.add_argument("--symbols", help="comma-separated symbols to scan instead of the whole universe")
     ap.add_argument("--out-dir", help="write the screener json here instead of data/ (also skips the flake queue)")
+    ap.add_argument("--fresh", action="store_true", help="ignore today's fetch cache and re-fetch every stock (cache is rewritten)")
     ap.add_argument("--no-refresh", action="store_true", help="skip the price refresh and use the SETSMART cache as is")
     args = ap.parse_args(argv)
     out_dir = Path(args.out_dir) if args.out_dir else None
@@ -280,7 +281,7 @@ def main(argv=None):
     fetch_start = _time_module.time()
     print(f"\n=== Phase A: parallel fetch ({len(fetch_targets)} stocks, 5 workers) ===")
     with ThreadPoolExecutor(max_workers=5) as ex:
-        futures = {ex.submit(fetch_multi_year_safe, sym): sym for sym in fetch_targets}
+        futures = {ex.submit(fetch_multi_year_safe, sym, True, args.fresh): sym for sym in fetch_targets}
         for n, future in enumerate(as_completed(futures), 1):
             sym = futures[future]
             try:

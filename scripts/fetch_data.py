@@ -720,13 +720,13 @@ def fetch_multi_year(symbol: str) -> dict:
     return {"symbol": symbol, "delisted": True, "error": "thaifin fetch returned no data"}
 
 
-def fetch_multi_year_safe(symbol: str, use_cache: bool = True) -> dict:
+def fetch_multi_year_safe(symbol: str, use_cache: bool = True, force: bool = False) -> dict:
     """Wrap fetch_multi_year with try/except + day-scoped cache.
 
     Returns cached data if same-day cache hit (instant). Otherwise fetches
     + caches successful results. Failures (delisted, no price) NOT cached.
     """
-    if use_cache:
+    if use_cache and not force:  # force = skip reading the day cache but still write the fresh result
         cached = _load_from_cache(symbol)
         # a day-cache written before special_dividends were entered (or changed) is not reusable
         if cached is not None and {int(k): v for k, v in (cached.get("special_dividends_applied") or {}).items()}                 == special_dividends_for(symbol):
