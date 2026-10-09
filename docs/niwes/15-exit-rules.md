@@ -1,5 +1,7 @@
 # 15-exit-rules.md — กฎการขาย (Niwes Exit Rules)
 
+> ⛔ 2026-10-09: กฎขายที่ใช้จริง = F3 ใน `roadmap\agreed-portfolio-framework.md` + `scripts\holdings_watch.py` · ป้าย Verbatim ในไฟล์นี้บางจุดเป็นคำของผู้รวบรวม และเลข PE 3 เท่า / ราคาตก 30% ไม่มีที่มา (ดู E6 E7 E16 ใน `docs\niwes-principles.md`)
+
 > **Rules in force:** [00-research-rules.md](00-research-rules.md). All quotes verbatim with source.
 >
 > **Source material:** [03-philosophy.md](03-philosophy.md), [09-case-or-exit.md](09-case-or-exit.md), [04-criteria.md](04-criteria.md), [11-current-portfolio.md](11-current-portfolio.md), [12-recent-views-2025-2026.md](12-recent-views-2025-2026.md)
@@ -16,7 +18,7 @@
 
 **เหตุผล:** VI ไม่ใช่ "ถือยาวเสมอ" — ถ้าเหตุผลที่ซื้อ (thesis) เปลี่ยน ขายได้แม้ขาดทุน
 
-**Verbatim quote:**
+**สรุปของผู้รวบรวม (ไม่ใช่คำพูดจริง):**
 
 > "Thesis change = ขายได้แม้ขาดทุน — VI ไม่ใช่ 'ถือยาวเสมอ' ถ้า fundamental เปลี่ยน"
 >

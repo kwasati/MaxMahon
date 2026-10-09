@@ -1,3 +1,6 @@
+> ⛔ 2026-10-09: การตัดข้อยกเว้นปันผลโตทิ้ง 'เพราะ Niwes design รอบ 5%' ขัดกับแหล่งจริงที่มีข้อยกเว้น (ปัญหาจริงคือด่านไม่ project ถึง 5%) — ดู E14 ใน `docs\niwes-principles.md`
+> PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+
 ---
 title: Niwes Manual Deep-Dive — Master Summary
 session_start: 2026-05-19

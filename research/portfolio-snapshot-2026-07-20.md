@@ -81,3 +81,6 @@
 - โครง allocation + entry framework + sector breakdown เดิมยังใช้ → `portfolio-snapshot-2026-05-22.md`
 - ตัวเลข projection = ประมาณการ conservative ห้ามถือเป็นสัญญา — ราคา/DPS จริงเช็คล่าสุดก่อนตัดสินใจ
 - ระบบเติมเงิน = ดึงกลับเป้า (rebalance) ไม่ใช่หารตายตัว → [[pillar-1-portfolio-lh-watch]]
+
+
+> ⛔ 2026-10-09: ยอดเติม 150,000/เดือนในไฟล์นี้ไม่ใช่ข้อตกลง (Art 2026-10-09: ยอดเติมไม่ตายตัว) · projection AMATA 8.6–11.4% ไม่มีฉากแย่ ดู `research\amata-deep-dive-2026-10-09.md`

@@ -1,5 +1,8 @@
 # 14-monitoring-setup.md — Niwes Portfolio Monitor Setup
 
+> ⛔ 2026-10-09: กฎขายที่ใช้จริง = F3 ใน `roadmap\agreed-portfolio-framework.md` + `scripts\holdings_watch.py` · ป้าย Verbatim ในไฟล์นี้บางจุดเป็นคำของผู้รวบรวม และเลข PE 3 เท่า / ราคาตก 30% ไม่มีที่มา (ดู E6 E7 E16 ใน `docs\niwes-principles.md`)
+> path `projects/MaxMahon/` ในไฟล์นี้เป็นชื่อเก่า (ปัจจุบัน `4-MaxMahon`) · dashboard `/api/exit_check` ถูกเก็บเข้า `_archive\2026-10` แล้ว (E16)
+
 > Plan: `niwes-07-monitoring-update` — automated news monitor for ดร.นิเวศน์ portfolio + thesis changes, Telegram alert via Karl Notify bot.
 
 ## What it does

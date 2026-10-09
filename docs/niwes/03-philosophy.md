@@ -1,5 +1,8 @@
 # 03-philosophy.md — แก่นความคิดของ ดร.นิเวศน์
 
+> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+> 'safety net 3 ชั้น' เป็นการตีความของผู้รวบรวมจาก Investerest (E10) · คำ 'รายได้เพิ่มขึ้นทุกปี' / '3 ปีขึ้นไป' ยืนยันซ้ำจากเว็บไม่ได้ (E13)
+
 > **Rules in force:** [00-research-rules.md](00-research-rules.md). All quotes verbatim with source.
 
 ≥6 ปรัชญาหลัก แต่ละข้อมีอย่างน้อย 1 verbatim quote + เปรียบเทียบกับ Graham / Buffett.

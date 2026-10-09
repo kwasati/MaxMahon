@@ -1,5 +1,8 @@
 # Threshold Adjustments — Decision Log
 
+> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+> บรรทัดที่อ้างว่ามี quote verbatim ใน `03-philosophy.md` เรื่อง 'ซื้อทรัพย์สินต่ำกว่ามูลค่า' ไม่มีจริง (E8) · 'PE = Niwes standard จาก 5-5-5-5 direct quote' ผิด สูตรไม่มี PE (E9)
+
 > **Status:** PENDING Karl review after L01-L05
 > **Context:** `reports/integration_loop_watchlist_diff_2026-04-20.md` + `reports/integration_loop_karl_todo_2026-04-20.md`
 > **Plan:** niwes-06-integration-karl-loop

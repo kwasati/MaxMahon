@@ -1,5 +1,8 @@
 # 09-case-or-exit.md — OR Exit (Thesis Change)
 
+> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+> ประโยค Lessons ที่ผู้รวบรวมเขียนเองในไฟล์นี้ (บรรทัด 70-71) ไม่ใช่คำพูดจริงของนิเวศน์ (E6)
+
 > **Rules in force:** [00-research-rules.md](00-research-rules.md). `[VERIFY]` allowed in this file.
 
 ---

@@ -1,5 +1,8 @@
 # Niwes Backtest Protocol
 
+> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+> filters ในโปรโตคอลนี้ (`min_dividend_streak 5, max_pe 15, max_pbv 1.5, max_loss_years 0`) เป็นเลขเราตั้ง แต่ไฟล์เรียกว่า 'frozen Niwes thresholds' (E17)
+
 > Validation framework for the 5-5-5-5 portfolio strategy.
 > Code: `scripts/backtest_niwes.py`. Output: `data/backtest_niwes_<range>.json`.
 

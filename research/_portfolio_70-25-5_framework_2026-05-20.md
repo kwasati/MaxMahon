@@ -1,3 +1,5 @@
+> ⛔ 2026-10-09: ร่างเก่า รายชื่อหุ้นไม่ตรงพอร์ตจริง · ข้อตกลงปัจจุบัน = `roadmap\agreed-portfolio-framework.md`
+
 ---
 date: 2026-05-20
 target: Pillar 1 — พอร์ตปันผล 100M (DCA 10-20 ปี Thai market)

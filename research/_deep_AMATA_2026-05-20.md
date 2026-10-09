@@ -1,3 +1,5 @@
+> ⛔ 2026-10-09: แทนที่ด้วย `research\amata-deep-dive-2026-10-09.md` — จุดที่ไฟล์นี้ผิด/เก่า ดูท่อน 10 ของไฟล์นั้น
+
 ---
 date: 2026-05-20
 symbol: AMATA.BK — Amata Corporation

@@ -1,5 +1,8 @@
 # 00-index.md — Niwes Research Master Index
 
+> ⛔ 2026-10-09: PE / PBV / ปันผลต่อเนื่อง 5 ปี / EPS บวก 5 ปี ไม่อยู่ในสูตร 5-5-5-5 ต้นฉบับ เป็นเลขที่เราตั้งเอง และถูกถอดออกจากด่านแล้ว (commit ad9c9f7) — ดู `docs\niwes-principles.md` ท่อน 2.1
+> 'safety net 3 ชั้น' / 'Hard filter rules' ของนิเวศน์ เป็นการตีความของผู้รวบรวมจาก Investerest (E10) · 'Dividend 35 → bump to 45' ไม่มีหลักรองรับ (E11)
+
 > **Purpose:** ดร.นิเวศน์ เหมวชิรวรากร deep research corpus for Karl + MaxMahon Thai stock analyst agent.
 > **Compiled:** 2026-04-20 (niwes-02 plan)
 > **Authority:** [00-research-rules.md](00-research-rules.md) — verbatim quote rule applies to every file.

@@ -1,5 +1,7 @@
 # 16-exit-decision-template.md — Karl's Exit Decision Template
 
+> ⛔ 2026-10-09: กฎขายที่ใช้จริง = F3 ใน `roadmap\agreed-portfolio-framework.md` + `scripts\holdings_watch.py` · ป้าย Verbatim ในไฟล์นี้บางจุดเป็นคำของผู้รวบรวม และเลข PE 3 เท่า / ราคาตก 30% ไม่มีที่มา (ดู E6 E7 E16 ใน `docs\niwes-principles.md`)
+
 > **Rules in force:** [00-research-rules.md](00-research-rules.md)
 >
 > **Reference:** [15-exit-rules.md](15-exit-rules.md) (5 sell rules + 3 don't-sell rules)
