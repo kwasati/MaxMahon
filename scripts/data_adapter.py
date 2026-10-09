@@ -591,10 +591,18 @@ def ensure_yearend_closes(symbol: str) -> dict:
     return cached
 
 
-def ensure_interest_bearing_debt(symbol: str) -> dict:
-    """{year: {'total_debt', 'equity'}} interest-bearing debt (yahoo TotalDebt) per FY, ~4y. {} if none.
+def _yq_num(row, col):
+    v = row.get(col)
+    return None if v is None or pd.isna(v) else float(v)
 
-    Cached 7 days like the yahoo dividend cache; a failed fetch returns the stale cache or {}.
+
+def ensure_interest_bearing_debt(symbol: str) -> dict:
+    """{year: {'total_debt', 'equity', 'lease', 'liabilities'}} per FY from yahoo, ~4y. {} if none.
+
+    total_debt = interest-bearing debt (TotalDebt) - lease = lease obligations (CapitalLeaseObligations, None if
+    yahoo has none) - liabilities = total liabilities (TotalLiabilitiesNetMinorityInterest, used to cross-check the
+    thaifin figure). Cached 7 days like the yahoo dividend cache; a cache written before `lease` / `liabilities`
+    existed counts as stale. A failed fetch returns the stale cache or {}.
     """
     p = _yq_cache_path(symbol, "debt")
     stale = {}
@@ -603,7 +611,7 @@ def ensure_interest_bearing_debt(symbol: str) -> dict:
             payload = json.loads(p.read_text(encoding="utf-8"))
             stale = {int(k): v for k, v in (payload.get("years") or {}).items()}
             age = datetime.now() - datetime.fromisoformat(payload["fetched_at"])
-            if age.total_seconds() < YAHOO_DIV_CACHE_TTL_DAYS * 86400:
+            if age.total_seconds() < YAHOO_DIV_CACHE_TTL_DAYS * 86400 and all("liabilities" in v for v in stale.values()):
                 return stale
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             stale = {}
@@ -617,10 +625,11 @@ def ensure_interest_bearing_debt(symbol: str) -> dict:
             debt = row.get("TotalDebt")
             if debt is None or pd.isna(debt):
                 continue
-            eq = row.get("StockholdersEquity")
             years[int(str(row["asOfDate"])[:4])] = {
                 "total_debt": float(debt),
-                "equity": None if eq is None or pd.isna(eq) else float(eq),
+                "equity": _yq_num(row, "StockholdersEquity"),
+                "lease": _yq_num(row, "CapitalLeaseObligations"),
+                "liabilities": _yq_num(row, "TotalLiabilitiesNetMinorityInterest"),
             }
         if years:
             _atomic_write_json(p, {"fetched_at": datetime.now().isoformat(),
@@ -628,6 +637,41 @@ def ensure_interest_bearing_debt(symbol: str) -> dict:
             return years
     except Exception as e:
         logger.warning("interest-bearing debt fetch failed for %s: %s", symbol, e)
+    return stale
+
+
+def ensure_dividends_paid(symbol: str) -> dict:
+    """{year: dividends actually paid (positive, baht)} from the yahoo cash-flow statement (CashDividendsPaid), ~4y.
+
+    Cached 7 days like the interest-bearing debt; a failed fetch returns the stale cache or {}.
+    """
+    p = _yq_cache_path(symbol, "divpaid")
+    stale = {}
+    if p.exists():
+        try:
+            payload = json.loads(p.read_text(encoding="utf-8"))
+            stale = {int(k): v for k, v in (payload.get("years") or {}).items()}
+            age = datetime.now() - datetime.fromisoformat(payload["fetched_at"])
+            if age.total_seconds() < YAHOO_DIV_CACHE_TTL_DAYS * 86400:
+                return stale
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            stale = {}
+    try:
+        from yahooquery import Ticker
+        cf = Ticker(_to_yf_symbol(symbol)).cash_flow(frequency="a")
+        if cf is None or not hasattr(cf, "empty") or cf.empty or "CashDividendsPaid" not in cf.columns:
+            return stale
+        years = {}
+        for _, row in cf.reset_index().sort_values("asOfDate").iterrows():
+            paid = _yq_num(row, "CashDividendsPaid")
+            if paid is not None:
+                years[int(str(row["asOfDate"])[:4])] = abs(paid)
+        if years:
+            _atomic_write_json(p, {"fetched_at": datetime.now().isoformat(),
+                                   "years": {str(k): v for k, v in sorted(years.items())}})
+            return years
+    except Exception as e:
+        logger.warning("dividends paid fetch failed for %s: %s", symbol, e)
     return stale
 
 

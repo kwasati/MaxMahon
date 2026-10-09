@@ -34,7 +34,7 @@ DEFAULT_CFG = {
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
-    "max_yahoo_only_share": 0.5, "debt_suspect_ratio": 5,
+    "max_yahoo_only_share": 0.5, "debt_suspect_ratio": 5, "debt_yahoo_gap": 0.10,
 }
 
 
@@ -225,7 +225,7 @@ def cash_vs_dividend(rows: list, dps: dict, shares) -> list:
         free = r["ocf"] - r["invest"] if r["ocf"] is not None and r["invest"] is not None else None
         paid, src = None, None
         if r["dividends_paid"] is not None:
-            paid, src = abs(r["dividends_paid"]), "งบ"
+            paid, src = abs(r["dividends_paid"]), r.get("dividends_paid_src") or "งบ"
         elif dps.get(r["year"]) is not None and shares:
             paid, src = dps[r["year"]] * shares, "ประมาณ (DPS x หุ้นวันนี้)"
         times = free / paid if free is not None and paid else None
@@ -270,16 +270,23 @@ def suspect_liability_years(liab: dict, ratio: float) -> set:
     return sus
 
 
-def debt_rows(rows: list, interest_bearing: dict, suspect_ratio: float = 5) -> list:
+def debt_rows(rows: list, interest_bearing: dict, suspect_ratio: float = 5, yahoo_gap: float = 0.10) -> list:
     """A6: total liabilities / equity from the cache (it is NOT interest-bearing debt) + yahoo interest-bearing if any.
-    A year whose total liabilities jump > suspect_ratio x against an adjacent year is marked suspect (data likely wrong)."""
+    A year whose total liabilities jump > suspect_ratio x against an adjacent year is marked suspect (data likely wrong).
+    A non-suspect year where yahoo's total liabilities differ from the cache by more than yahoo_gap uses the yahoo
+    figure (liab_source = "yahoo", the cache value stays in liab_cache); yahoo is also where `lease` comes from."""
     sus = suspect_liability_years({r["year"]: r["liabilities"] for r in rows if r["liabilities"] is not None}, suspect_ratio)
     out = []
     for r in rows:
         ib = (interest_bearing or {}).get(r["year"]) or {}
         eq = r["equity"]
-        out.append({"year": r["year"], "liabilities": r["liabilities"], "equity": eq, "suspect": r["year"] in sus,
-                    "liab_to_equity": r["liabilities"] / eq if r["liabilities"] is not None and eq and eq > 0 else None,
+        liab, src = r["liabilities"], "cache"
+        yl = ib.get("liabilities")
+        if r["year"] not in sus and liab is not None and yl and yl > 0 and abs(liab - yl) / yl > yahoo_gap:
+            liab, src = yl, "yahoo"
+        out.append({"year": r["year"], "liabilities": liab, "liab_cache": r["liabilities"], "liab_source": src,
+                    "lease": ib.get("lease"), "equity": eq, "suspect": r["year"] in sus,
+                    "liab_to_equity": liab / eq if liab is not None and eq and eq > 0 else None,
                     "ib_debt": ib.get("total_debt"),
                     "ib_to_equity": ib["total_debt"] / ib["equity"] if ib.get("total_debt") is not None and ib.get("equity") else None})
     return out
@@ -452,7 +459,7 @@ def deep_dive_rates(override) -> dict | None:
 
 
 def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_bearing=None,
-                       gate=None, manual=None, today=None, growth_override=None) -> dict:
+                       gate=None, manual=None, today=None, growth_override=None, dividends_paid=None) -> dict:
     """All numbers of the sheet from already-fetched inputs. No network, no files.
 
     growth_override: holdings.growth_scenarios entry for this stock (deep dive rates entered by a person). When
@@ -465,6 +472,9 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     last_fy = max(complete) if complete else None
     base = complete.get(last_fy) if last_fy is not None else None
     rows = yearly_rows(data)
+    for r in rows:  # statement figure (yahoo cash flow) beats DPS x today's shares, which counts treasury shares
+        if r["dividends_paid"] is None and (dividends_paid or {}).get(r["year"]) is not None:
+            r["dividends_paid"], r["dividends_paid_src"] = dividends_paid[r["year"]], "งบกระแสเงินสด (yahoo)"
     shares = shares_outstanding(data)
     cuts = dividend_cuts(complete, cfg["cut_material_pct"])
     cagrs = cagr_windows(data, cfg["cagr_windows"])
@@ -476,7 +486,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     targets = [cfg["yoc_target_low"], cfg["yoc_target_high"]]
     cash = None if bank else cash_vs_dividend(rows, complete, shares)
     payouts = payout_rows(rows, complete)
-    debt = debt_rows(rows, interest_bearing, cfg["debt_suspect_ratio"])
+    debt = debt_rows(rows, interest_bearing, cfg["debt_suspect_ratio"], cfg.get("debt_yahoo_gap", 0.10))
     hist = price_history(rows, complete, closes or {})
     today_yield = base / price * 100 if base and price else None
     t2_costs = [c for c in levels if c["label"] == "ต้นทุนที่ส่งมา"] or [c for c in levels if c["label"] == "ราคาวันนี้"]
@@ -572,6 +582,7 @@ def build_fact_sheet(symbol: str, costs=None) -> dict:
         data, costs=costs, cfg=load_cfg(), growth_override=load_growth_override(sym),
         closes=data_adapter.ensure_yearend_closes(sym),
         interest_bearing=data_adapter.ensure_interest_bearing_debt(sym),
+        dividends_paid=data_adapter.ensure_dividends_paid(sym),
         gate=gate, manual=load_manual_facts(sym))
 
 
@@ -767,6 +778,10 @@ def _a7(fs):
              f"({fn(fs['shares'], 0, 1e6)} ล้านหุ้น = มูลค่าตลาด ÷ ราคา) — จำนวนหุ้นย้อนหลังอาจต่าง", ""]
     body = [[x["year"], fn(x["free"], 0, 1e6), fn(x["paid"], 0, 1e6), x["paid_source"] or NA,
              fn(x["times"], 1, suffix=" เท่า")] for x in fs["cash"]]
+    real = [x["year"] for x in fs["cash"] if x["paid_source"] and not x["paid_source"].startswith("ประมาณ")]
+    est = [x["year"] for x in fs["cash"] if x["paid_source"] and x["paid_source"].startswith("ประมาณ")]
+    lines.insert(-1, "ใช้แบบไหน: ปีที่ใช้เงินปันผลจ่ายจริงจากงบกระแสเงินสด = %s · ปีที่ประมาณ (หุ้นวันนี้รวมหุ้นซื้อคืน อาจสูงเกินจริง) = %s"
+                 % (", ".join(map(str, real)) or "ไม่มี", ", ".join(map(str, est)) or "ไม่มี"))
     return lines + (_table(["ปี", "เงินสดหลังลงทุน", "ปันผลจ่าย", "ที่มาของปันผลจ่าย", "เป็นกี่เท่า"], body) if body else [NA]) + [""]
 
 
@@ -787,7 +802,21 @@ def _a6(fs):
     body = [[x["year"], S if x.get("suspect") else fn(x["liabilities"], 0, 1e6), fn(x["equity"], 0, 1e6),
              S if x.get("suspect") else fn(x["liab_to_equity"], 2),
              fn(x["ib_debt"], 0, 1e6), fn(x["ib_to_equity"], 2)] for x in fs["debt"]]
-    return lines + (_table(["ปี", "หนี้สินรวม", "ส่วนผู้ถือหุ้น", "หนี้สินรวม/ทุน", "หนี้มีดอกเบี้ย", "หนี้มีดอกเบี้ย/ทุน"], body) if body else [NA]) + [""]
+    tail = []
+    for x in fs["debt"]:
+        if x.get("liab_source") == "yahoo":
+            tail.append(f"⚠️ ปี {x['year']}: ใช้หนี้สินรวมจาก yahoo {fn(x['liabilities'], 0, 1e6)} ล้าน แทนค่าใน cache {fn(x['liab_cache'], 0, 1e6)} ล้าน "
+                        f"(ต่างเกิน {fs['cfg'].get('debt_yahoo_gap', 0.10):.0%}) — ตารางและธง T6 ใช้ค่า yahoo")
+    with_lease = [x for x in fs["debt"] if x.get("ib_debt") and x.get("lease") is not None]
+    if with_lease:
+        x = with_lease[-1]
+        share = x["lease"] / x["ib_debt"]
+        tail.append(f"แยกหนี้เช่า ปี {x['year']}: หนี้สินตามสัญญาเช่า {fn(x['lease'], 0, 1e6)} ล้าน = {share:.0%} ของหนี้มีดอกเบี้ย {fn(x['ib_debt'], 0, 1e6)} ล้าน "
+                    f"· หนี้มีดอกเบี้ยที่ไม่ใช่เช่า {fn(max(x['ib_debt'] - x['lease'], 0), 0, 1e6)} ล้าน"
+                    + (" — หนี้มีดอกเบี้ยส่วนใหญ่คือหนี้เช่า ธง T6 ติดไม่ได้แปลว่ากู้เพิ่ม" if share >= 0.5 else ""))
+    else:
+        tail.append("หมายเหตุ: หนี้สินรวมนับรวมหนี้สินตามสัญญาเช่าและเจ้าหนี้การค้า — ธง T6 ติดไม่ได้แปลว่ากู้เพิ่ม")
+    return lines + (_table(["ปี", "หนี้สินรวม", "ส่วนผู้ถือหุ้น", "หนี้สินรวม/ทุน", "หนี้มีดอกเบี้ย", "หนี้มีดอกเบี้ย/ทุน"], body) if body else [NA]) + [""] + tail + [""]
 
 
 def _a12(fs):

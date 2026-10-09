@@ -308,5 +308,47 @@ class YieldVsNiwesLineTest(unittest.TestCase):
         self.assertIn(fs.NA, fs.yield_vs_niwes_line(None, 5))
 
 
+class WrapUpFixesTest(unittest.TestCase):
+    def test_a7_prefers_cash_flow_dividends_over_estimate(self):
+        # assert: dividends_paid from the cash flow replaces DPS x shares for its year (1,000 not 1.0 x 100 shares), labelled
+        # งบกระแสเงินสด; a year without it stays ประมาณ; A7 text says which years used which way
+        d = make_data()
+        out = fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09", dividends_paid={2024: 1000.0})
+        c = {x["year"]: x for x in out["cash"]}
+        self.assertEqual(c[2024]["paid"], 1000.0)
+        self.assertIn("งบกระแสเงินสด", c[2024]["paid_source"])
+        self.assertIn("ประมาณ", c[2023]["paid_source"])
+        md = fs.render_markdown(out)
+        self.assertIn("ปีที่ใช้เงินปันผลจ่ายจริงจากงบกระแสเงินสด = 2024", md)
+
+    def test_a6_uses_yahoo_liabilities_when_cache_is_off_by_more_than_gap(self):
+        # assert: cache liabilities 1000 vs yahoo 800 (25% apart) -> row uses 800, source yahoo, ratio 0.8, cache value kept
+        # and the sheet prints the replacement; 1000 vs 950 (5%) keeps the cache value
+        d = make_data(n_years=3)
+        ib = {2024: {"total_debt": 300e6, "equity": 1000e6, "lease": None, "liabilities": 800e6},
+              2023: {"total_debt": 300e6, "equity": 1000e6, "lease": None, "liabilities": 950e6}}
+        out = fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09", interest_bearing=ib)
+        r = {x["year"]: x for x in out["debt"]}
+        self.assertEqual(r[2024]["liabilities"], 800e6)
+        self.assertEqual(r[2024]["liab_source"], "yahoo")
+        self.assertEqual(r[2024]["liab_cache"], 1000e6)
+        self.assertAlmostEqual(r[2024]["liab_to_equity"], 0.8)
+        self.assertEqual(r[2023]["liab_source"], "cache")
+        self.assertIn("ใช้หนี้สินรวมจาก yahoo", fs.render_markdown(out))
+
+    def test_a6_lease_line_when_known_and_note_when_not(self):
+        # assert: lease 400 of interest-bearing 500 -> separate line with 80% and the "ส่วนใหญ่คือหนี้เช่า" remark;
+        # no lease data -> the fixed note about lease + trade payables under the debt table
+        d = make_data(n_years=2)
+        with_lease = {2024: {"total_debt": 500e6, "equity": 1000e6, "lease": 400e6, "liabilities": 1000e6}}
+        md = fs.render_markdown(fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09", interest_bearing=with_lease))
+        self.assertIn("แยกหนี้เช่า ปี 2024", md)
+        self.assertIn("= 80% ของหนี้มีดอกเบี้ย", md)
+        self.assertIn("ส่วนใหญ่คือหนี้เช่า", md)
+        self.assertNotIn("หนี้สินรวมนับรวมหนี้สินตามสัญญาเช่า", md)
+        md2 = fs.render_markdown(fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09"))
+        self.assertIn("หนี้สินรวมนับรวมหนี้สินตามสัญญาเช่าและเจ้าหนี้การค้า — ธง T6 ติดไม่ได้แปลว่ากู้เพิ่ม", md2)
+
+
 if __name__ == "__main__":
     unittest.main()
