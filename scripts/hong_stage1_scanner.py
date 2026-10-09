@@ -493,25 +493,20 @@ def yield_score(y_pct: float | None) -> float:
 
 def peg_score(peg: float | None) -> float:
     """
-    Lower PEG = better growth-per-PE.
-    Spec: ratio 1 → 50, 1.5+ → 100, <1 → linear from 0.
-
-    Interpretation (per task):
-      peg = 0    → 0
-      peg = 1.0  → 50
-      peg = 1.5+ → 100
-    Above 1.5: capped at 100.
+    PEG = PE / growth (lower = better). Spec (hong-lens research): growth/PE >= 1.5 (= PEG <= 0.67) is the sweet spot.
+    Score is taken from ratio = 1 / PEG (growth per PE, higher = better):
+      ratio 1 (PEG 1.0) -> 50 · ratio 1.5+ (PEG <= 0.67) -> 100 · ratio < 1 -> linear from 0 (ratio * 50)
+      None / PEG <= 0 -> 0
     """
-    if peg is None:
+    if peg is None or peg <= 0:
         return 0.0
-    if peg <= 0:
-        return 0.0
-    if peg >= 1.5:
+    ratio = 1.0 / peg
+    if ratio >= 1.5:
         return 100.0
-    if peg <= 1.0:
-        return peg * 50.0  # 0 → 0, 1 → 50
-    # 1.0 → 50, 1.5 → 100
-    return 50.0 + ((peg - 1.0) / 0.5) * 50.0
+    if ratio <= 1.0:
+        return ratio * 50.0  # 0 -> 0, 1 -> 50
+    # 1.0 -> 50, 1.5 -> 100
+    return 50.0 + ((ratio - 1.0) / 0.5) * 50.0
 
 
 def composite_score(cagr_s: float, yield_s: float, peg_s: float) -> float:
