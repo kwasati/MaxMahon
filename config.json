@@ -18,6 +18,28 @@
     "growing_min_streak": 3,
     "growing_growth_cap": 0.15
   },
+  "fact_sheet": {
+    "yoc_target_low": 7,
+    "yoc_target_high": 12,
+    "growth_cap": 0.15,
+    "cost_discounts": [0.8, 0.6],
+    "cagr_windows": [5, 10, 15, 20],
+    "yoc_years": [5, 10, 15],
+    "cut_material_pct": 10,
+    "crisis_years": [2008, 2009, 2011, 2020],
+    "price_cheap_top_pct": 25,
+    "price_expensive_bottom_pct": 25,
+    "price_min_years": 5,
+    "pe_niwes_max": 10,
+    "yield_niwes_min": 5,
+    "t1_cut_years": 2,
+    "t4_years": 2,
+    "t6_years": 3,
+    "t2_year": 10,
+    "payout_over": 1.0,
+    "loss_window_years": 10,
+    "price_stale_days": 5
+  },
   "universe": "set_only",
   "last_saved_at": "2026-04-25T18:47:46"
 }

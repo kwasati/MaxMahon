@@ -539,6 +539,98 @@ def ensure_crisis_bars(symbol: str) -> list:
         return []
 
 
+def _yq_cache_path(symbol: str, suffix: str) -> Path:
+    sym = symbol.upper()
+    if not sym.endswith(".BK"):
+        sym += ".BK"
+    return PRICE_HISTORY_DIR / f"{sym}_{suffix}.json"
+
+
+def load_yearend_closes(symbol: str) -> dict:
+    """Cached {year: last close of December} (yahoo, split-adjusted). No network. {} if absent."""
+    p = _yq_cache_path(symbol, "yearend")
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8")).get("closes") or {}
+        return {int(k): float(v) for k, v in raw.items() if v is not None}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return {}
+
+
+def ensure_yearend_closes(symbol: str) -> dict:
+    """{year: December close} for every complete calendar year; fetched once from yahoo.
+
+    Past closes never change, so the cache only refreshes when it lacks last year's close.
+    A failed fetch writes nothing and returns whatever the cache already had.
+    """
+    cached = load_yearend_closes(symbol)
+    if cached and max(cached) >= datetime.now().year - 1:
+        return cached
+    try:
+        from yahooquery import Ticker
+        yq_sym = _to_yf_symbol(symbol)
+        hist = Ticker(yq_sym).history(start="2000-01-01", interval="1mo")
+        if hist is None or not hasattr(hist, "empty") or hist.empty:
+            return cached
+        hist = hist.reset_index()
+        if "date" not in hist.columns or "close" not in hist.columns:
+            return cached
+        closes = {}
+        for _, row in hist.iterrows():
+            d = str(row["date"])
+            if d[5:7] == "12" and not pd.isna(row["close"]) and int(d[:4]) < datetime.now().year:
+                closes[int(d[:4])] = float(row["close"])
+        if closes:
+            _atomic_write_json(_yq_cache_path(symbol, "yearend"),
+                               {"symbol": yq_sym, "fetched_at": datetime.now().isoformat(),
+                                "closes": {str(k): v for k, v in sorted(closes.items())}})
+            return closes
+    except Exception as e:
+        logger.warning("year-end closes fetch failed for %s: %s", symbol, e)
+    return cached
+
+
+def ensure_interest_bearing_debt(symbol: str) -> dict:
+    """{year: {'total_debt', 'equity'}} interest-bearing debt (yahoo TotalDebt) per FY, ~4y. {} if none.
+
+    Cached 7 days like the yahoo dividend cache; a failed fetch returns the stale cache or {}.
+    """
+    p = _yq_cache_path(symbol, "debt")
+    stale = {}
+    if p.exists():
+        try:
+            payload = json.loads(p.read_text(encoding="utf-8"))
+            stale = {int(k): v for k, v in (payload.get("years") or {}).items()}
+            age = datetime.now() - datetime.fromisoformat(payload["fetched_at"])
+            if age.total_seconds() < YAHOO_DIV_CACHE_TTL_DAYS * 86400:
+                return stale
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            stale = {}
+    try:
+        from yahooquery import Ticker
+        bs = Ticker(_to_yf_symbol(symbol)).balance_sheet(frequency="a")
+        if bs is None or not hasattr(bs, "empty") or bs.empty or "TotalDebt" not in bs.columns:
+            return stale
+        years = {}
+        for _, row in bs.reset_index().iterrows():
+            debt = row.get("TotalDebt")
+            if debt is None or pd.isna(debt):
+                continue
+            eq = row.get("StockholdersEquity")
+            years[int(str(row["asOfDate"])[:4])] = {
+                "total_debt": float(debt),
+                "equity": None if eq is None or pd.isna(eq) else float(eq),
+            }
+        if years:
+            _atomic_write_json(p, {"fetched_at": datetime.now().isoformat(),
+                                   "years": {str(k): v for k, v in sorted(years.items())}})
+            return years
+    except Exception as e:
+        logger.warning("interest-bearing debt fetch failed for %s: %s", symbol, e)
+    return stale
+
+
 # --- Dividend history: merge set.or.th + yahoo, completeness, crisis facts ---
 DPS_MISMATCH_REL_TOL = 0.10   # |set - yahoo| / max(set, yahoo) above this → flag
 DPS_MISMATCH_ABS_TOL = 0.005  # ignore sub-satang rounding noise
@@ -1119,6 +1211,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         # --- SNAPSHOT FIELDS — SETSMART primary, yahoo/thaifin fallback ---
         if use_ss_snapshot:
             price = ss_eod.get("close")
+            price_as_of = ss_eod.get("date")
             pe_ratio = ss_eod.get("pe") or tf_snap.get("pe_ratio")
             pb_ratio = ss_eod.get("pbv") or tf_snap.get("pb_ratio")
             market_cap = ss_eod.get("marketCap") or tf_snap.get("market_cap")
@@ -1131,6 +1224,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         else:
             # SETSMART cold → fall back to yahoo + thaifin
             price = yf_info.get("currentPrice") or yf_info.get("regularMarketPrice")
+            price_as_of = datetime.now().strftime("%Y-%m-%d")
             market_cap = yf_info.get("marketCap") or tf_snap.get("market_cap")
             pe_ratio = yf_info.get("trailingPE") or tf_snap.get("pe_ratio")
             pb_ratio = yf_info.get("priceToBook") or tf_snap.get("pb_ratio")
@@ -1234,6 +1328,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         "industry": industry,
         "currency": yf_info.get("currency", "THB"),
         "price": price,
+        "price_as_of": price_as_of,
         "market_cap": market_cap,
         "pe_ratio": pe_ratio,
         "forward_pe": forward_pe,
