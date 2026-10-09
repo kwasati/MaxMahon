@@ -34,10 +34,18 @@
     "dca_required_year": 10,
     "max_yahoo_only_share": 0.5
   },
+  "special_dividends": {
+    "TCAP": {"2019": 4.0},
+    "_source": "TCAP FY2019 พิเศษ 4.00 บาท (XD 27 ธ.ค. 2562 เงินจากดีลควบรวม TBANK เข้า TMB) = _desk/maxmahon/krv3/files/tcap-deep-dive.md ข้อ 2.1 บรรทัด 77 · AMATA / BBL deep dive ไม่ระบุปันผลพิเศษ",
+    "_as_of": "2026-10-09"
+  },
   "holdings": {
     "off_plan": ["TISCO"],
     "costs": {"AMATA": 26.4, "BBL": 172.1, "TCAP": 59.8, "TISCO": 103.16, "TOA": 12.7, "SISB": 9.54, "SECURE": 12.39, "MOSHI": 36.42},
     "costs_as_of": "2026-10-09",
-    "yoc_year": 10
+    "yoc_year": 10,
+    "growth_scenarios": {
+      "AMATA": {"bad": 0.03, "mid": 0.07, "good": 0.11, "source": "research/amata-deep-dive-2026-10-09.md ท่อน 4.1 (บรรทัด 186-188)", "as_of": "2026-10-09"}
+    }
   }
 }

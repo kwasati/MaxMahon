@@ -118,7 +118,8 @@ def summarize(entry: dict, fs: dict, cost, year: int) -> dict:
         yoc_scen={k: (None if hong else yoc_at(fs, k, year, idx)) for k in fsmod.SCENARIOS},
         dca={m: (None if row["leg"] != LEG_NIWES else fsmod.dca_yoc(base, fs.get("price"), (fs.get("rates") or {}).get("mid"), year,
                                                                    fs["cfg"]["dca_years"], m)) for m in (fsmod.PRICE_GROWS, fsmod.PRICE_FLAT)},
-        rates=dict(fs.get("rates") or {}), scenario_ok=(not hong) and (fs.get("rates") or {}).get("mid") is not None,
+        rates=dict(fs.get("rates") or {}), rates_fixed=dict(fs.get("rates_fixed") or {}),
+        rates_source=dict(fs.get("rates_source") or {"kind": "fixed"}), scenario_ok=(not hong) and (fs.get("rates") or {}).get("mid") is not None,
         price_label=fs["price_label"]["label"], gate=("—" if hong else (fs.get("gate") or {}).get("status", NA)),
         status=(HONG_STATUS if hong else status_of(fs)),
         flags=([] if hong else [f["code"] for f in triggered_flags(fs)]),
@@ -175,7 +176,24 @@ def _scen(r, k):
 def _rates(r):
     if not r["scenario_ok"]:
         return fsmod.INSUFFICIENT
-    return " / ".join(_f(r["rates"][k] * 100) for k in fsmod.SCENARIOS)
+    return " / ".join(_f(r["rates"][k] * 100) for k in fsmod.SCENARIOS) + (
+        " (deep dive)" if (r.get("rates_source") or {}).get("kind") == "deep_dive" else "")
+
+
+def rates_used_lines(rows: list) -> list:
+    """Which growth rates each ขา Niwes stock used in the table + roll-up (deep dive vs fixed rule), with the fixed-rule rates alongside."""
+    out = []
+    for r in rows:
+        if r.get("error") is not None or r.get("leg") != LEG_NIWES or not r.get("scenario_ok"):
+            continue
+        rs, rf = r.get("rates_source") or {}, r.get("rates_fixed") or {}
+        fixed = " / ".join(_f(rf[k] * 100) if rf.get(k) is not None else fsmod.INSUFFICIENT for k in fsmod.SCENARIOS)
+        if rs.get("kind") == "deep_dive":
+            out.append(f"- {r['symbol']}: **deep dive {rs.get('as_of') or NA}** {_rates(r).replace(' (deep dive)', '')} "
+                       f"(สมมติฐานของคน รอ Art เคาะ · {rs.get('source') or NA}) · กฎตายตัวเทียบ {fixed}")
+        else:
+            out.append(f"- {r['symbol']}: กฎตายตัว {fixed}")
+    return out
 
 
 def _f(v, nd=1, suffix="%"):
@@ -233,6 +251,9 @@ def render_report(rows: list, sheets: dict, today: str, cfg: dict, hcfg: dict, r
         v = roll[k]
         prow.append([label, _f(v["value"]), _band(v["value"], lo, hi), ", ".join(v["skipped"]) or "—"])
     lines += fsmod._table(["ช่วง", "ปันผล/ต้นทุน ถ่วงน้ำหนัก (เฉพาะขา Niwes)", f"เทียบเป้า {lo:g}–{hi:g}%", "ข้ามตัวที่ข้อมูลไม่พอ/ไม่มีข้อมูล"], prow)
+    used = rates_used_lines(rows)
+    if used:
+        lines += ["", "อัตราโต แย่ / กลาง / ดี (%/ปี) ที่แต่ละตัวใช้ในยอดรวมนี้:"] + used
     nocost = [r["symbol"] for r in rows if r.get("error") is None and r["cost_text"] == NO_COST_TEXT]
     if nocost:
         lines += ["", f"ตัวที่ไม่ได้กรอกต้นทุน ({', '.join(nocost)}) ใช้ราคาวันนี้เป็นต้นทุน — ตัวเลขรวมจึงไม่ใช่ผลตอบแทนจริงของ Art จนกว่าจะกรอกต้นทุน (`--cost` หรือ config `holdings.costs`)"]

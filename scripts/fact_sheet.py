@@ -34,7 +34,7 @@ DEFAULT_CFG = {
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
-    "max_yahoo_only_share": 0.5,
+    "max_yahoo_only_share": 0.5, "debt_suspect_ratio": 5,
 }
 
 
@@ -239,13 +239,46 @@ def payout_rows(rows: list, dps: dict) -> list:
             for r in rows]
 
 
-def debt_rows(rows: list, interest_bearing: dict) -> list:
-    """A6: total liabilities / equity from the cache (it is NOT interest-bearing debt) + yahoo interest-bearing if any."""
+def suspect_liability_years(liab: dict, ratio: float) -> set:
+    """Years whose total liabilities jump more than `ratio` x against an adjacent year (either direction).
+    Of a jumping pair only the year further from the series median (in log terms) is called suspect, so a good year
+    next to a bad one is not dragged along; a run of bad years is caught at each jump."""
+    import math
+    vals = sorted(v for v in liab.values() if v and v > 0)
+    if len(vals) < 3:
+        return set()
+    med = vals[len(vals) // 2]
+    sus = set()
+    for y, v in liab.items():
+        nb = liab.get(y + 1)
+        if not v or v <= 0 or not nb or nb <= 0:
+            continue
+        if max(v, nb) / min(v, nb) > ratio:
+            sus.add(y if abs(math.log(v / med)) > abs(math.log(nb / med)) else y + 1)
+    # extend through a run: adjacent years within ratio of an already-suspect year on the same side of the median
+    changed = True
+    while changed:
+        changed = False
+        for y, v in liab.items():
+            if y in sus or not v or v <= 0:
+                continue
+            for n in (y - 1, y + 1):
+                nv = liab.get(n)
+                if n in sus and nv and nv > 0 and max(v, nv) / min(v, nv) <= ratio                         and (v < med) == (nv < med) and abs(math.log(v / med)) > math.log(ratio):
+                    sus.add(y)
+                    changed = True
+    return sus
+
+
+def debt_rows(rows: list, interest_bearing: dict, suspect_ratio: float = 5) -> list:
+    """A6: total liabilities / equity from the cache (it is NOT interest-bearing debt) + yahoo interest-bearing if any.
+    A year whose total liabilities jump > suspect_ratio x against an adjacent year is marked suspect (data likely wrong)."""
+    sus = suspect_liability_years({r["year"]: r["liabilities"] for r in rows if r["liabilities"] is not None}, suspect_ratio)
     out = []
     for r in rows:
         ib = (interest_bearing or {}).get(r["year"]) or {}
         eq = r["equity"]
-        out.append({"year": r["year"], "liabilities": r["liabilities"], "equity": eq,
+        out.append({"year": r["year"], "liabilities": r["liabilities"], "equity": eq, "suspect": r["year"] in sus,
                     "liab_to_equity": r["liabilities"] / eq if r["liabilities"] is not None and eq and eq > 0 else None,
                     "ib_debt": ib.get("total_debt"),
                     "ib_to_equity": ib["total_debt"] / ib["equity"] if ib.get("total_debt") is not None and ib.get("equity") else None})
@@ -348,7 +381,7 @@ def flag_t4(cash_rows: list, n_years: int) -> dict:
 def flag_t6(debt: list, n_years: int) -> dict:
     """T6: total liabilities / equity rose in each of the last n years."""
     name = f"หนี้สินรวมต่อทุนเพิ่ม {n_years} ปีติด"
-    pts = [r for r in debt if r["liab_to_equity"] is not None]
+    pts = [r for r in debt if r["liab_to_equity"] is not None and not r.get("suspect")]
     if len(pts) < n_years + 1:
         return _flag("T6", name, None, NA)
     pts = pts[-(n_years + 1):]
@@ -411,9 +444,19 @@ def normalize_costs(costs) -> list:
     return [float(c) for c in costs if c]
 
 
+def deep_dive_rates(override) -> dict | None:
+    """{bad, mid, good} from a person-entered growth_scenarios entry, or None when it is missing / incomplete."""
+    if not isinstance(override, dict) or any(_num(override.get(k)) is None for k in SCENARIOS):
+        return None
+    return {k: float(override[k]) for k in SCENARIOS}
+
+
 def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_bearing=None,
-                       gate=None, manual=None, today=None) -> dict:
-    """All numbers of the sheet from already-fetched inputs. No network, no files."""
+                       gate=None, manual=None, today=None, growth_override=None) -> dict:
+    """All numbers of the sheet from already-fetched inputs. No network, no files.
+
+    growth_override: holdings.growth_scenarios entry for this stock (deep dive rates entered by a person). When
+    given, it is the main scenario table; the fixed-rule rates are kept in `rates_fixed` for the comparison line."""
     cfg = cfg or load_cfg()
     profile = data.get("sector_profile") or (data.get("aggregates") or {}).get("sector_profile") or "general"
     bank = profile == "bank"
@@ -425,13 +468,15 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     shares = shares_outstanding(data)
     cuts = dividend_cuts(complete, cfg["cut_material_pct"])
     cagrs = cagr_windows(data, cfg["cagr_windows"])
-    rates = growth_scenarios(cagrs, cfg["growth_cap"], cfg["min_scenario_window_years"])
+    rates_fixed = growth_scenarios(cagrs, cfg["growth_cap"], cfg["min_scenario_window_years"])
+    dd_rates = deep_dive_rates(growth_override)
+    rates = dd_rates or rates_fixed
     supplied = normalize_costs(costs)
     levels = cost_levels(price, supplied, cfg["cost_discounts"])
     targets = [cfg["yoc_target_low"], cfg["yoc_target_high"]]
     cash = None if bank else cash_vs_dividend(rows, complete, shares)
     payouts = payout_rows(rows, complete)
-    debt = debt_rows(rows, interest_bearing)
+    debt = debt_rows(rows, interest_bearing, cfg["debt_suspect_ratio"])
     hist = price_history(rows, complete, closes or {})
     today_yield = base / price * 100 if base and price else None
     t2_costs = [c for c in levels if c["label"] == "ต้นทุนที่ส่งมา"] or [c for c in levels if c["label"] == "ราคาวันนี้"]
@@ -440,7 +485,9 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
              flag_t2(base, rates, t2_costs, cfg["t2_year"], cfg["yoc_target_low"])]
     if not bank:
         flags.append(flag_t4(cash, cfg["t4_years"]))
-    flags += [flag_t6(debt, cfg["t6_years"]), flag_payout(payouts, cfg["payout_over"]), flag_loss(losses, cfg["loss_window_years"])]
+    if not bank:
+        flags.append(flag_t6(debt, cfg["t6_years"]))
+    flags += [flag_payout(payouts, cfg["payout_over"]), flag_loss(losses, cfg["loss_window_years"])]
     pe_today = _num(data.get("pe_ratio"))
     price_date = data.get("price_as_of")
     try:
@@ -454,9 +501,13 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         "date": str(today or date.today()), "gate": gate or {},
         "dividends": {"complete": complete, "incomplete": partial, "sources": data.get("dividend_history_source") or {},
                       "last_fy": last_fy, "base_dps": base, "mismatch": data.get("dividend_source_mismatch") or {},
-                      "source": data.get("dividend_source")},
+                      "source": data.get("dividend_source"),
+                      "special": {int(k): v for k, v in (data.get("dividend_history_special") or {}).items()},
+                      "first_fy": min(list(complete) + list(partial)) if (complete or partial) else None},
         "cuts": cuts, "cut_count": len(cuts), "cut_material_count": sum(1 for c in cuts if c["material"]),
-        "crisis": crisis_rows(data, cfg["crisis_years"]), "cagrs": cagrs, "rates": rates,
+        "crisis": crisis_rows(data, cfg["crisis_years"]), "cagrs": cagrs, "rates": rates, "rates_fixed": rates_fixed,
+        "rates_source": ({"kind": "deep_dive", "source": growth_override.get("source"), "as_of": growth_override.get("as_of")}
+                         if dd_rates else {"kind": "fixed"}),
         "costs": levels, "supplied_costs": supplied,
         "yoc": yoc_table(base, rates, levels, cfg["yoc_years"]),
         "required": required_growth(base, levels, targets, cfg["yoc_years"]),
@@ -492,6 +543,15 @@ def load_manual_facts(symbol: str):
         return None
 
 
+def load_growth_override(symbol: str, path=CONFIG_PATH):
+    """config.json holdings.growth_scenarios[SYM] (deep dive rates a person entered), or None."""
+    try:
+        cfg = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return ((cfg.get("holdings") or {}).get("growth_scenarios") or {}).get(bare_symbol(symbol))
+
+
 def build_fact_sheet(symbol: str, costs=None) -> dict:
     """Fetch through the usual cache path (fetch_multi_year_safe) and compute the sheet.
 
@@ -509,7 +569,7 @@ def build_fact_sheet(symbol: str, costs=None) -> dict:
     status, reasons = hard_filter(data)
     gate = {"status": status, "reasons": reasons, "flags": gate_flags(data)}
     return compute_fact_sheet(
-        data, costs=costs, cfg=load_cfg(),
+        data, costs=costs, cfg=load_cfg(), growth_override=load_growth_override(sym),
         closes=data_adapter.ensure_yearend_closes(sym),
         interest_bearing=data_adapter.ensure_interest_bearing_debt(sym),
         gate=gate, manual=load_manual_facts(sym))
@@ -564,13 +624,23 @@ def _a1(fs):
     if fs["sector_profile"] == "reit":
         lines.append("หมายเหตุ REIT: ปีบัญชีของปันผลจาก yahoo อาจไม่ตรงปีบัญชีจริง (กฎจัดปี ม.ค.–มิ.ย. = ปีก่อน) — ดูผลเทียบแหล่งใน job 06")
     lines.append("")
+    sp = d.get("special") or {}
     prev, body = None, []
     for fy in sorted(d["complete"]):
         v = d["complete"][fy]
         yoy = f"{(v / prev - 1) * 100:+.0f}%" if prev else "—"
-        body.append([fy, fn(v, 4), yoy, _src_label(d["sources"].get(str(fy)) or d["sources"].get(fy))])
+        row = [fy, fn(v, 4)]
+        if sp:
+            row += [fn(sp[fy], 4) if fy in sp else "—", fn(v + sp.get(fy, 0), 4)]
+        body.append(row + [yoy, _src_label(d["sources"].get(str(fy)) or d["sources"].get(fy))])
         prev = v if v else None
-    lines += _table(["ปีบัญชี", "ปันผลต่อหุ้น (บาท)", "เทียบปีก่อน", "ที่มา"], body) if body else [NA]
+    head = ["ปีบัญชี", "ปันผลปกติ (บาท)" if sp else "ปันผลต่อหุ้น (บาท)"] + (["ปันผลพิเศษ (บาท)", "รวม"] if sp else []) + ["เทียบปีก่อน (ปกติ)" if sp else "เทียบปีก่อน", "ที่มา"]
+    lines += _table(head, body) if body else [NA]
+    if sp:
+        lines += ["", "ปันผลพิเศษมาจาก `config.json` `special_dividends` (คนกรอกจาก deep dive) — นับครั้งที่ลด / ปีฟื้น / อัตราโต / ฉาก / ยีลด์สิ้นปี / ธง T1 ใช้เฉพาะ**ปกติ**: "
+                  + ", ".join(f"FY{y} {v:g} บาท" for y, v in sorted(sp.items()))]
+    if d.get("first_fy") is not None:
+        lines += ["", f"ระบบมีข้อมูลตั้งแต่ปี {d['first_fy']} — เหตุการณ์ก่อนหน้านั้นไม่อยู่ในตาราง"]
     if d["incomplete"]:
         lines += ["", "ปีที่ยังไม่ครบ (ไม่นับในตัวเลขด้านล่าง): " +
                   ", ".join(f"FY{y} = {v:.4g}" for y, v in sorted(d["incomplete"].items()))]
@@ -605,9 +675,16 @@ def _a3(fs):
 def _a4(fs):
     d, r = fs["dividends"], fs["rates"]
     lo, hi = fs["targets"]
+    rs = fs.get("rates_source") or {"kind": "fixed"}
+    dd = rs["kind"] == "deep_dive"
     lines = ["## A4 ปันผลเทียบต้นทุน (ปันผลปีนั้น ÷ ต้นทุน) — ก้อนที่ถืออยู่ (ต้นทุนคงที่)", "",
-             f"ฐาน: ปันผลปีบัญชีล่าสุดที่ครบ FY{d['last_fy'] or NA} = {fn(d['base_dps'], 4)} บาท · ปีที่ N = FY{d['last_fy'] or '?'}+N",
-             "ฉากอัตราโต (กฎตายตัว **เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย):",
+             f"ฐาน: ปันผลปีบัญชีล่าสุดที่ครบ FY{d['last_fy'] or NA} = {fn(d['base_dps'], 4)} บาท · ปีที่ N = FY{d['last_fy'] or '?'}+N"]
+    if dd:
+        rf = fs["rates_fixed"]
+        lines += [f"**อัตราโตจาก deep dive {rs.get('as_of') or NA} — สมมติฐานของคน รอ Art เคาะ** (ที่มา: {rs.get('source') or NA}) → "
+                  f"แย่ {pct(r['bad'])} · กลาง {pct(r['mid'])} · ดี {pct(r['good'])} ใช้เป็นตารางหลักด้านล่าง",
+                  f"เทียบกฎตายตัว: แย่ {pct(rf['bad'])} · กลาง {pct(rf['mid'])} · ดี {pct(rf['good'])} (กฎด้านล่างใช้เมื่อไม่มีค่าจาก deep dive)", ""]
+    lines += ["ฉากอัตราโตตามกฎตายตัว (**เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย)" + (" — ไม่ได้ใช้ในตารางหลักของหุ้นนี้:" if dd else ":"),
              f"- ต้องมีหน้าต่างอัตราโตตั้งแต่ {fs['cfg']['min_scenario_window_years']} ปีขึ้นไปอย่างน้อย 1 หน้าต่าง ไม่งั้น = ข้อมูลไม่พอ (ไม่สร้างฉาก)",
              f"- เพดานอัตราโตทุกฉาก {fs['cfg']['growth_cap']*100:g}% ต่อปี",
              f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(r['bad']) if r['bad'] is not None else 'ข้อมูลไม่พอ'}",
@@ -693,12 +770,21 @@ def _a7(fs):
 
 
 def _a6(fs):
+    if fs["bank"]:
+        return ["## A6 หนี้", "", "ไม่พิมพ์ตารางหนี้ต่อทุนสำหรับแบงก์ และไม่คิดธง T6 — หนี้สินของธนาคารส่วนใหญ่คือเงินฝากของลูกค้า "
+                "ความหมายต่างจากหนี้ของธุรกิจทั่วไป", ""]
     lines = ["## A6 หนี้", "",
              "**`total_debt` ใน cache = หนี้สินรวม (total liabilities) ไม่ใช่หนี้มีดอกเบี้ย** · หนี้มีดอกเบี้ย (yahoo TotalDebt) มีเฉพาะปีที่ yahoo ให้ (~4 ปี)"]
     if fs["bank"]:
         lines.append("แบงก์: หนี้สินรวมส่วนใหญ่คือเงินฝาก — อัตราส่วนนี้ไม่ใช่ความเสี่ยงหนี้แบบธุรกิจทั่วไป")
     lines.append("")
-    body = [[x["year"], fn(x["liabilities"], 0, 1e6), fn(x["equity"], 0, 1e6), fn(x["liab_to_equity"], 2),
+    sus = [x["year"] for x in fs["debt"] if x.get("suspect")]
+    if sus:
+        lines += [f"⛔ ข้อมูลปีนี้น่าสงสัย: {', '.join(map(str, sus))} — หนี้สินรวมต่างจากปีข้างเคียงเกิน {fs['cfg']['debt_suspect_ratio']:g} เท่า "
+                  "(น่าจะเป็นฟิลด์ผิดในแหล่งข้อมูล) ไม่แสดงตัวเลขปีนั้น และไม่ใช้คิดธง T6", ""]
+    S = "ข้อมูลปีนี้น่าสงสัย"
+    body = [[x["year"], S if x.get("suspect") else fn(x["liabilities"], 0, 1e6), fn(x["equity"], 0, 1e6),
+             S if x.get("suspect") else fn(x["liab_to_equity"], 2),
              fn(x["ib_debt"], 0, 1e6), fn(x["ib_to_equity"], 2)] for x in fs["debt"]]
     return lines + (_table(["ปี", "หนี้สินรวม", "ส่วนผู้ถือหุ้น", "หนี้สินรวม/ทุน", "หนี้มีดอกเบี้ย", "หนี้มีดอกเบี้ย/ทุน"], body) if body else [NA]) + [""]
 
