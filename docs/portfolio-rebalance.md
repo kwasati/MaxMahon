@@ -20,5 +20,5 @@ Art ส่งรูปหน้า Portfolio จากแอปโบรก + �
 - หลังปัดลงทีละ 100 หุ้น จะเกลี่ยเศษเพิ่มทีละล็อต (ตัวที่ยังขาดเป้ามากสุดก่อน) โดยไม่ซื้อเกินเป้าและไม่เกินเงินใช้ได้
 
 ## ที่มา
-- snapshot + projection: `C:\WORKSPACE\projects\4-MaxMahon\research\portfolio-snapshot-2026-07-20.md`
+- สภาพพอร์ต + ปันผลเทียบต้นทุน: `py C:\WORKSPACE\projects\4-MaxMahon\scripts\holdings_watch.py --refresh`
 - กรอบ 70/25/5 + เป้า + กฎขาย (F1–F4): `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-portfolio-framework.md` (ตัวเลขเป้าอยู่ใน `scripts\rebalance.py` TARGETS ที่เดียว)

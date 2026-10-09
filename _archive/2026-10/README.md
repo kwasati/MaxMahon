@@ -29,3 +29,10 @@
 - ย้ายเข้า `hong-lens\research\` (ในโฟลเดอร์นี้): `_deep_TOA_2026-05-21.md` `_deep_SISB_2026-05-21.md` `_deep_SECURE_2026-05-21.md` `_deep_MOSHI_2026-05-21.md`
 - path ที่อ้างในไฟล์ใต้ `research\` `hong-lens\research\` ถูกแก้ให้ชี้มาที่นี่แล้ว · `docs\review-2026-10\` ไม่แก้ (บันทึกมีวันที่)
 - เอากลับ: `git mv` ไฟล์กลับที่เดิม แล้วแก้ path ที่อ้างในไฟล์ `research\*-2026-10-09.md` `hong-lens\research\_deep_*_2026-10-09.md` `hong-lens\research\_master_hong-lens_2026-05-21.md` กลับ
+
+## เก็บเพิ่ม 2026-10-09 (ปิดงานแท็บ — Art: "อะไรที่เก่าไม่ได้ใช้แล้วก็เก็บไปซะ จะได้ไม่ งง")
+
+- เหตุ: ไฟล์ที่ไม่มีไฟล์ที่ยังใช้อยู่ชี้ถึง ตามตารางสำรวจ `docs\review-2026-10\docs-survey.md` (ตารางนั้นเป็นสภาพก่อนเก็บรอบนี้)
+- ย้ายเข้า `docs\` (ในโฟลเดอร์นี้): `foreign-investment\` ทั้งโฟลเดอร์ 8 ไฟล์ (แผนลงทุนต่างประเทศ — ไม่มีใครนอกโฟลเดอร์ชี้) · `RESEARCH-LESSONS.md` (บทเรียนที่อ้างงานวิจัยรุ่น พ.ค. 2026 กับสูตรคะแนนที่ถอดแล้ว) · `research-thai-stock-data-sources.md` (งานค้นแหล่งข้อมูลรุ่นแรก — ของที่ใช้ = `docs\data-sources-guide.md`)
+- ย้ายเข้า `research\` (ในโฟลเดอร์นี้): `_4stocks_deepdive_setsmart_2026-05-20.md` `_full_SCB_2026-05-21.md` `_niwes_5axis_synthesis_2026-05-20.md` `_session_summary_2026-05-21.md` `manual-niwes-ranking-2026-05-19.md` `manual-niwes-ranking-2026-05-20.md` · `refs\setsmart-2026-05-20\` (ภาพหน้าจอ 18 ไฟล์) · `refs\setsmart-xls-2026-05-21\` ที่เหลือ (xls ของ AMATA HTC PTTEP)
+- เอากลับ: `git mv` ไฟล์ / โฟลเดอร์กลับที่เดิม

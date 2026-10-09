@@ -9743,6 +9743,527 @@
           "date": "2026-08-22"
         }
       }
+    },
+    {
+      "iso_week": "2026-W41",
+      "scanned_at": "2026-10-09T13:20:01",
+      "date": "2026-10-09",
+      "gate_version": "niwes-gate-2026-10",
+      "counts": {
+        "scanned": 930,
+        "passed": 126,
+        "passed_main": 117,
+        "passed_growth": 9,
+        "filtered": 782,
+        "pending": 0
+      },
+      "passed": [
+        {
+          "symbol": "JAS.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BTSGIF.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "CMR.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SPCG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "NEX.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AAV.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SRICHA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "EA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "GVREIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ADVANC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "METCO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TFM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SAT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ASIAN.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "UVAN.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PROSPECT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SIRI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ROJNA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "STANLY.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SNNP.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "DIF.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "LHHOTEL.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SAV.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BTS.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ICHI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "EGATIF.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "MC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AAI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SPALI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SCB.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BAM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "LHSC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SABINA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TFG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BTG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TQM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SMPC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ILM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "DMT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SCCC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "LH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PRG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AXTRART.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TVO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BAREIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BKIH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AIMIRT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "WHAIR.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "UTP.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "LANNA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "JMT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "QH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SGC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "NER.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KGI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "HTC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AP.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ASW.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TIPH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SAK.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "CPNREIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KTB.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KYE.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TIDLOR.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TISCO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "WHART.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ALUCON.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ONEE.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SCGD.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "INETREIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "FTREIT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KBANK.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TTW.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AEONTS.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KAMART.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ANI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "IMPACT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "DCC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PRM.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "HMPRO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "CPF.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PTTEP.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SISB.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "CRC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "THANI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TASCO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "PTT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SAPPE.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "MBK.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TU.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "RCL.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TKN.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AYUD.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SUC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "GULF.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BBL.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BCPG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TLI.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "BDMS.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "AH.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "EGCO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KKP.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "ITC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KTC.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "NEO.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "CPAXT.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SYNEX.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KCG.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "KLINIQ.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "OR.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "SIS.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TOA.BK",
+          "gate_path": "main"
+        },
+        {
+          "symbol": "TTB.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "TCAP.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "SAUCE.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "WHA.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "CPN.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "CPALL.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "AMATA.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "SKR.BK",
+          "gate_path": "growth"
+        },
+        {
+          "symbol": "PR9.BK",
+          "gate_path": "growth"
+        }
+      ],
+      "report": "scan_2026-10-09.md"
     }
   ]
 }

@@ -316,7 +316,7 @@ TCAP เป็น **บริษัทโฮลดิ้ง** (ถือหุ�
 | `07-case-tcap.md:44` | "TCAP ถือหุ้นใน BAY บางส่วน" | ไม่พบหลักฐาน — เดา: สับสนกับ MUFG/BAY ซื้อ TBANK? (ยังไม่ยืนยัน ควรติด [VERIFY]) |
 | `07-case-tcap.md:77` Lessons #1 | "เลี่ยง KBANK/SCB/BBL ไปหา TCAP" | เป็นคำผู้รวบรวม ไม่ใช่นิเวศน์ · ขัดกับพอร์ต Art ที่ถือ BBL 22.5% |
 | `11-current-portfolio.md:12-14,69` | ราคา 57.50 · ปันผล 2024 | 77.25 · ปี 2568 3.50 (S2 Y) |
-| `research/_4stocks_deepdive_setsmart_2026-05-20.md` | ใบงานให้อ่านเรื่อง TCAP | **ไม่มี TCAP ในไฟล์** (มีแค่ BBL HTC AMATA PTTEP) |
+| `_archive/2026-10/research/_4stocks_deepdive_setsmart_2026-05-20.md` | ใบงานให้อ่านเรื่อง TCAP | **ไม่มี TCAP ในไฟล์** (มีแค่ BBL HTC AMATA PTTEP) |
 
 ---
 

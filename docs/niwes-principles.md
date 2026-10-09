@@ -2,7 +2,7 @@
 
 - สร้าง 2026-10-09 · job job-01-niwes-principles (โต๊ะ krv3)
 - knowledge: `docs/niwes/00-research-rules.md` → ใช้กติกา "ยกคำจริง + แหล่ง" และแยกคำนิเวศน์ออกจากการตีความทุกแถว · ใบ `แนะนำ:` ในงาน → อ่านไฟล์ >200 บรรทัดเป็นท่อน · เขียนของที่ขัดความเชื่อตรง ๆ
-- อ่านครบ: `docs/niwes/00-index 00-research-rules 00-sources 00-data-schema(grep) 01–12` + `_archive/2026-10/docs/niwes/00-backtest-protocol 13–16` · `_archive/2026-10/research/niwes-analysis-master.md` · `_archive/2026-10/research/niwes-criteria-coverage-map.md` · `_niwes_5axis_synthesis_2026-05-20.md` · `manual-niwes-ranking-2026-05-20.md` · `_archive/2026-10/docs/scoring-anchor-spec.md` · `docs/RESEARCH-LESSONS.md` · `roadmap/queue-scripts-review.md` · `config.json` · grep `scripts/screen_stocks.py` + `anchor_scoring.py`
+- อ่านครบ: `docs/niwes/00-index 00-research-rules 00-sources 00-data-schema(grep) 01–12` + `_archive/2026-10/docs/niwes/00-backtest-protocol 13–16` · `_archive/2026-10/research/niwes-analysis-master.md` · `_archive/2026-10/research/niwes-criteria-coverage-map.md` · `_archive/2026-10/research/_niwes_5axis_synthesis_2026-05-20.md` · `_archive/2026-10/research/manual-niwes-ranking-2026-05-20.md` · `_archive/2026-10/docs/scoring-anchor-spec.md` · `_archive/2026-10/docs/RESEARCH-LESSONS.md` · `roadmap/queue-scripts-review.md` · `config.json` · grep `scripts/screen_stocks.py` + `anchor_scoring.py`
 - ค้นเว็บ 2026-10-09: ดึงได้ = S1 S2 S3 S4 S5 · ถูกบล็อก 403 = prachachat ทุก URL (S7 S9 S12b) → ใช้ได้แค่หัวข่าว/ข้อความที่ search engine แสดง
 
 ## ป้าย

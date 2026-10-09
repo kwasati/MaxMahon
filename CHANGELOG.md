@@ -2,6 +2,40 @@
 
 > 2026-10-07: หน้า web + server เก็บเข้า `_archive/2026-10/` (server/ web/ mockup/ DESIGN.md ฯลฯ) — path `server/…` `web/…` `mockup/…` ในรายการด้านล่างคือของเดิมตอนนั้น · ดู `_archive/2026-10/README.md`
 
+## v7.0.0 — 2026-10-09 · เลิกคะแนน 0–100 เปลี่ยนเป็นด่าน + ใบข้อเท็จจริง + deep dive
+
+ที่มา: review ทั้งระบบ (`docs/review-2026-10/`) + หลักนิเวศน์ฉบับยืนยัน (`docs/niwes-principles.md`) · ข้อตกลง: `roadmap/agreed-selection-system.md` (N1–N10) `roadmap/agreed-portfolio-framework.md` (F1–F4)
+
+### Changed
+
+- **ด่านคัด** เหลือของที่นิเวศน์พูดจริง: yield ≥5% หรือ 2–5% ที่ปันผลโตและคำนวณแล้วถึง 5% ใน 5 ปี · PE / PBV / EPS ออกจากด่านเป็นธง (ad9c9f7)
+- **คะแนน 0–100 + ป้ายชุดเก่า + ตัวเตือนขายเก่า + เทเลแกรม ถูกถอด** จากสายสแกนและรายงาน — สแกนบอกแค่ผ่านด่านทางไหน + ธง (ebb5390)
+- **ประวัติปันผลยาว 20 ปีขึ้นไป** รวม set.or.th + yahoo · ปีที่ยังจ่ายไม่ครบไม่เข้าฐานเทียบรายปี · ค่าทนวิกฤตรันซ้ำได้ผลเดิม (cd17f12)
+- **Hong scanner** คะแนน PEG คิดจาก 1/PEG ตาม spec (เดิมกลับด้าน) — อันดับผู้รอดเปลี่ยน ต้องรัน scanner ใหม่ก่อนใช้ (ba8f91f)
+
+### Added
+
+- `scripts/fact_sheet.py` — ใบข้อเท็จจริงต่อหุ้น: ปันผลรายปี · ครั้งที่ลด · อัตราโต 4 ช่วง · ปันผลเทียบต้นทุน 3 ฉาก · ป้ายราคาเทียบตัวเอง · ธง T1/T2/T4/T6 ไม่มีคะแนนรวม (c7954dc 71fa2dd)
+- `scripts/holdings_watch.py` — เฝ้าหุ้นที่ถือ แยกขา Niwes / เซียนฮง / นอกแผน · `--refresh` ดึงราคาเฉพาะหุ้นที่ถือ (3c6cc9c cbbce45)
+- `screen_stocks.py --symbols / --out-dir` · `scan.py --screener / --out-dir` — สแกนบางตัวไม่แตะ data/ reports/
+- **มุม DCA** ในใบข้อเท็จจริง + ตัวเฝ้าหุ้น: ซื้อทุกเดือน 10 ปี 2 กรณีราคา คู่กับก้อนที่ถืออยู่ (b76a5d6)
+- **อัตราปันผลโตจาก deep dive** (`config.json` → `holdings.growth_scenarios`) ใช้แทนกฎตายตัว · **ปันผลพิเศษ** (`special_dividends`) ไม่นับเป็นปันผลปกติ (93b27f1 553af7e)
+- **สแกนรีเฟรชราคาทั้งตลาดเอง** ก่อนสแกน + `--no-refresh` / `--fresh` · ธง yield ผิดปกติแยกกลุ่มในรายงาน · สรุปแหล่งปันผล (ea6012a 7c92661 c3fa477)
+- **deep dive 8 ตัวที่ถือ** — `research/*-deep-dive-2026-10-09.md` (AMATA BBL TCAP TISCO) + `hong-lens/research/_deep_*_2026-10-09.md` (TOA SISB SECURE MOSHI) · ขั้นตอน `docs/deep-dive.md`
+- เทสต์ 143 ตัวขึ้นไป (เดิม 9)
+
+### Fixed
+
+- `rebalance.py` — หุ้นซ้ำ / ราคา ≤ 0 หยุดพร้อมข้อความ · เงินสดต่ำกว่าช่อง 5% บอกเหตุ · เกลี่ยเศษทีละล็อตโดยไม่ซื้อเกินเป้า (9652aaf)
+- ตัวดึงปันผล set.or.th พังเมื่อสแกนหลายเธรด ทำให้หุ้นส่วนใหญ่ใช้ปันผลจาก yahoo เงียบ ๆ — แก้แล้ว แหล่งทางการ 290 → 772 ตัว (8c824dd)
+- ธนาคารไม่พิมพ์หนี้ต่อทุน · ตัวเลขหนี้ที่กระโดดผิดปกติขึ้น "น่าสงสัย" แทนตัวเลข (553af7e)
+
+### Removed (ย้ายเข้า `_archive/2026-10/`)
+
+- เอกสารระบบเก่า 16 ไฟล์ (สูตรคะแนน / กฎขายเดิม / deep dive AMATA รุ่นเก่า) + งานวิจัยรายตัวรุ่น พ.ค. 2026 + ภาพพอร์ตเก่า (2cbc55a 3eddc3f)
+- `docs/foreign-investment/` · `docs/RESEARCH-LESSONS.md` · `docs/research-thai-stock-data-sources.md` · งานวิจัยรุ่น พ.ค. 2026 ที่เหลือ + `research/refs/` — ไม่มีไฟล์ที่ยังใช้อยู่ชี้ถึง
+- สคริปต์ 19 ไฟล์: คะแนนเดิม (`anchor_scoring` `scan_anchor` `case_study_detector` `sector_taxonomy`) · จัดพอร์ตชุด server (`portfolio_builder` `portfolio_state`) · หลายผู้ใช้ + ตัวตั้งเวลา (`user_data_io` `daily_price_refresh` `telegram_alert`) · ของใช้ครั้งเดียว + smoke (a1b9b34 e82deba)
+
 ## v6.9.0 — 2026-08-19 · จัดพอร์ตเหลือตารางเดียว + เลิกทิ้งเงินค้าง
 
 ### Changed

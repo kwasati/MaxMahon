@@ -1,140 +1,50 @@
 # Max Mahon
 
-Thai stock analyst agent — Niwes Dividend-First framework. Weekly automated scan of 933 Thai stocks (SET + mai), pure deterministic algo scoring, vintage newspaper frontend.
+ชุดสคริปต์ช่วย Art ลงทุนหุ้นปันผลไทยแบบถือยาว — algo เตรียมข้อเท็จจริง คนตัดสิน · ใช้ผ่านแชทกับ Claude (web + server เลิกใช้ 2026-10-07 เก็บที่ `_archive/2026-10/`)
 
-Dashboard at [max.intensivetrader.com](https://max.intensivetrader.com)
+## WHY
 
-## What It Does
+- เป้า: "หุ้นปันผลดี ที่จะถือ 10-20 ปี" ปันผลเทียบต้นทุน 7–12% ต่อปีเมื่อถือไปหลายปี · ลงเงินแบบ DCA ซื้อทุกเดือนตลอด 10 ปี (ข้อตกลง F2 F4 ใน `roadmap/agreed-portfolio-framework.md`)
+- พอร์ต 3 ส่วน: ขา Niwes 70 (หุ้นปันผลตามหลัก ดร.นิเวศน์) + ขาเซียนฮง 25 (หุ้นโต คัดด้วย Hong scanner) + เงินสด 5 — รายชื่อกับสัดส่วนอยู่ที่ `scripts/rebalance.py` ที่เดียว
+- ขายกรณีเดียว = "ผิดทาง": หุ้นไม่ตรงเป้าแล้ว ปันผลลดลงเรื่อย ๆ (ข้อตกลง F3)
+- เครื่องไม่ตัดสินแทนคน: ไม่มีคะแนนรวม ไม่มีคำสั่งซื้อขาย ทุกตัวเลขรันซ้ำได้ผลเดิม (ข้อตกลง N2 N3 · S1)
 
-- **Unified scan (weekly, Saturday 09:00):** Fetches snapshot aggregate via SETSMART API (yield, P/E, P/BV, mcap, ROE/ROA), multi-year history via thaifin, DPS events + 52w via yahooquery; screens 933-stock universe through Niwes 5-5-5-5 hard filters (Yield ≥5% · Streak ≥5y · EPS positive 5y · PE ≤15 · PBV ≤1.5 · Mcap ≥5B), scores quality out of 100, tags signals (NIWES_5555, HIDDEN_VALUE, QUALITY_DIVIDEND, DEEP_VALUE, etc.)
-- **3-tier bucket:** PASS / REVIEW / FAIL — REVIEW shows edge cases that need manual decision
-- **Exit alerts:** Saves entry baseline on first NIWES_5555 pass; Telegram alert when FILTER_DEGRADATION / VALUATION_BUBBLE / THESIS_CHANGE triggers
-- **Vintage newspaper dashboard:** Separate desktop + mobile frontends, editorial typography (Playfair Display + Lora + IBM Plex Serif Thai), oxblood accent
-- **On-demand Claude:** One-click deeper analysis per stock via UI (cached 7 days); scan pipeline itself is 100% deterministic (no LLM in loop)
+## HOW
 
-## หลักการทำงานของ algo Max Mahon (ภาษาคน)
+สายงานจากกว้างไปแคบ:
 
-ลืม syntax ไปก่อน — เล่าเป็น flow ของ Max ที่ **เลียนแบบวิธีคิด ดร.นิเวศน์** กับหุ้น 933 ตัวทุกสัปดาห์:
+1. **ดึงข้อมูล** — SETSMART (ราคา / yield / PE / PBV / มูลค่าบริษัท) + thaifin (งบย้อนหลัง 10–16 ปี) + set.or.th กับ yahoo (ปันผลรายปี รวมกันได้ 20 ปีขึ้นไป · ปีที่ยังจ่ายไม่ครบไม่เข้าฐานเทียบรายปี) — `data_adapter.py` `fetch_data.py` · รายละเอียดแหล่ง: `docs/data-sources-guide.md`
+2. **ด่านคัดทั้งตลาด** (`screen_stocks.py` → `scan.py`) — ผ่านเมื่อ: มูลค่าบริษัท ≥5 พันล้าน และ (yield ≥5% หรือ yield 2–5% ที่ปันผลโต 3 ปีติดและคำนวณแล้วถึง 5% ของราคาวันนี้ใน 5 ปี) · PE / PBV / ปีขาดทุนไม่ตัดทิ้ง ออกเป็นธง · ผลคือรายชื่อที่ผ่าน + ทางที่ผ่าน + ธง ไม่มีอันดับคุณภาพ
+3. **ใบข้อเท็จจริงต่อหุ้น** (`fact_sheet.py`) — ปันผลรายปี · ครั้งที่ลดและกี่ปีฟื้น · อัตราโต 4 ช่วงเวลา · ปันผลเทียบต้นทุน 3 ฉาก ทั้งแบบก้อนที่ถืออยู่และแบบ DCA · เงินสดเทียบปันผล · หนี้ · ประวัติ PE / PBV / yield ของตัวเอง + ป้ายราคาเทียบตัวเอง · ธงผิดทาง T1 T2 T4 T6
+4. **deep dive รายตัว** (คน + Fable) — ตอบคำถาม D1–D18 ตามหลักนิเวศน์ แล้ว Art กับหัวเคาะ — ขั้นตอน: `docs/deep-dive.md`
+5. **เฝ้าหุ้นที่ถือ** (`holdings_watch.py`) — ทุกตัวในพอร์ต แยกขา Niwes / เซียนฮง / นอกแผน · ขา Niwes ได้สถานะ เปิดทบทวน (ปันผลลด 2 ปีติด) / เฝ้า / ปกติ + ยอดรวมเทียบเป้า 7–12%
+6. **จัดพอร์ต** (`rebalance.py`) — ใช้เงินสดส่วนที่เกินช่อง 5% ซื้อตัวที่ต่ำกว่าเป้า ไม่ขายตัวเกินเป้า — ขั้นตอน: `docs/portfolio-rebalance.md`
 
-### ขั้น 1 — ดึงข้อมูลหุ้น
-Max เอารายชื่อหุ้นไทยทั้งตลาด (SET 704 + mai 229 = 933 ตัว) แล้วไล่ดึงข้อมูล **ย้อนหลัง 16 ปี** ของแต่ละตัวออกมา: รายได้, กำไร, EPS, เงินปันผล, มูลค่าบริษัท, ROE, หนี้สิน, กระแสเงินสด ฯลฯ
+ขาเซียนฮงคัดด้วย `hong_stage1_scanner.py` แยกขาดจากสายข้างบน — ดู `hong-lens/CLAUDE.md`
 
-แหล่งข้อมูล 3 ชั้น = **SETSMART API** (snapshot อัจฉริยะ: yield, P/E, P/BV, mcap, ROE/ROA — refresh daily 19:00) + **thaifin** (ประวัติย้อน 10-16 ปีที่ SETSMART package ไม่ครอบ ~3 ปี) + **yahooquery** (ปันผลรายครั้ง + 52w range + capex/interest expense)
+เกณฑ์ไหนมาจากคำ ดร.นิเวศน์ เกณฑ์ไหนเราตั้งเอง: `docs/niwes-principles.md` (ทุกข้อมีแหล่ง + ป้าย) · ทำไมระบบเป็นรูปนี้: `docs/review-2026-10/system-gap.md`
 
-### ขั้น 2 — คัดรอบแรก "5-5-5-5" (เกณฑ์ไม่ผ่าน = คัดทิ้งเลย)
-เช็คว่าหุ้นผ่านกฎ ดร.นิเวศน์ 6 ข้อหรือเปล่า:
-
-1. **มาร์เก็ตแคป ≥ 5,000 ล้าน** — ไม่ถึง = ตัดทิ้งทันที (กันหุ้นเล็กเสี่ยงสภาพคล่อง)
-2. **ปันผล streak** — จ่ายต่อเนื่องกี่ปี? ≥5 ปี = ผ่าน, 3-4 ปี = ต้องทบทวน, <3 ปี = ตัด
-3. **EPS บวก 5/5 ปีล่าสุด** — กำไรไม่ขาดทุนเลย 5 ปี (exception: 4/5 ปี + 3 ปีหลังบวก = ทบทวน ไม่ตัด)
-4. **ปันผลปัจจุบัน ≥ 5%**
-5. **P/E ≤ 15** (ไม่แพงเกิน)
-6. **P/BV ≤ 1.5** (ราคาไม่สูงเกินมูลค่าบัญชี)
-
-หุ้นจะถูกแยกเป็น 3 ถัง:
-- **PASS** = ผ่านทุกข้อ → เข้าขั้น 3 ไปคิดคะแนน
-- **REVIEW** = ผ่านแต่ streak หรือ EPS ไม่เต็ม → เก็บรายชื่อไว้ให้ user ตัดสินเอง
-- **FAIL** = ตกข้อใดข้อหนึ่ง → เก็บเหตุผลลง "filtered out"
-
-> **กฎ ดร.นิเวศน์ 5-5-5-5:** ปันผล ≥ 5%, 5 ปีที่แล้วก็ได้ ≥ 5%, กระจาย ≥ 5 อุตสาหกรรม, ถือ ≥ 5 ปี
-
-### ขั้น 3 — ให้คะแนนคุณภาพ 100 เต็ม (เฉพาะกลุ่ม PASS)
-
-4 ด้าน:
-
-| ด้าน | คะแนนเต็ม | เกณฑ์ |
-|---|---|---|
-| **ปันผลเป็นหัวใจ** | 50 | yield สูง (15) + streak นาน (15) + จ่ายยั่งยืน (10) + ปันผลโต (10) |
-| **ราคาสมเหตุสมผล** | 25 | P/E ถูก (10) + P/BV ถูก (10) + EV/EBITDA ถูก (5) |
-| **กระแสเงินสดแข็งแรง** | 15 | FCF บวก (5) + OCF ครอบกำไร (5) + ดอกเบี้ยรับได้สบาย (5) |
-| **Hidden Value** | 10 | ถือหุ้นบริษัทอื่นที่ตลาดไม่ price in (เช่น QH ถือ HMPRO) |
-
-### ขั้น 4 — แปะป้าย (signal tags)
-
-ระบบอ่านหุ้นแต่ละตัวแล้วแปะป้าย:
-
-- **NIWES_5555** — ผ่าน 5-5-5-5 ครบทุกข้อแบบเต็มๆ (ถือเป็น entry trigger → บันทึก baseline P/E ไว้ใช้ตรวจ bubble)
-- **HIDDEN_VALUE** — มีทรัพย์สินซ่อน (จาก `hidden_value_holdings.json` ที่เตรียมไว้)
-- **QUALITY_DIVIDEND** — yield≥5% + payout<70% + streak≥10 ปี
-- **DEEP_VALUE** — P/E≤8 + P/BV≤1
-- **DIVIDEND_TRAP** — yield>8% + ROE ลด 3 ปีติด + payout>100% = ปันผลดูสวยแต่เริ่มรั่ว **-20 คะแนน**
-- **DATA_WARNING** — ข้อมูลบางจุดผิดปกติ (yield>15%, ROE>150%, etc.) **-15 คะแนน**
-
-**เพิ่ม case study tags จาก patterns file** (8 แพทเทิร์น): RETAIL_DEFENSIVE_MOAT (CPALL), BANK_VALUE_PBV1 (TCAP), HOLDING_CO_HIDDEN (QH), UTILITY_DEFENSIVE, HOSPITAL_AGING, F&B_CONSUMER_BRAND, ENERGY_CYCLICAL_EXIT, VIETNAM_GROWTH_EXPOSURE
-
-**เพิ่ม moat tags** (deterministic): BRAND_MOAT (consumer + margin>20% + streak≥10), STRUCTURAL_MOAT (utility/transport mcap≥50B), GOVT_LOCKIN (government service)
-
-### ขั้น 5 — Valuation Grade (เกรด A-F)
-
-คิดทีหลังจาก loop ใหญ่จบ (เพราะต้องรู้ค่า median ก่อน):
-
-- **PEG ratio** เทียบ P/E vs EPS CAGR (20 คะแนน)
-- **P/E vs sector median** — ถูกกว่า median 20% = เต็ม (35 คะแนน)
-- **ปันผลปัจจุบัน vs เฉลี่ย 5 ปี** — สูงกว่าเฉลี่ย = หุ้นถูกลง (30 คะแนน)
-- **ตำแหน่งราคา 52w range** — ใกล้ low = ถูก (15 คะแนน)
-
-รวม 100 แล้วเกรด: ≥80=A, ≥60=B, ≥40=C, ≥20=D, <20=F
-
-**เกรดกลับไปปรับคะแนน quality:** A→+5, B→0, C→-5, D→-10, F→-20 (+ แปะ OVERPRICED ถ้า F)
-
-### ขั้น 6 — Exit Signal (สำหรับหุ้น watchlist เท่านั้น)
-
-ถ้าหุ้นใน watchlist Max คอย monitor 3 เงื่อนไข:
-
-1. **FILTER_DEGRADATION** — เคย PASS 5-5-5-5 ตอนนี้ไม่ผ่านแล้ว (fundamental แย่ลง)
-2. **VALUATION_BUBBLE** — P/E ปัจจุบัน > 3x ของ P/E ตอน baseline (ฟองสบู่ราคา)
-3. **THESIS_CHANGE_FLAG** — user flag เองจากข่าว (manual)
-
-severity = high → Telegram alert (flag only, Max **ไม่เคยสั่งขายอัตโนมัติ** — user ตัดสิน)
-
-### ขั้น 7 — เรียงลำดับ + บันทึก
-
-- sort candidates descending by score (สูงสุดก่อน)
-- score_streak: เทียบกับ screener เก่า 20 สัปดาห์ย้อนหลัง ดูว่าคะแนน trend ขึ้นต่อเนื่องกี่สัปดาห์
-- save → `data/screener_{date}.json` + รายงาน markdown `reports/scan_{date}.md`
-- append history v2 entry → `data/history.json`
-- Telegram alert ถ้ามี high-severity exit trigger
-
-### ภาพรวม
-
-**ปรัชญา:** pure deterministic — ไม่มี LLM ตัดสินแทน user, ไม่มี ML black box. ทุก tag + คะแนน **reproducible 100%** ถ้าข้อมูลเดิม. Claude SDK ใช้เฉพาะตอน user กด "วิเคราะห์เพิ่ม" ต่อตัว (cache 7 วัน)
-
-**จุดแข็ง:** โค้ดสะอาด — แยก fetch / screen / scan / report / history เป็น modules ชัด, sanity check ครบ (DATA_WARNING, DIVIDEND_TRAP), ใช้ Niwes framework เต็มตัว
-
-## Tech Stack
-
-- Python + SETSMART API (primary aggregate snapshot) + thaifin (yearly history) + yahooquery (DPS events / 52w / capex)
-- Anthropic SDK (on-demand only)
-- (เก็บแล้ว `_archive/2026-10/`) FastAPI + APScheduler + Vanilla JS dashboard
-
-## Quickstart
-
-หน้า web + server (FastAPI port 50089) เลิกใช้แล้ว 2026-10-07 — เก็บไว้ที่ `_archive/2026-10/` (วิธีเปิดกลับดู `_archive/2026-10/README.md`) · ตอนนี้ใช้สคริปต์ใน `scripts/` ผ่านแชทกับ Claude
-
-```bash
-# scan / refresh (ตั้ง PYTHONUTF8=1 ก่อน)
-py scripts/<script>.py
-# จัดพอร์ต — ขั้นตอนใน docs/portfolio-rebalance.md
-py scripts/rebalance.py --cash <Cash Balance> SYM=vol@market ...
-```
-
-API key (`MAX_ANTHROPIC_API_KEY` ฯลฯ) โหลดจาก `C:/WORKSPACE/.env` — ไม่มี `.env` ที่ root ของ project
-
-## Project Structure
+## WHAT
 
 ```
-scripts/             # pipeline + utils (fetch_data update_universe screen_stocks scan report_template telegram_alert rebalance ...)
-tests/               # unittest (test_portfolio_math.py)
-docs/                # เอกสาร (portfolio-rebalance.md ฯลฯ)
-research/            # งานวิจัยรายตัว + hong_stage1_scanner เขียนผลลงที่นี่
-hong-lens/           # sub-project คัดหุ้นแนวเซียนฮง
-reports/             # scan_*.md reports
-data/                # snapshots + screener + history.json (gitignored)
+scripts/             # 14 ไฟล์ — ดึงข้อมูล: data_adapter fetch_data set_official_adapter setsmart_adapter update_universe flake_queue
+                     #          สแกน: screen_stocks scan report_template history_manager
+                     #          รายตัว / พอร์ต: fact_sheet holdings_watch rebalance · ขาเซียนฮง: hong_stage1_scanner
+tests/               # pytest — 1 ไฟล์ต่อกลุ่ม ไม่ยิงเน็ต
+config.json          # filters (ด่าน) · fact_sheet (เกณฑ์ใบข้อเท็จจริง) · holdings (นอกแผน + ต้นทุนเฉลี่ย)
 user_data.json       # watchlist + blacklist + notes
-config.json          # schedule + filters + universe
-_archive/2026-10/    # server/ web/ mockup/ DESIGN.md plans ฯลฯ ที่เก็บแล้ว
+docs/                # niwes-principles.md (หลัก) · deep-dive.md · portfolio-rebalance.md (ขั้นตอน) · data-sources-guide.md
+                     # niwes/ (ฐานค้นคว้า ดร.นิเวศน์) · review-2026-10/ (ผล review ระบบ)
+research/            # deep dive ขา Niwes + TISCO (<sym>-deep-dive-<วันที่>.md) + ผล Hong scanner
+hong-lens/           # sub-project คัดหุ้นแนวเซียนฮง
+reports/             # ผลรัน: scan_*.md · facts/ · holdings/
+data/                # cache + screener + history (gitignored)
+roadmap/ ROADMAP.md  # คิวงาน + ข้อตกลงที่ล็อก
+_archive/2026-10/    # web / server / สคริปต์ / เอกสารที่เลิกใช้
 ```
+
+คำสั่งทั้งหมดอยู่ใน `CLAUDE.md` · ตั้ง `PYTHONUTF8=1` ก่อนรัน · API key โหลดจาก `C:/WORKSPACE/.env` · ไม่มีตัวตั้งเวลา รันเมื่อจะใช้ (ข้อตกลง N7)
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) — current version **v6.9.0**.
+[CHANGELOG.md](CHANGELOG.md) — version ล่าสุด **v7.0.0** (2026-10-09)
