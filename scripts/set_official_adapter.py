@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +44,24 @@ REQUEST_DELAY_SEC = 1.5
 _playwright = None
 _browser = None
 _context: BrowserContext | None = None
+
+# Playwright sync API is bound to the thread that started it (greenlet), so
+# every browser call is funneled through ONE dedicated worker thread. Callers
+# on any thread submit work and block on the result.
+_executor: ThreadPoolExecutor | None = None
+_executor_lock = threading.Lock()
+
+
+def _on_browser_thread(fn, *args):
+    """Run fn(*args) on the single playwright thread; return its result."""
+    global _executor
+    with _executor_lock:
+        if _executor is None:
+            _executor = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix='set-playwright'
+            )
+        ex = _executor
+    return ex.submit(fn, *args).result()
 
 
 def _get_browser_context() -> BrowserContext:
@@ -77,7 +97,19 @@ def _get_browser_context() -> BrowserContext:
 
 
 def _close_browser() -> None:
-    """Tear down Playwright resources. Safe to call multiple times."""
+    """Tear down Playwright resources (on the playwright thread). Safe to call multiple times."""
+    global _executor
+    with _executor_lock:
+        ex = _executor
+    if ex is None:
+        return
+    _on_browser_thread(_close_browser_impl)
+    with _executor_lock:
+        _executor = None
+    ex.shutdown(wait=True)
+
+
+def _close_browser_impl() -> None:
     global _playwright, _browser, _context
     if _context is not None:
         try:
@@ -100,6 +132,11 @@ def _close_browser() -> None:
 
 
 def fetch_dividends(symbol: str) -> list[dict]:
+    """Thread-safe: run the real fetch on the dedicated playwright thread."""
+    return _on_browser_thread(_fetch_dividends_impl, symbol)
+
+
+def _fetch_dividends_impl(symbol: str) -> list[dict]:
     """Fetch raw Cash Dividend events for symbol from set.or.th API.
 
     Returns list of {xdate, payment_date, begin_operation, end_operation, dps,
