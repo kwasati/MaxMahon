@@ -1,14 +1,13 @@
 """Max Mahon v5 — Stock Screener: Niwes Dividend-First framework (5-5-5-5)."""
 
+import argparse
 import json
 import logging
-import re
 import sys
 import time as _time_module
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,31 +17,18 @@ UNIVERSE = DATA_DIR / "set_universe.json"
 USER_DATA = ROOT / "user_data.json"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from fetch_data import fetch_multi_year, fetch_multi_year_safe
-from data_adapter import (
-    compute_normalized_earnings,
-    compute_payout_sustainability,
-    check_hidden_value,
-    last_complete_fy,
-)
-from case_study_detector import detect_case_study_tags, detect_moat_tags, load_patterns
+from fetch_data import fetch_multi_year_safe
+from data_adapter import compute_normalized_earnings, last_complete_fy
 from flake_queue import add_to_queue
-from sector_taxonomy import is_stable_sector, is_cyclical_sector
-from anchor_scoring import compute_anchor_score
+from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg
 
-_PATTERNS = load_patterns()
+GATE_VERSION = "niwes-gate-2026-10"
 
 DEFAULT_FILTERS = {
     "min_dividend_yield": 5.0,
-    "min_dividend_streak": 5,
     "growing_yield_floor": 2.0,
     "growing_min_streak": 3,
     "growing_growth_cap": 0.15,
-    "min_eps_positive_years": 5,
-    "max_pe": 15.0,
-    "bonus_pe": 8.0,
-    "max_pbv": 1.5,
-    "bonus_pbv": 1.0,
     "min_market_cap": 5_000_000_000,
 }
 
@@ -165,544 +151,83 @@ def hard_filter(data: dict) -> tuple:
     return "FAIL", [f"dividend yield {dy:.1f}% < {HARD_FILTERS['min_dividend_yield']:.0f}% (growing exception not met: {why})"]
 
 
-def detect_exit_signal(symbol: str, current_data: dict, historical_baseline: dict | None = None) -> list[dict]:
-    """Detect exit triggers for a watchlist stock (Niwes sell rules).
-
-    Args:
-        symbol: stock symbol (e.g., "CPALL.BK")
-        current_data: latest fetch_multi_year dict for the stock
-        historical_baseline: optional baseline dict with keys:
-            - passed_5555 (bool): whether stock previously passed 5-5-5-5
-            - pe_baseline (float): baseline PE used at entry (for bubble detection)
-            - thesis_change_flag (bool): manual flag set by news monitoring (Plan 07)
-
-    Returns:
-        list of trigger dicts, each with keys: {type, reason, severity}
-        - type: FILTER_DEGRADATION | VALUATION_BUBBLE | THESIS_CHANGE_FLAG
-        - reason: short Thai string explaining why
-        - severity: "high" | "medium" | "low"
-
-    Notes:
-        - Flag-only — NEVER auto-sells. Karl reviews via exit decision template.
-        - Runs per watchlist stock, not across whole universe.
-        - Mirrors 15-exit-rules.md Rule 2 (filter degradation) + Rule 3 (valuation bubble).
-    """
-    triggers: list[dict] = []
-    baseline = historical_baseline or {}
-
-    # --- Trigger 1: FILTER_DEGRADATION ---
-    # If stock previously passed 5-5-5-5 but now fails any Niwes hard filter
-    if baseline.get("passed_5555"):
-        status_now, fail_reasons = hard_filter(current_data)
-        # filter-07: PENDING = yahoo flake (data issue, not actual degradation) — skip alert
-        if status_now not in ("PASS", "PENDING"):
-            triggers.append({
-                "type": "FILTER_DEGRADATION",
-                "reason": f"เคยผ่าน 5-5-5-5 แต่ตอนนี้ {status_now}: {'; '.join(fail_reasons[:3])}",
-                "severity": "high" if len(fail_reasons) >= 2 else "medium",
-            })
-
-    # --- Trigger 2: VALUATION_BUBBLE ---
-    # Current P/E > 3x baseline P/E (mirrors Rule 3 logic, threshold 3x)
-    pe_now = current_data.get("pe_ratio")
-    pe_baseline = baseline.get("pe_baseline")
-    if pe_now is not None and pe_now > 0 and pe_baseline is not None and pe_baseline > 0:
-        ratio = pe_now / pe_baseline
-        if ratio >= 3.0:
-            triggers.append({
-                "type": "VALUATION_BUBBLE",
-                "reason": f"P/E ปัจจุบัน {pe_now:.1f} > 3x baseline {pe_baseline:.1f} ({ratio:.1f}x)",
-                "severity": "high",
-            })
-        elif ratio >= 2.0:
-            triggers.append({
-                "type": "VALUATION_BUBBLE",
-                "reason": f"P/E ปัจจุบัน {pe_now:.1f} = {ratio:.1f}x baseline (watch)",
-                "severity": "medium",
-            })
-
-    # --- Trigger 3: THESIS_CHANGE_FLAG ---
-    # Manual flag from news monitoring (Plan 07). Just echoes the flag + any note.
-    if baseline.get("thesis_change_flag"):
-        note = baseline.get("thesis_change_note", "manual flag from news monitoring")
-        triggers.append({
-            "type": "THESIS_CHANGE_FLAG",
-            "reason": note,
-            "severity": "high",
-        })
-
-    return triggers
-
-
-_BASELINES_PATH = Path(__file__).resolve().parent.parent / "data" / "exit_baselines.json"
-
-
-def load_exit_baselines() -> dict:
-    """Read data/exit_baselines.json. Returns {} if missing or parse error."""
-    if not _BASELINES_PATH.exists():
-        return {}
-    try:
-        return json.loads(_BASELINES_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-_SCREENER_DATE_PATTERN = re.compile(r"^screener_\d{4}-\d{2}-\d{2}\.json$")
-
-
-def load_prior_screener_files() -> list[Path]:
-    """Return prior screener_YYYY-MM-DD.json files sorted by mtime (newest first).
-
-    Uses regex filter to avoid curated/backup files from leaking into sort
-    (per MEMORY lesson: lex sort on glob can include files like
-    'screener_2026-04-22_curated.json' — always filter + use mtime).
-    """
-    files = [
-        f for f in DATA_DIR.glob("screener_*.json")
-        if _SCREENER_DATE_PATTERN.match(f.name)
-    ]
-    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
-
-
-def compute_score_streak(symbol: str, current_score: int, prior_files: list[Path]) -> tuple[int, Optional[int]]:
-    """Count consecutive prior scans where score did not drop for this symbol.
-
-    Returns (streak_weeks, previous_score). Streak = number of consecutive
-    prior scans where score was <= the one after it (score went up OR stayed equal).
-    Stops at first decrease.
-    """
-    streak = 0
-    last = current_score
-    previous_score: Optional[int] = None
-    for f in prior_files[:20]:
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            match = next(
-                (c for c in data.get('candidates', []) if c.get('symbol') == symbol),
-                None,
-            )
-            if not match or match.get('score') is None:
-                break
-            match_score = match['score']
-            if previous_score is None:
-                previous_score = match_score
-            if match_score <= last:
-                streak += 1
-                last = match_score
-            else:
-                break
-        except Exception:
-            break
-    return streak, previous_score
-
-
-def save_exit_baseline(symbol: str, metrics: dict, baselines: dict) -> dict:
-    """Save baseline for symbol when it first passes NIWES_5555. Writes atomic to JSON.
-
-    Returns updated baselines dict (same object mutated + written).
-    If symbol already has passed_5555=True entry: preserve earliest baseline,
-    only refresh date_refreshed field (don't overwrite pe/pbv/dy baseline).
-    metrics may include optional 'entry_score' (int) to snapshot the screener score
-    at baseline creation time (used by v6 watchlist Δ Entry calculation).
-    """
-    today = datetime.now().strftime("%Y-%m-%d")
-    existing = baselines.get(symbol, {})
-    if existing.get("passed_5555"):
-        existing["date_refreshed"] = today
-        baselines[symbol] = existing
-    else:
-        baselines[symbol] = {
-            "passed_5555": True,
-            "pe_baseline": metrics.get("pe_ratio"),
-            "pbv_baseline": metrics.get("pb_ratio"),
-            "dy_baseline": metrics.get("dividend_yield"),
-            "entry_score": metrics.get("entry_score"),
-            "date_added": today,
-            "date_refreshed": today,
-            "thesis_change_flag": False,
-        }
-    _BASELINES_PATH.write_text(
-        json.dumps(baselines, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    return baselines
-
-
-def load_exit_baseline(symbol: str) -> dict:
-    """Load exit baseline for a symbol from data/exit_baselines.json.
-
-    Returns baseline dict (may be empty if symbol not tracked yet).
-    File structure: { "CPALL.BK": {"passed_5555": true, "pe_baseline": 8.5, ...}, ... }
-    """
-    baseline_path = DATA_DIR / "exit_baselines.json"
-    if not baseline_path.exists():
-        return {}
-    try:
-        all_baselines = json.loads(baseline_path.read_text(encoding="utf-8"))
-        return all_baselines.get(symbol, {}) or {}
-    except Exception:
-        return {}
-
-
-def assign_signals(data: dict, total_score: int) -> list:
-    """Niwes signal tags."""
-    signals = []
-    agg = data.get("aggregates", {})
-    yearly = data.get("yearly_metrics", [])
-
-    # DATA_WARNING (keep)
-    if data.get("warnings"):
-        signals.append("DATA_WARNING")
-
-    dy = data.get("dividend_yield") or 0
-    pe = data.get("pe_ratio")
-    pbv = data.get("pb_ratio")
-    payout = data.get("payout_ratio")
-    streak = agg.get("dividend_streak", 0)
-    sym = data.get("symbol", "")
-
-    # DATA_INCOMPLETE — yahoo flake (yield > 0 but no DPS history)
-    div_history = data.get("dividend_history") or {}
-    if dy > 0 and streak == 0 and not div_history:
-        signals.append("DATA_INCOMPLETE")
-
-    # NIWES_5555 — passes 5-5-5-5 (exclude current calendar year — match hard_filter)
-    norm_eps = compute_normalized_earnings(data)
-    if norm_eps:
-        _cy = datetime.now().year
-        sorted_years = sorted(
-            (y for y in norm_eps.keys() if int(y) < _cy),
-            key=lambda y: int(y),
-        )[-5:]
-    else:
-        sorted_years = []
-    eps_recent = [norm_eps[y] for y in sorted_years]
-    eps_5_pos = len(eps_recent) >= 5 and all(e is not None and e > 0 for e in eps_recent)
-
-    if (dy >= 5 and streak >= 5 and eps_5_pos
-            and pe is not None and 0 < pe <= 15
-            and pbv is not None and 0 < pbv <= 1.5):
-        signals.append("NIWES_5555")
-
-    # NIWES_GROWING — Niwes growing-dividend exception (yield 2-5% + DPS growing 3+ yrs + EPS 5/5 + PE/PBV ok)
-    growth_streak = agg.get("dividend_growth_streak", 0)
-    if (2.0 <= dy < 5 and growth_streak >= 3 and eps_5_pos
-            and pe is not None and 0 < pe <= 15
-            and pbv is not None and 0 < pbv <= 1.5):
-        signals.append("NIWES_GROWING")
-
-    # HIDDEN_VALUE
-    if check_hidden_value(sym):
-        signals.append("HIDDEN_VALUE")
-
-    # QUALITY_DIVIDEND — yield≥5 + payout<70 + streak≥10
-    if dy >= 5 and payout is not None and payout < 0.70 and streak >= 10:
-        signals.append("QUALITY_DIVIDEND")
-
-    # YIELD_SPIKE_FROM_PRICE_DROP — yield ดีดเพราะราคาตก ไม่ใช่ DPS โต (warning, not exclusion)
-    yield_5y = data.get("five_year_avg_yield") or 0
-    if yield_5y > 0 and dy / yield_5y > 1.8:
-        signals.append("YIELD_SPIKE_FROM_PRICE_DROP")
-
-    # DEEP_VALUE — P/E≤8 + P/BV≤1
-    if pe is not None and 0 < pe <= 8 and pbv is not None and 0 < pbv <= 1.0:
-        signals.append("DEEP_VALUE")
-
-    # DIVIDEND_TRAP (renamed from YIELD_TRAP) — yield>8 + ROE declining + payout>100
-    roe_vals = [m["roe"] for m in yearly if m.get("roe") is not None]
-    if dy > 8:
-        declining = (len(roe_vals) >= 3 and
-                     all(roe_vals[i] < roe_vals[i-1] for i in range(1, len(roe_vals))))
-        if declining and payout is not None and payout > 1.0:
-            signals.append("DIVIDEND_TRAP")
-
-    signals.extend(detect_case_study_tags(data, _PATTERNS))
-    signals.extend(detect_moat_tags(data))
-    return signals
-
-
-# v1.1: Banks/Finance/Insurance — Niwes ch4 context (industrial/retail/property) doesn't apply.
-# These sectors have lumpy OCF from lending/investing cycles and structurally lower ROE.
-BANK_FINANCE_SECTORS = {'Banking', 'Finance & Securities', 'Insurance'}
-# v1.2: Property/REIT — legitimate lumpy cash flow from project/lending cycles.
-PROPERTY_REIT_SECTORS = {'Property Development', 'Property Fund & REIT'}
-LUMPY_CASHFLOW_SECTORS = BANK_FINANCE_SECTORS | PROPERTY_REIT_SECTORS
-
-
-def _count_consecutive_roe_above(yearly_metrics: list, threshold: float, current_year: int) -> int:
-    """Count consecutive years where ROE >= threshold (decimal e.g. 0.12 = 12%), newest first.
-
-    Returns int — number of consecutive years starting from most recent complete year.
-    Stops at first year ROE < threshold.
-    """
-    def _year_int_safe(m):
-        y = m.get('year')
-        if y is None:
-            return None
-        try:
-            return int(y)
-        except (TypeError, ValueError):
-            return None
-
-    valid = []
-    for m in yearly_metrics or []:
-        y = _year_int_safe(m)
-        if y is None or y >= current_year:
-            continue
-        roe = m.get('roe')
-        if roe is None:
-            continue
-        valid.append((y, roe))
-    valid.sort(key=lambda t: t[0], reverse=True)
-    count = 0
-    for _, roe in valid:
-        if roe >= threshold:
-            count += 1
-        else:
-            break
-    return count
-
-
-def assign_anchor_stage_tags(data: dict, agg: dict) -> list[str]:
-    """Assign Stage 2-5 anchor tags per parent plan niwes-refactor-v2-design.
-
-    Side-by-side with existing assign_signals() — doesn't replace.
-    Returns list of tag strings (e.g. 'GROWING_DIVIDEND', 'STRONG_MOAT').
-    """
-    tags: list[str] = []
-    sector = data.get('sector', '') or ''
-    symbol = (data.get('symbol', '') or '').replace('.BK', '').upper()
-
-    # Stage 2: Dividend tier (mutually exclusive)
-    consecutive = agg.get('dividend_streak', 0) or 0
-    rising = agg.get('rising_ratio') or 0
-    growth = agg.get('avg_yoy_growth') or 0
-    if consecutive >= 10 and rising >= 0.70 and growth >= 0.03:
-        tags.append('GROWING_DIVIDEND')
-    elif consecutive >= 10:
-        tags.append('STABLE_PAYER')
-    elif consecutive >= 3:
-        tags.append('NEW_PAYER')
-    else:
-        tags.append('INTERMITTENT')
-
-    # Stage 2: DIVIDEND_SHRINKING (orthogonal — drop >= 30% from peak)
-    dividend_history = data.get('dividend_history') or {}
-    if dividend_history:
-        sorted_years = sorted(dividend_history.keys())
-        if len(sorted_years) >= 2:
-            recent_dps = [dividend_history[y] for y in sorted_years[-5:]]
-            peak = max(recent_dps) if recent_dps else 0
-            current_dps = recent_dps[-1] if recent_dps else 0
-            if peak > 0 and current_dps < peak * 0.70:
-                tags.append('DIVIDEND_SHRINKING')
-
-    # Stage 2: YIELD_TRAP (orthogonal — yield > 8% + streak < 5)
-    dy = data.get('dividend_yield') or 0
-    if dy > 8 and consecutive < 5:
-        tags.append('YIELD_TRAP')
-
-    # Stage 2: ROE trend (orthogonal — from Phase 1 aggregate)
-    roe_trend = agg.get('roe_trend', 'ROE_STABLE')
-    tags.append(roe_trend)
-
-    # Stage 3: Cash flow tier
-    ccr = agg.get('ccr_avg_3y')
-    ocf_positive = agg.get('ocf_positive_3y', False)
-    ocf_neg = agg.get('ocf_negative_count_3y', 0) or 0
-    ocf_decline = agg.get('ocf_yoy_decline_pct')
-    if ccr is not None and ocf_positive:
-        if ccr >= 0.70:
-            tags.append('CASHFLOW_HEALTHY')
-        elif ccr >= 0.50:
-            tags.append('CASHFLOW_OK')
-        else:
-            tags.append('CASHFLOW_BELOW_PROFIT')
-    if ocf_neg >= 2 and sector not in LUMPY_CASHFLOW_SECTORS:
-        # FAKE_PROFIT: OCF negative >=2 of last 3y while NP positive — non-financial only.
-        # v1.1: Banks/Finance/Insurance excluded — Niwes ch4 context (industrial/retail/property)
-        # doesn't apply; their OCF is lumpy from lending/investing cycles.
-        # v1.2: Property/REIT also excluded — legitimate lumpy cash flow from project/lending cycles.
-        latest_eps = data.get('eps_trailing') or 0
-        if latest_eps > 0:
-            tags.append('FAKE_PROFIT')
-    if ocf_decline is not None and ocf_decline <= -0.20 and sector not in LUMPY_CASHFLOW_SECTORS:
-        # v1.2: CASHFLOW_DETERIORATING — skip lumpy cash flow sectors (banks/property)
-        tags.append('CASHFLOW_DETERIORATING')
-
-    # Stage 4: Moat tier (mutually exclusive — per-sector ROE threshold v1.1)
-    # General sectors: STRONG ROE >=12% 5y / MODERATE >=8% 3y (loosened from 15%/10%)
-    # Banks/Finance/Insurance: STRONG >=10% 5y / MODERATE >=7% 3y (Thai banks structurally lower ROE)
-    current_year = datetime.now().year
-
-    gm_trend = agg.get('gm_trend', 'stable') or 'stable'
-    avg_roe = agg.get('avg_roe', 0) or 0
-    de = data.get('debt_to_equity') or data.get('de_ratio')
-    int_cov = agg.get('interest_coverage_4y_avg')
-    net_debt_inc = agg.get('net_debt_increases_in_3y', 0) or 0
-    yearly_metrics = data.get('yearly_metrics', [])
-
-    # Per-sector ROE threshold for STRONG/MODERATE
-    if sector in BANK_FINANCE_SECTORS:
-        strong_roe_threshold = 0.10  # Banks/Finance structurally lower ROE
-        moderate_roe_threshold = 0.07
-        strong_avg_min = 0.10
-        moderate_avg_min = 0.07
-    else:
-        strong_roe_threshold = 0.12  # General sectors (v1.1 loosened from 0.15)
-        moderate_roe_threshold = 0.08
-        strong_avg_min = 0.12
-        moderate_avg_min = 0.08
-
-    # Compute per-threshold consecutive counts (inline)
-    roe_strong_consecutive = _count_consecutive_roe_above(yearly_metrics, strong_roe_threshold, current_year)
-    roe_moderate_consecutive = _count_consecutive_roe_above(yearly_metrics, moderate_roe_threshold, current_year)
-
-    # Tier assignment (mutually exclusive)
-    if avg_roe >= strong_avg_min and de is not None and de > 2.0 and int_cov is not None and int_cov < 3 and net_debt_inc >= 2:
-        tags.append('ROE_FUELED_BY_DEBT')
-    elif roe_strong_consecutive >= 5 and gm_trend in ('stable', 'improving'):
-        # STRONG: 5y consecutive above threshold (was 7y of 15%+, now 5y of 12% general / 10% banks)
-        tags.append('STRONG_MOAT')
-    elif roe_moderate_consecutive >= 3 and gm_trend in ('stable', 'improving') and avg_roe >= moderate_avg_min:
-        # MODERATE: 3y consecutive above moderate threshold
-        tags.append('MODERATE_MOAT')
-    elif gm_trend == 'declining' or avg_roe < moderate_avg_min:
-        tags.append('NO_MOAT')
-        # MOAT_ERODING: had moat history but now declining (uses legacy 15%+ counter)
-        roe_legacy_15plus = agg.get('roe_consecutive_15plus_years', 0) or 0
-        if roe_legacy_15plus >= 3:
-            tags.append('MOAT_ERODING')
-    else:
-        tags.append('NO_MOAT')
-
-    # Stage 5: Stability tier
-    eps_cv = agg.get('eps_cv_10y')
-    stable = is_stable_sector(sector, symbol)
-    cyclical = is_cyclical_sector(sector)
-    if stable and eps_cv is not None and eps_cv <= 0.40:   # v1.2: loosen from 0.30
-        tags.append('STABLE_BUSINESS')
-    elif cyclical or (eps_cv is not None and eps_cv > 0.50):
-        tags.append('CYCLICAL_BUSINESS')
-    else:
-        tags.append('MIXED_STABILITY')
-
-    # Stage 5: RESILIENT_THROUGH_CRISIS (orthogonal — additive) — v1.2 loosened threshold -55%
-    # Thai market: many quality stocks dropped > 50% intra-year during covid then recovered.
-    # Loosen to -55% to include them.
-    drop2011 = agg.get('crisis_2011_drop_pct')
-    drop2020 = agg.get('crisis_2020_drop_pct')
-    ocf2011 = agg.get('ocf_2011')
-    ocf2020 = agg.get('ocf_2020')
-    if (drop2011 is not None and drop2011 >= -0.55 and (ocf2011 or 0) > 0 and
-        drop2020 is not None and drop2020 >= -0.55 and (ocf2020 or 0) > 0):
-        tags.append('RESILIENT_THROUGH_CRISIS')
-
-    return tags
-
-
-def valuation_grade(data: dict, sector_medians: dict) -> dict:
-    """Evaluate price attractiveness — Grade A-F."""
-    pe = data.get("pe_ratio")
-    agg = data.get("aggregates", {})
-    eps_cagr = agg.get("eps_cagr") or 0
-    sector = data.get("sector", "unknown")
-    median_pe = sector_medians.get(sector, 20)
-
-    score = 0  # 0-100, higher = cheaper
-
-    # PEG ratio (20 pts)
-    peg = pe / (eps_cagr * 100) if eps_cagr > 0 and pe else None
-    if peg and peg < 1:
-        score += 20
-    elif peg and peg < 2:
-        score += 12
-    elif peg and peg < 3:
-        score += 4
-
-    # P/E vs sector median (35 pts)
-    if pe and pe < median_pe * 0.8:
-        score += 35
-    elif pe and pe < median_pe * 1.2:
-        score += 21
-    elif pe and pe < median_pe * 2:
-        score += 7
-
-    # Yield vs 5y avg (30 pts)
-    yield_now = data.get("dividend_yield", 0) or 0
-    yield_5y = data.get("five_year_avg_yield", 0) or 0
-    if yield_5y > 0:
-        ratio = yield_now / yield_5y
-        if ratio > 1.3:
-            score += 30
-        elif ratio > 0.9:
-            score += 18
-        elif ratio > 0.6:
-            score += 6
-
-    # 52w position (15 pts)
-    low_52w = data.get("52w_low")
-    high_52w = data.get("52w_high")
-    price = data.get("price")
-    if low_52w and high_52w and price and high_52w > low_52w:
-        pos_52w = (price - low_52w) / (high_52w - low_52w)
-    else:
-        pos_52w = 0.5
-    if pos_52w < 0.3:
-        score += 15
-    elif pos_52w < 0.6:
-        score += 9
-    elif pos_52w < 0.8:
-        score += 3
-
-    # Grade mapping
-    if score >= 80:
-        grade = "A"
-    elif score >= 60:
-        grade = "B"
-    elif score >= 40:
-        grade = "C"
-    elif score >= 20:
-        grade = "D"
-    else:
-        grade = "F"
-
-    labels = {
-        "A": "ราคาน่าสนใจมาก",
-        "B": "ราคาเหมาะสม",
-        "C": "ราคาปกติ",
-        "D": "ราคาค่อนข้างสูง",
-        "F": "ราคาสูงเกินจริง",
-    }
-
-    signals = []
-    if grade == "F":
-        signals.append("OVERPRICED")
-
+def material_cuts_10y(data: dict) -> int:
+    """Count of DPS cuts >= cut_material_pct (fact sheet config) in the latest 10 complete FYs."""
+    complete, _ = dividend_series(data)
+    if not complete:
+        return 0
+    last_fy = max(complete)
+    cuts = dividend_cuts(complete, load_fact_cfg()["cut_material_pct"])
+    return sum(1 for c in cuts if c["material"] and c["fy"] > last_fy - 10)
+
+
+def build_entry(sym: str, data: dict, in_watchlist: bool) -> dict:
+    """Entry of a stock that passed the gate: which path, flags, headline numbers. No scoring."""
+    agg = data.get("aggregates") or {}
+    dy = data.get("dividend_yield")
+    main_path = dy is not None and dy >= HARD_FILTERS["min_dividend_yield"]
+    last_fy, last_dps = _last_complete_dps(data)
+    py, g = (None, None) if main_path else projected_yield_5y(data)
     return {
-        "grade": grade,
-        "label": labels[grade],
-        "score": score,
-        "peg": round(peg, 2) if peg else None,
-        "signals": signals,
+        "symbol": sym,
+        "name": data.get("name", sym),
+        "sector": data.get("sector", "N/A"),
+        "sector_profile": data.get("sector_profile") or agg.get("sector_profile"),
+        "in_watchlist": in_watchlist,
+        "gate_path": "main" if main_path else "growth",
+        "gate_flags": gate_flags(data),
+        "price": data.get("price"),
+        "price_as_of": data.get("price_as_of"),
+        "dividend_yield": dy,
+        "last_dps": last_dps,
+        "last_dps_fy": last_fy,
+        "projected_yield_5y": py,
+        "growth_used": g,
+        "dps_cagr_5y": agg.get("dps_cagr"),
+        "dps_cagr_10y": agg.get("dps_10y_cagr"),
+        "dividend_streak": agg.get("dividend_streak"),
+        "material_cuts_10y": material_cuts_10y(data),
+        "pe": data.get("pe_ratio"),
+        "pbv": data.get("pb_ratio"),
+        "market_cap": data.get("market_cap"),
+        "data_gaps": list(agg.get("data_gaps") or []),
     }
 
 
-def main():
-    universe = json.loads(UNIVERSE.read_text(encoding="utf-8"))
+def candidate_sort_key(c: dict) -> tuple:
+    """Fixed order: main path before growth path, then yield high -> low, then symbol."""
+    return (0 if c.get("gate_path") == "main" else 1, -(c.get("dividend_yield") or 0), c["symbol"])
 
-    # Read user data
+
+def parse_symbols(text: str) -> list:
+    """'amata,BBL.BK' -> ['AMATA.BK', 'BBL.BK'] (order kept, duplicates dropped)."""
+    out: list[str] = []
+    for part in text.split(","):
+        part = part.strip().upper()
+        if not part:
+            continue
+        sym = part if part.endswith(".BK") else part + ".BK"
+        if sym not in out:
+            out.append(sym)
+    return out
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Max Mahon gate screener")
+    ap.add_argument("--symbols", help="comma-separated symbols to scan instead of the whole universe")
+    ap.add_argument("--out-dir", help="write the screener json here instead of data/ (also skips the flake queue)")
+    args = ap.parse_args(argv)
+    out_dir = Path(args.out_dir) if args.out_dir else None
+
     user_data = json.loads(USER_DATA.read_text(encoding="utf-8"))
     watched = set(user_data.get("watchlist", []))
     blacklisted = set(user_data.get("blacklist", []))
 
-    symbols = universe["symbols"]
-    print(f"Max Mahon v5 screening {len(symbols)} stocks (Niwes 5-5-5-5)...")
-
-    # Exit baseline tracking (Niwes sell rules) — load once, update on NIWES_5555
-    baselines = load_exit_baselines()
-
-    # v6 Phase 6 — load prior screener files for score streak computation
-    prior_screener_files = load_prior_screener_files()
+    if args.symbols:
+        symbols = parse_symbols(args.symbols)
+    else:
+        symbols = json.loads(UNIVERSE.read_text(encoding="utf-8"))["symbols"]
+    print(f"Max Mahon gate screening {len(symbols)} stocks ({GATE_VERSION})...")
 
     # ===== Phase A — parallel fetch =====
     fetch_targets = [s for s in symbols if s not in blacklisted]
@@ -766,12 +291,10 @@ def main():
 
     # ===== Phase B — serial post-process =====
     candidates = []
-    review_candidates: list[dict] = []
     pending_candidates: list[dict] = []
     filtered_stocks = []
-    filtered_out = 0
     error_count = 0
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
 
     for i, sym in enumerate(symbols):
         if sym in blacklisted:
@@ -795,16 +318,13 @@ def main():
                 print(f"  [{i+1}/{len(symbols)}] {sym} — error: {data['error']}")
                 continue
 
-            # Set hidden holdings before hard_filter — available for all buckets (PASS/REVIEW/FAIL)
-            data['_hidden_holdings'] = check_hidden_value(sym)
-
             status, filter_reasons = hard_filter(data)
             if status == "FAIL":
-                filtered_out += 1
                 filtered_stocks.append({
                     "symbol": sym,
                     "name": data.get("name", sym),
                     "sector": data.get("sector", "N/A"),
+                    "in_watchlist": sym in watched,
                     "reasons": filter_reasons,
                     "basic_metrics": {
                         "price": data.get("price"),
@@ -819,216 +339,63 @@ def main():
                 print(f"  [{i+1}/{len(symbols)}] {sym} — filtered: {', '.join(filter_reasons[:2])}")
                 continue
 
-            if status == "REVIEW":
-                review_entry = {
-                    "symbol": sym,
-                    "name": data.get("name", sym),
-                    "sector": data.get("sector", "N/A"),
-                    "review_reasons": filter_reasons,
-                    "basic_metrics": {
-                        "price": data.get("price"),
-                        "pe": data.get("pe_ratio"),
-                        "pbv": data.get("pb_ratio"),
-                        "dy": data.get("dividend_yield"),
-                        "streak": (data.get("aggregates") or {}).get("dividend_streak"),
-                    },
-                }
-                if sym in watched:
-                    review_entry["exit_triggers"] = detect_exit_signal(sym, data, baselines.get(sym))
-                else:
-                    review_entry["exit_triggers"] = []
-                review_candidates.append(review_entry)
-                print(f"  [{i+1}/{len(symbols)}] {sym} — review: {', '.join(filter_reasons[:2])}")
-                continue
-
             if status == "PENDING":
-                # filter-07 Phase 2: yahoo flake — queue for retry in daily price refresh.
-                # Skip scoring; do not classify as PASS/REVIEW/FAIL.
-                add_to_queue(sym, filter_reasons, today_str)
+                # yahoo flake: queue for retry in daily price refresh (not on partial runs)
+                if out_dir is None:
+                    add_to_queue(sym, filter_reasons, today)
                 pending_candidates.append({
                     "symbol": sym,
                     "sector": data.get("sector", "N/A"),
+                    "in_watchlist": sym in watched,
                     "reasons": filter_reasons,
                 })
-                print(f"  [{i+1}/{len(symbols)}] {sym} — pending (queued for retry): {', '.join(filter_reasons[:2])}")
+                print(f"  [{i+1}/{len(symbols)}] {sym} — pending: {', '.join(filter_reasons[:2])}")
                 continue
 
-            # status == "PASS"
-            # Anchor scoring (primary, replaces 5-pillar quality_score)
-            anchor_stage_tags = assign_anchor_stage_tags(data, data.get("aggregates", {}))
-            anchor_result = compute_anchor_score(anchor_stage_tags, data.get("aggregates", {}))
-            # Legacy signals — kept parallel (frontend will migrate to anchor_stage_tags later)
-            legacy_signals = assign_signals(data, anchor_result["anchor_score"])
-
-            in_watchlist = sym in watched
-
-            # Save exit baseline the first time a stock passes 5-5-5-5
-            if "NIWES_5555" in legacy_signals:
-                baselines = save_exit_baseline(
-                    sym,
-                    {
-                        "pe_ratio": data.get("pe_ratio"),
-                        "pb_ratio": data.get("pb_ratio"),
-                        "dividend_yield": data.get("dividend_yield"),
-                        "entry_score": anchor_result["anchor_score"],
-                    },
-                    baselines,
-                )
-
-            # Detect exit triggers only for watchlist stocks (flag-only, Karl reviews)
-            if in_watchlist:
-                exit_triggers = detect_exit_signal(sym, data, baselines.get(sym))
-            else:
-                exit_triggers = []
-
-            # five_year_avg_yield fallback — compute from dividend_history if null
-            five_yr_yield = data.get("five_year_avg_yield")
-            if five_yr_yield is None and data.get("dividend_history") and data.get("price"):
-                dh = data["dividend_history"]
-                recent_5 = sorted(dh.keys())[-5:]
-                if recent_5:
-                    avg_dps = sum(dh[y] for y in recent_5) / len(recent_5)
-                    five_yr_yield = avg_dps / data["price"] * 100 if data["price"] > 0 else None
-
-            # v6 Phase 6 — score streak + previous score (computed from prior screener files)
-            streak_weeks, prev_score = compute_score_streak(
-                sym, anchor_result["anchor_score"], prior_screener_files,
-            )
-
-            entry = {
-                "symbol": sym,
-                "name": data.get("name", sym),
-                "sector": data.get("sector", "N/A"),
-                "in_watchlist": in_watchlist,
-                # Anchor scoring fields (Plan anchor-refactor-01):
-                "score": anchor_result["anchor_score"],            # int 0-100 (anchor)
-                "display_score": anchor_result["display_score"],   # float 0.0-10.0 (anchor)
-                "breakdown": anchor_result["by_dimension"],        # dict 4 keys: dividend/cashflow/moat/long_hold
-                "disqualified": anchor_result["disqualified"],     # bool — true if anchor disqualify hit
-                "penalty": anchor_result["penalty"],               # int (negative or 0)
-                "penalty_tags": anchor_result.get("penalty_tags", []),
-                "disqualify_tags": anchor_result.get("disqualify_tags", []),
-                "anchor_stage_tags": anchor_stage_tags,
-                # Legacy parallel (kept while frontend migrates):
-                "signals": legacy_signals,
-                # Streak tracking (unchanged):
-                "score_streak_weeks": streak_weeks,
-                "previous_score": prev_score,
-                "metrics": {
-                    "dividend_yield": data.get("dividend_yield"),
-                    "pe": data.get("pe_ratio"),
-                    "forward_pe": data.get("forward_pe"),
-                    "roe": data.get("roe"),
-                    "de": (lambda de: de / 100 if de is not None else None)(data.get("debt_to_equity")),
-                    "payout": data.get("payout_ratio"),
-                    "rev_growth": data.get("revenue_growth"),
-                    "earn_growth": data.get("earnings_growth"),
-                    "mcap": data.get("market_cap"),
-                    "fcf": data.get("free_cashflow"),
-                    "current_price": data.get("price"),
-                    "52w_low": data.get("52w_low"),
-                    "52w_high": data.get("52w_high"),
-                    "pb_ratio": data.get("pb_ratio"),
-                    "five_year_avg_yield": five_yr_yield,
-                    "gross_margins": data.get("gross_margins"),
-                    "operating_margins": data.get("operating_margins"),
-                },
-                "aggregates": data.get("aggregates", {}),
-                "warnings": data.get("warnings", []),
-                "yearly_metrics": data.get("yearly_metrics", []),
-                "dividend_history": data.get("dividend_history", {}),
-                "exit_triggers": exit_triggers,
-                "gate_flags": gate_flags(data),
-            }
+            entry = build_entry(sym, data, sym in watched)
             candidates.append(entry)
-
-            marker = "★" if in_watchlist else "✦"
-            sig_str = f" [{','.join(legacy_signals)}]" if legacy_signals else ""
-            breakdown = anchor_result["by_dimension"]
-            if anchor_result["disqualified"]:
-                bd_str = f"DISQUALIFIED({', '.join(anchor_result.get('disqualify_tags', []))})"
-            else:
-                bd_str = f"D{breakdown['dividend']}+C{breakdown['cashflow']}+M{breakdown['moat']}+L{breakdown['long_hold']}"
-            display = anchor_result["display_score"]
-            print(f"  [{i+1}/{len(symbols)}] {marker} {sym} — {display}/10.0 ({bd_str}){sig_str}")
+            marker = "★" if entry["in_watchlist"] else "✦"
+            print(f"  [{i+1}/{len(symbols)}] {marker} {sym} — pass ({entry['gate_path']}) yield {entry['dividend_yield']}"
+                  + (f" flags={entry['gate_flags']}" if entry["gate_flags"] else ""))
 
         except Exception as e:
             error_count += 1
             print(f"  [{i+1}/{len(symbols)}] {sym} — error: {e}")
 
-    # Compute sector median P/E from candidates
-    sector_pe = {}
-    for c in candidates:
-        pe = c["metrics"].get("pe")
-        if pe and 0 < pe < 100:
-            sector_pe.setdefault(c["sector"], []).append(pe)
-    sector_medians = {s: sorted(vals)[len(vals) // 2] for s, vals in sector_pe.items() if vals}
-
-    # Add valuation grade to each candidate
-    for c in candidates:
-        # Rebuild data dict for valuation_grade
-        val_data = {
-            "pe_ratio": c["metrics"].get("pe"),
-            "aggregates": c.get("aggregates", {}),
-            "sector": c.get("sector", "unknown"),
-            "dividend_yield": c["metrics"].get("dividend_yield"),
-            "five_year_avg_yield": c["metrics"].get("five_year_avg_yield"),
-            "52w_low": c["metrics"].get("52w_low"),
-            "52w_high": c["metrics"].get("52w_high"),
-            "price": c["metrics"].get("current_price"),
-        }
-        val = valuation_grade(val_data, sector_medians)
-        c["valuation"] = val
-        # Anchor v1.0: valuation grade kept for OVERPRICED signal + server enrichment,
-        # but score modifier removed (pillar-legacy — anchor model has its own penalty system)
-        # Add OVERPRICED signal
-        if "OVERPRICED" in val["signals"] and "OVERPRICED" not in c["signals"]:
-            c["signals"].append("OVERPRICED")
-
-    # Sort by display_score (= anchor_score / 10) — single source of truth for ranking
-    candidates.sort(key=lambda x: x.get("display_score", x["score"] / 10.0), reverse=True)
+    candidates.sort(key=candidate_sort_key)
+    n_main = sum(1 for c in candidates if c["gate_path"] == "main")
     new_finds = [c for c in candidates if not c["in_watchlist"]]
 
-    today = datetime.now().strftime("%Y-%m-%d")
     out = {
         "date": today,
         "agent": "Max Mahon v5",
-        "scoring_version": "niwes-dividend-first-v2",
+        "gate_version": GATE_VERSION,
         "total_scanned": len(symbols),
         "passed_filter": len(candidates),
-        "review_count": len(review_candidates),
-        "filtered_out": filtered_out,
+        "filtered_out": len(filtered_stocks),
         "pending_count": len(pending_candidates),
         "new_discoveries": len(new_finds),
         "counts": {
             "passed": len(candidates),
-            "review": len(review_candidates),
-            "filtered_out": filtered_out,
+            "passed_main": n_main,
+            "passed_growth": len(candidates) - n_main,
+            "filtered_out": len(filtered_stocks),
             "pending": len(pending_candidates),
         },
         "hard_filters": HARD_FILTERS,
         "candidates": candidates,
-        "review_candidates": review_candidates,
         "pending_candidates": pending_candidates,
         "filtered_out_stocks": filtered_stocks,
     }
 
-    out_path = DATA_DIR / f"screener_{today}.json"
+    target_dir = out_dir or DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out_path = target_dir / f"screener_{today}.json"
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
     print(f"\n{'='*60}")
-    print(f"Scanned: {len(symbols)} | Passed: {len(candidates)} | Review: {len(review_candidates)} | Pending: {len(pending_candidates)} | Filtered: {filtered_out} | Errors: {error_count} | New: {len(new_finds)}")
-    print(f"\nTop 10:")
-    for c in candidates[:10]:
-        marker = "★" if c["in_watchlist"] else "✦ NEW"
-        bd = c["breakdown"]
-        sig = f" [{','.join(c['signals'])}]" if c["signals"] else ""
-        if c.get("disqualified"):
-            bd_str = f"DISQUALIFIED({', '.join(c.get('disqualify_tags', []))})"
-        else:
-            bd_str = f"D{bd.get('dividend',0)}+C{bd.get('cashflow',0)}+M{bd.get('moat',0)}+L{bd.get('long_hold',0)}"
-        display = c.get("display_score", round(c['score'] / 10.0, 1))
-        print(f"  {marker} {c['symbol']} — {display}/10.0 ({bd_str}){sig}")
+    print(f"Scanned: {len(symbols)} | Passed: {len(candidates)} (main {n_main} / growth {len(candidates) - n_main}) | "
+          f"Pending: {len(pending_candidates)} | Filtered: {len(filtered_stocks)} | Errors: {error_count} | New: {len(new_finds)}")
     print(f"\nSaved → {out_path}")
 
     return out_path

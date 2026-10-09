@@ -1,13 +1,8 @@
 """History manager for Max Mahon scan archive.
 
-v2 schema adds portfolio-ready fields per scan entry:
-  - top_candidates[]: sym/score/yield/pe/pbv/tags (top 15 by score)
-  - watchlist_status[]: per watchlist stock {sym, status, triggers}
-  - entry_thesis{}: per NIWES_5555 stock (criteria snapshot for later reference)
-  - dividend_paid_since_entry{}: reserved for portfolio tracker (empty in scan-time)
-  - price_snapshot{}: {sym: {price, date}} for backtest time series
-
-v1 legacy entries preserved as-is; migrate via scripts/migrate_history_v2.py.
+v3 entry (gate only, no scores): date, counts by gate path, passed[] = {symbol, gate_path},
+gate_version, report name. Older entries (v1/v2, with score / top_candidates) stay in the file
+untouched; passed_of() reads both shapes.
 """
 import json
 from pathlib import Path
@@ -33,73 +28,35 @@ def iso_week_key(d: date) -> str:
 
 
 def build_v2_entry(screener_data: dict, scanned_at: datetime, report_filename: str) -> dict:
-    """Build a v2 history entry from screener output.
-
-    Returns dict with iso_week + scanned_at + date + counts/summary/report/
-    scoring_version/top_candidates/watchlist_status/entry_thesis/
-    dividend_paid_since_entry/price_snapshot.
-    """
+    """Build a history entry from screener output (name kept for scan.py). No score fields."""
     cands = screener_data.get("candidates", [])
-    review = screener_data.get("review_candidates", [])
-    top = sorted(cands, key=lambda x: x.get("score", 0), reverse=True)[:15]
-
-    top_candidates = [
-        {
-            "symbol": c["symbol"],
-            "score": c.get("score", 0),
-            "yield": (c.get("metrics") or {}).get("dy"),
-            "pe": (c.get("metrics") or {}).get("pe"),
-            "pbv": (c.get("metrics") or {}).get("pb_ratio") or c.get("pb_ratio"),
-            "tags": c.get("signals", []),
-        }
-        for c in top
-    ]
-    watchlist_status = [
-        {
-            "symbol": c["symbol"],
-            "status": "HELD" if "NIWES_5555" in c.get("signals", []) else "REVIEW",
-            "triggers": c.get("exit_triggers", []),
-        }
-        for c in cands if c.get("in_watchlist")
-    ]
-    entry_thesis = {
-        c["symbol"]: {
-            "sector": c.get("sector"),
-            "pe": (c.get("metrics") or {}).get("pe"),
-            "pbv": (c.get("metrics") or {}).get("pb_ratio"),
-            "yield": (c.get("metrics") or {}).get("dy"),
-            "streak": (c.get("aggregates") or {}).get("dividend_streak"),
-            "tags": c.get("signals", []),
-        }
-        for c in cands if "NIWES_5555" in c.get("signals", [])
-    }
-    price_snapshot = {
-        c["symbol"]: {
-            "price": (c.get("metrics") or {}).get("price"),
-            "date": screener_data.get("date"),
-        }
-        for c in top
-    }
+    counts = screener_data.get("counts") or {}
+    n_main = sum(1 for c in cands if c.get("gate_path") == "main")
     return {
         "iso_week": iso_week_key(scanned_at.date()),
         "scanned_at": scanned_at.isoformat(timespec="seconds"),
         "date": scanned_at.strftime("%Y-%m-%d"),
+        "gate_version": screener_data.get("gate_version"),
         "counts": {
             "scanned": screener_data.get("total_scanned", 0),
             "passed": len(cands),
-            "review": len(review),
-            "new": screener_data.get("new_discoveries", 0),
-            "filtered": screener_data.get("filtered_out", 0),
+            "passed_main": n_main,
+            "passed_growth": len(cands) - n_main,
+            "filtered": screener_data.get("filtered_out", counts.get("filtered_out", 0)),
+            "pending": screener_data.get("pending_count", counts.get("pending", 0)),
         },
-        "summary": ", ".join(c["symbol"] for c in top[:3]) + f" · +{screener_data.get('new_discoveries', 0)} ใหม่",
+        "passed": [{"symbol": c["symbol"], "gate_path": c.get("gate_path")} for c in cands],
         "report": report_filename,
-        "scoring_version": screener_data.get("scoring_version", "niwes-dividend-first-v2"),
-        "top_candidates": top_candidates,
-        "watchlist_status": watchlist_status,
-        "entry_thesis": entry_thesis,
-        "dividend_paid_since_entry": {},
-        "price_snapshot": price_snapshot,
     }
+
+
+def passed_of(scan: dict | None) -> dict:
+    """{symbol: gate_path or None} of one history entry; reads the new shape and the old (top_candidates) shape."""
+    if not isinstance(scan, dict):
+        return {}
+    if isinstance(scan.get("passed"), list):
+        return {p["symbol"]: p.get("gate_path") for p in scan["passed"] if isinstance(p, dict) and p.get("symbol")}
+    return {c["symbol"]: None for c in (scan.get("top_candidates") or []) if isinstance(c, dict) and c.get("symbol")}
 
 
 def upsert_scan_v2(entry: dict, history: dict | None = None) -> dict:

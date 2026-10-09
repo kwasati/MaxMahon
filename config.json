@@ -7,12 +7,6 @@
   },
   "filters": {
     "min_dividend_yield": 5,
-    "min_dividend_streak": 5,
-    "min_eps_positive_years": 5,
-    "max_pe": 15,
-    "bonus_pe": 8.0,
-    "max_pbv": 1.5,
-    "bonus_pbv": 1.0,
     "min_market_cap": 5000000000,
     "growing_yield_floor": 2.0,
     "growing_min_streak": 3,

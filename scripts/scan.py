@@ -1,5 +1,6 @@
-"""Max Mahon v5 — Unified Scan (Niwes): top candidates + watchlist update + new in batch + watch out."""
+"""Max Mahon v5 — Scan report: gate result (who passed, which path, which flags) -> report + history."""
 
+import argparse
 import json
 import re
 import sys
@@ -11,7 +12,6 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 REPORTS_DIR = ROOT / "reports"
-USER_DATA = ROOT / "user_data.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -45,60 +45,43 @@ def load_history() -> dict:
         return {"scans": []}
 
 
-def main():
-    screener_path = get_latest_screener()
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Max Mahon scan report")
+    ap.add_argument("--screener", help="screener json to report on (default: latest in data/)")
+    ap.add_argument("--out-dir", help="write the report here; reports/ and data/history.json are left untouched")
+    args = ap.parse_args(argv)
+    out_dir = Path(args.out_dir) if args.out_dir else None
+
+    screener_path = Path(args.screener) if args.screener else get_latest_screener()
     print(f"Using screener: {screener_path.name}")
 
     screener_data = json.loads(screener_path.read_text(encoding="utf-8"))
-
-    if USER_DATA.exists():
-        user_data = json.loads(USER_DATA.read_text(encoding="utf-8"))
-    else:
-        user_data = {"watchlist": [], "notes": {}}
-
-    watchlist = user_data.get("watchlist", [])
 
     history = load_history()
     scanned_at = datetime.now()
     today = scanned_at.strftime("%Y-%m-%d")
 
-    # Wire deterministic report generation (niwes-algo-02 task 3)
     from report_template import generate_report_md
     from history_manager import build_v2_entry, upsert_scan_v2, iso_week_key
 
-    # Determine prev_scan for diff (New In Batch section)
-    prev_scan = None
-    try:
-        scans_list = history.get("scans") if isinstance(history, dict) else history
-        if scans_list:
-            prev_scan = scans_list[-1]  # most recent prior scan (before this one)
-    except Exception:
-        prev_scan = None
+    # previous scan (history is read-only unless this is a full run)
+    scans_list = history.get("scans") or []
+    prev_scan = scans_list[-1] if scans_list else None
 
     iso_week = iso_week_key(scanned_at.date())
-    report_path = REPORTS_DIR / f"scan_{today}.md"
+    report_dir = out_dir or REPORTS_DIR
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / f"scan_{today}.md"
     report_md = generate_report_md(screener_data, iso_week, scanned_at, prev_scan)
     report_path.write_text(report_md, encoding="utf-8")
     print(f"report written: {report_path}")
 
-    history_entry = build_v2_entry(screener_data, scanned_at, report_path.name)
-    upsert_scan_v2(history_entry, history)  # pass loaded history dict to avoid re-read
-    print(f"history upserted: iso_week={iso_week} scanned_at={scanned_at.isoformat(timespec='seconds')}")
-
-    # Telegram alert for high-severity exit triggers (plan 05 Phase 3)
-    try:
-        from telegram_alert import send_exit_alert
-        candidates = screener_data.get("candidates", [])
-        high_triggers = [
-            {**t, "symbol": c["symbol"]}
-            for c in candidates
-            for t in c.get("exit_triggers", [])
-            if t.get("severity") == "high"
-        ]
-        if high_triggers:
-            send_exit_alert(high_triggers)
-    except Exception as e:
-        print(f"telegram alert skip: {e}")
+    if out_dir is None:
+        history_entry = build_v2_entry(screener_data, scanned_at, report_path.name)
+        upsert_scan_v2(history_entry, history)  # pass loaded history dict to avoid re-read
+        print(f"history upserted: iso_week={iso_week} scanned_at={scanned_at.isoformat(timespec='seconds')}")
+    else:
+        print("history not touched (--out-dir)")
 
 
 if __name__ == "__main__":
