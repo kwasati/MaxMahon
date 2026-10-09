@@ -94,7 +94,7 @@ class SummaryTest(unittest.TestCase):
 class RollupTest(unittest.TestCase):
     def test_weighted_by_target_and_skips_named(self):
         # assert: weights = target share among stocks that have the number; no-data / error stock skipped and named; off-plan ignored
-        e = lambda s, w, ip=True: {"symbol": s, "in_plan": ip, "target": w}
+        e = lambda s, w, ip=True: {"symbol": s, "in_plan": ip, "target": w, "leg": "niwes" if ip else None}
         a = hw.summarize(e("A", 30.0), fake_fs("A", price=20, base=1), None, 10)       # now 5%, mid 10%
         b = hw.summarize(e("B", 10.0), fake_fs("B", price=10, base=1), None, 10)       # now 10%, mid 20%
         c = hw.summarize(e("C", 10.0), {"symbol": "C.BK", "error": "x"}, None, 10)
@@ -107,7 +107,7 @@ class RollupTest(unittest.TestCase):
 
     def test_insufficient_scenarios_skipped_in_rollup_and_cell_says_so(self):
         # assert: stock with rates None -> year-10 cells "ข้อมูลไม่พอ"; skipped (named) in the 3 scenario rollups but kept in "วันนี้"; rollup bad<=mid<=good
-        e = lambda s, w: {"symbol": s, "in_plan": True, "target": w}
+        e = lambda s, w: {"symbol": s, "in_plan": True, "target": w, "leg": "niwes"}
         a = hw.summarize(e("A", 30.0), fake_fs("A", price=20, base=1), None, 10)
         d = fake_fs("D", price=10, base=1)
         d["rates"] = {"bad": None, "mid": None, "good": None}
@@ -121,6 +121,8 @@ class RollupTest(unittest.TestCase):
 
 
 class RunTest(unittest.TestCase):
+    NO_CFG = ROOT / "tests" / "_no_such_config.json"  # missing file -> defaults, so real config costs do not leak in
+
     def setUp(self):
         self.calls = []
 
@@ -135,7 +137,7 @@ class RunTest(unittest.TestCase):
     def test_failure_does_not_sink_report_and_text_is_clean(self):
         # assert: BBL raises + TCAP error stub -> rows say ดึงข้อมูลไม่ได้ + เหตุ, others present; AMATA T1 -> เปิดทบทวน with question;
         #         stale TOA warned on top; TISCO off-plan present; cost passed only to the stock that has one; no ซื้อ/ขาย/ควร anywhere
-        text, rows, _, _ = hw.run({"AMATA": [27.5]}, builder=self.builder, today="2026-10-09")
+        text, rows, _, _ = hw.run({"AMATA": [27.5]}, builder=self.builder, today="2026-10-09", cfg_path=self.NO_CFG)
         self.assertEqual(len(rows), len(rebalance.TARGETS) + 1)
         self.assertIn("ดึงข้อมูลไม่ได้", text)
         self.assertIn("RuntimeError: boom", text)
@@ -152,11 +154,11 @@ class RunTest(unittest.TestCase):
 
     def test_same_input_same_text_and_refresh_info_shown(self):
         # assert: two runs without refresh give identical text; refresh adds a line with the refresher's result
-        a = hw.run({}, builder=self.builder, today="2026-10-09")[0]
-        b = hw.run({}, builder=self.builder, today="2026-10-09")[0]
+        a = hw.run({}, builder=self.builder, today="2026-10-09", cfg_path=self.NO_CFG)[0]
+        b = hw.run({}, builder=self.builder, today="2026-10-09", cfg_path=self.NO_CFG)[0]
         self.assertEqual(a, b)
         fake = lambda syms: {s: {"ok": s != "TOA", "date": "2026-10-08", "close": 1.5, "error": None if s != "TOA" else "no data"} for s in syms}
-        t = hw.run({}, refresh=True, builder=self.builder, refresher=fake, today="2026-10-09")[0]
+        t = hw.run({}, refresh=True, builder=self.builder, refresher=fake, today="2026-10-09", cfg_path=self.NO_CFG)[0]
         self.assertIn("รีเฟรชราคา:", t)
         self.assertIn("TOA ไม่ได้ (no data)", t)
 
@@ -198,3 +200,36 @@ class RefreshPricesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LegTest(unittest.TestCase):
+    def test_entries_sorted_by_leg_from_rebalance_legs(self):
+        # assert: order niwes -> hong -> off-plan; leg values come from rebalance.LEGS; TISCO has no leg
+        e = hw.holding_entries(HCFG)
+        self.assertEqual([x["leg"] for x in e], ["niwes"] * 3 + ["hong"] * 4 + [None])
+        self.assertEqual([x["symbol"] for x in e if x["leg"] == "hong"], rebalance.LEGS["hong"])
+
+    def test_hong_row_has_no_gate_flags_scenarios_but_keeps_pnl_and_yield(self):
+        # assert: hong status text; flags/gate/year-10 cells "—" even when T1 would trigger; pnl vs cost = (20/16-1)=+25.0%
+        ent = {"symbol": "TOA", "in_plan": True, "target": 7.5, "leg": "hong"}
+        r = hw.summarize(ent, fake_fs("TOA", price=20, base=1, trig=("T1",)), 16.0, 10)
+        self.assertEqual(r["status"], hw.HONG_STATUS)
+        self.assertEqual(r["flags"], [])
+        self.assertAlmostEqual(r["pnl_pct"], 25.0)
+        self.assertAlmostEqual(r["yoc_now"], 1 / 16.0 * 100)
+        self.assertAlmostEqual(r["yield_today"], 5.0)
+
+    def test_report_hong_rows_dashed_rollup_niwes_only_and_cost_date(self):
+        # assert: report says เฉพาะขา Niwes, mentions hong_stage1_scanner + cost date; hong T1 does not create a เปิดทบทวน section
+        def builder(sym, costs):
+            return fake_fs(sym, trig=("T1",) if sym == "TOA" else ())
+        text, rows, _, _ = hw.run({}, builder=builder, today="2026-10-09",
+                                  cfg_path=ROOT / "tests" / "_no_such_config.json")
+        self.assertIn("เฉพาะขา Niwes", text)
+        self.assertIn("hong_stage1_scanner.py", text)
+        self.assertNotIn("### TOA", text)
+        self.assertEqual([r["leg"] for r in rows if r["in_plan"]], ["niwes"] * 3 + ["hong"] * 4)
+        roll = hw.portfolio_rollup(rows)
+        self.assertEqual(roll["now"]["skipped"], [])
+        # niwes only: 3 stocks, weights 35/22.5/12.5 -> same yoc each (price 20 base 1 => 5%)
+        self.assertAlmostEqual(roll["now"]["value"], 5.0)
