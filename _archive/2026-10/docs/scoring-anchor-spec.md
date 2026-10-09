@@ -1,7 +1,5 @@
 # MaxMahon Anchor Score Spec — Niwes Refactor v2
 
-> ⛔ 2026-10-09: คะแนน 0–100 ตามเอกสารนี้ถูกถอดออกจากระบบแล้ว (commit ebb5390) · ที่มา 'Niwes ch3–ch7' ไม่มีไฟล์ต้นทาง เลขทุกตัวในเอกสารเป็นของที่เราตั้งเอง · ไม้บรรทัดปัจจุบัน = `docs\niwes-principles.md` · ของที่ใช้แทน = `scripts\fact_sheet.py` (ดู E1–E5 ใน `docs\niwes-principles.md`)
-
 **Status:** FINAL v1.2 — Thai-pragmatic threshold relaxation (2026-05-18)
 **Version:** 1.2
 **Created:** 2026-05-16

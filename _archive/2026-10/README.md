@@ -12,3 +12,11 @@
 - `reports\anchor_scan_2026-05-18.md` → `reports\` (ในโฟลเดอร์นี้)
 - ลบของตายในไฟล์ที่ยังใช้: alias `fetch_yfinance_supplement` · `compute_payout_sustainability` · `check_hidden_value` ใน `scripts\data_adapter.py` · import `fetch_from_thaifin` ใน `scripts\fetch_data.py` · ท่อน `schedule` ใน `config.json`
 - เอากลับ: `git mv` ไฟล์กลับ `scripts\` (`test_portfolio_math.py` กลับ `tests\` · `anchor_scan_2026-05-18.md` กลับ `reports\`) · ฟังก์ชัน/alias ที่ลบ ดูจาก `git log -p -- scripts\data_adapter.py` · `daily_price_refresh.py` ตัวเดียวที่อ่านคิวของ `flake_queue.py` — กลับมาแล้วคิวจะมีคนอ่านอีก
+
+## เก็บเพิ่ม 2026-10-09 (รอบเอกสาร — job-04 docs-index-tree)
+
+- เหตุ: เอกสารบรรยายระบบที่ถอดไปแล้ว (คะแนน 0–100 / กฎขายชุดเก่า / backtest ที่ใช้เลขที่เราตั้งเอง) หรือถูกแทนที่ · ใช้ไม้บรรทัด `docs\niwes-principles.md` · กฎขายที่ใช้จริง = F3 ใน `roadmap\agreed-portfolio-framework.md`
+- ย้ายด้วย `git mv` เข้า `docs\` (ในโฟลเดอร์นี้): `scoring-anchor-spec.md` (สเปกคะแนน · ที่มา "Niwes ch3–ch7" ไม่มีไฟล์ต้นทาง) · `dps-fix-verification-2026-04-27.md` `dps-set-fix-verification-2026-05-19.md` (บันทึกตรวจของสคริปต์ `_verify_dps_fix.py` ที่เก็บไปแล้ว) · `niwes\13-threshold-adjustments.md` `niwes\00-backtest-protocol.md` (เลข PE / PBV / streak เราตั้งเอง ไม่ใช่สูตร 5-5-5-5) · `niwes\14-monitoring-setup.md` `niwes\15-exit-rules.md` `niwes\16-exit-decision-template.md` (กฎขายชุดเก่า — ป้าย Verbatim ให้ประโยคของผู้รวบรวม)
+- ย้ายเข้า `research\` (ในโฟลเดอร์นี้): `_full_AMATA_2026-05-24.md` `_full_AMATA_2026-05-21.md` `_deep_AMATA_2026-05-20.md` `_business_AMATA_2026-05-20.md` `amata_report.md` (แทนที่ด้วย `research\amata-deep-dive-2026-10-09.md` · จุดที่ผิด/เก่าดูท่อน 10 ของไฟล์นั้น) · `_portfolio_70-25-5_framework_2026-05-20.md` (ร่างเก่า รายชื่อหุ้นไม่ตรงพอร์ตจริง · ปัจจุบัน = `roadmap\agreed-portfolio-framework.md`) · `niwes-analysis-master.md` `niwes-criteria-coverage-map.md` (ตัดข้อยกเว้นปันผลโต / นับ PE PBV ว่าคลุมเกณฑ์ ขัดกับแหล่งจริง)
+- บล็อกหมายเหตุ `⛔ 2026-10-09` ที่เคยติดหัวไฟล์เหล่านี้ถูกเอาออก (เหตุอยู่ในรายการข้างบนแล้ว · รายการ E1–E17 ที่ `docs\review-2026-10\niwes-vs-system.md`)
+- เอากลับ: `git mv` ไฟล์กลับที่เดิม (`docs\` / `docs\niwes\` / `research\`) · ไฟล์เหล่านี้ไม่มีใครชี้แล้ว ณ วันเก็บ — กลับมาต้องแก้ path ที่อ้างในไฟล์ `docs\niwes-principles.md` ด้วย
