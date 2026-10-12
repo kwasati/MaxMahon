@@ -3,7 +3,7 @@
 
 ## ขอบเขต
 แก้สายคัดหุ้นตามผล review คิว 3 — ร่างรูปใหม่ 9 ข้อ + ตารางช่องว่างอยู่ใน `C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\system-gap.md` (ท่อน 2–3)
-สถานะ: เสร็จ 2026-10-09 (Art สั่ง "ลุย" วันเดียวกัน · โต๊ะ krv3) · งาน 1 (ฐานข้อมูล) = job 06 ผ่าน commit cd17f12 · งาน 2 (ด่านใหม่) = job 07 ผ่าน commit ad9c9f7 (หุ้นที่ถือ 8 ตัวผ่านด่าน 4: AMATA ทางอนุโลม · BBL · TISCO · SISB — ตก 4: TCAP · TOA · SECURE · MOSHI · ประมาณทั้งตลาดผ่าน 122 จากเดิม 45) · งาน 3 (ใบข้อเท็จจริง + ป้ายราคา) = job 08 ผ่าน commit c7954dc (`scripts\fact_sheet.py` · AMATA ตรงผลทำมือ) · งาน 4 (เฝ้าหุ้นที่ถือ + ธงผิดทาง + รีเฟรชราคา) = job 09 ผ่าน commit 3c6cc9c + 71fa2dd (`scripts\holdings_watch.py` · กฎ 3 ฉากแก้รอบ 2: ประวัติ ≥10 ปี · เพดาน 10% · แย่ ≤ กลาง ≤ ดี) · เอาคะแนน 0–100 ออกจากสาย scan + รายงาน = job 10 ผ่าน commit ebb5390 (รัน 30 ตัวผ่าน 24 · ยังไม่ได้รันทั้งตลาด) · `rebalance.py` + แยกขา Niwes / เซียนฮง ในตัวเฝ้า + ต้นทุนจริงใน config + Hong PEG = job 11 ผ่าน commit 9652aaf / cbbce45 / ba8f91f (Hong PEG แก้แล้วอันดับผู้รอด 39 ตัวเปลี่ยน: TOA 15→4 · MOSHI 23→15 · SECURE 2→20 · SISB 4→21 — คิดจาก csv เดือน 5 ยังไม่ได้รัน scanner ใหม่ · ตารางอยู่ในโต๊ะ krv3 ที่เก็บแล้ว ไฟล์ `peg-rank-old-vs-new.md`) · เก็บกวาด + เอกสาร = job 12 ผ่าน commit a1b9b34 / e82deba / 4d627b2 / 5748091 (ย้าย 18 ไฟล์เข้า `_archive\2026-10\scripts\` · scripts เหลือ 14 ไฟล์ · pytest 106) — **ครบ 7 ใบ**
+สถานะ: เสร็จ 2026-10-09 (Art สั่ง "ลุย" วันเดียวกัน · โต๊ะ krv3) · งาน 1 (ฐานข้อมูล) = job 06 ผ่าน commit cd17f12 · งาน 2 (ด่านใหม่) = job 07 ผ่าน commit ad9c9f7 (หุ้นที่ถือ 8 ตัวผ่านด่าน 4: AMATA ทางอนุโลม · BBL · TISCO · SISB — ตก 4: TCAP · TOA · SECURE · MOSHI · ประมาณทั้งตลาดผ่าน 122 จากเดิม 45) · งาน 3 (ใบข้อเท็จจริง + ป้ายราคา) = job 08 ผ่าน commit c7954dc (`scripts\fact_sheet.py` · AMATA ตรงผลทำมือ) · งาน 4 (เฝ้าหุ้นที่ถือ + ธงผิดทาง + รีเฟรชราคา) = job 09 ผ่าน commit 3c6cc9c + 71fa2dd (`scripts\holdings_watch.py` · กฎ 3 ฉากแก้รอบ 2: ประวัติ ≥10 ปี · เพดาน 10% · แย่ ≤ กลาง ≤ ดี) · เอาคะแนน 0–100 ออกจากสาย scan + รายงาน = job 10 ผ่าน commit ebb5390 (รัน 30 ตัวผ่าน 24 · ยังไม่ได้รันทั้งตลาด) · `rebalance.py` + แยกขา Niwes / เซียนฮง ในตัวเฝ้า + ต้นทุนจริงใน config + Hong PEG = job 11 ผ่าน commit 9652aaf / cbbce45 / ba8f91f (Hong PEG แก้แล้วอันดับผู้รอด 39 ตัวเปลี่ยน: TOA 15→4 · MOSHI 23→15 · SECURE 2→20 · SISB 4→21 — คิดจาก csv เดือน 5 ยังไม่ได้รัน scanner ใหม่ · ตารางอยู่ในโต๊ะ krv3 ที่เก็บแล้ว ไฟล์ `C:\WORKSPACE\_archive\desk\2026-10\krv3\files\peg-rank-old-vs-new.md`) · เก็บกวาด + เอกสาร = job 12 ผ่าน commit a1b9b34 / e82deba / 4d627b2 / 5748091 (ย้าย 18 ไฟล์เข้า `_archive\2026-10\scripts\` · scripts เหลือ 14 ไฟล์ · pytest 106) — **ครบ 7 ใบ**
 เก็บของค้างรอบ 2 (2026-10-09 · โต๊ะเก็บที่ `C:\WORKSPACE\_archive\desk\2026-10\krv3-maxmahon\` รอบแรก `C:\WORKSPACE\_archive\desk\2026-10\krv3\`) เสร็จแล้ว: มุม DCA (b76a5d6) · สแกนทั้งตลาดด้วยราคาล่าสุด + ปันผลจากแหล่งทางการ ผ่านด่าน 126 ตัว (ea6012a 8c824dd 74d7ee9) · ปันผลพิเศษ + อัตราโตจาก deep dive + ธง yield ผิดปกติ (93b27f1 553af7e 7c92661) · Hong scanner รันใหม่ (9af49bd) · จัดเอกสารตาม index tree (2cbc55a 0351c5d ff9cc1f 47b47c4 3eddc3f) · `README.md` เขียนใหม่ · bump v7.0.0
 ยังเปิดอยู่ (ไม่มีใครสั่ง): JAS yield 157.9% ยังไม่พิสูจน์เหตุ (ถูกแยกกลุ่มในรายงานแล้ว) · เรื่องให้ Art ตัดสินของคิว 1 กับ 2 อยู่ในใบของคิวนั้น
 ใบข้อเท็จจริง — จุดที่ deep dive เจอและยังไม่แก้ (ต้อง Art เคาะหรือเป็นงานใหม่): ไม่มีข้อมูลรายไตรมาส (มองไม่เห็นกำไร SECURE ไตรมาส 2/2026 ที่ทรุด) · ธงหนี้ต่อทุน (T6) นิยามบนหนี้สินรวม ติดได้จากเจ้าหนี้การค้า / หนี้เช่า (SECURE MOSHI) · ไม่มีช่องหมายเหตุรายตัว (TCAP งบก่อนควบรวมเทียบไม่ได้) · ประวัติปันผลก่อนปีที่ระบบมีข้อมูลมองไม่เห็น (BBL งดจ่าย 1998–2003) · ปันผลจ่ายจริงก่อนราวปี 2022 ยังเป็นค่าประมาณ · TCAP กำไรปี 2019 ไม่ตรงจำนวนหุ้น ยังไม่พิสูจน์เหตุ
@@ -14,12 +14,12 @@
 3. ใบข้อเท็จจริงต่อหุ้น + ป้ายราคา ถูก / กลาง / แพง — แทนคะแนน 0–100 (รอท่อน 9 ของผล deep dive AMATA มากำหนดรายการตัวเลข)
 4. เฝ้าหุ้นที่ถือจริง + ธง "ผิดทาง" — ปันผลต่อหุ้นลด 2 ปีติด = เปิดทบทวน
 5. `rebalance.py` — เทสต์ · กันหุ้นซ้ำ / ราคา 0 · เกลี่ยเศษจากปัดลง · Hong scanner แก้คะแนน PEG กลับด้าน
-6. เก็บกวาดไฟล์ + แก้เอกสาร (รายการในท่อน 3 ข้อ 8–9 ของ `system-gap.md`)
+6. เก็บกวาดไฟล์ + แก้เอกสาร (รายการในท่อน 3 ข้อ 8–9 ของ `C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\system-gap.md`)
 
 ไม่อยู่ในคิวนี้: แผนเงินสดซื้อของถูก (คิว 1) · deep dive หุ้นตัวอื่น (คิว 2)
 
 ## Art เคาะ / สั่ง (วันที่ + คำ Art)
-- 2026-10-09 Art ตอบ 5 ข้อในท่อน 4 ของ `system-gap.md`: "เคาะ ใช่"
+- 2026-10-09 Art ตอบ 5 ข้อในท่อน 4 ของ `C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\system-gap.md`: "เคาะ ใช่"
   - ข้อ 1 เลิกคะแนน 0–100 เป็นใบข้อเท็จจริง + คนเคาะคะแนนหลัง deep dive — ใช่
   - ข้อ 2 เนื้อด่านใหม่ — ใช่
   - ข้อ 3 ปันผลต่อหุ้นลด 2 ปีติด = เปิดทบทวน — ใช่
@@ -27,7 +27,7 @@
   - ข้อ 4 ไฟล์หนังสือนิเวศน์ ch01–ch08 ถือว่าไม่มี → สูตรคะแนนเดิมเป็นของเราตั้งเองทั้งชุด
   - ข้อ 5 ข้อมูลหยุดอัปเดต → รันมือผ่านแชทเมื่อจะใช้ ไม่ตั้งเวลารันใหม่
   - แก้ใน roadmap = ใบ `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-portfolio-framework.md` (F1 ให้ตรงพอร์ตจริง + เพิ่ม F2 เป้า / F3 กฎขาย)
-- 2026-10-09 Art (ปิดงานแท็บ): "งั้นปิดงานแท็บนี้ไปก่อนได้เลย ไว้มาคุยกันรอบหน้า update เอกสารตามแนวทาง index tree system ด้วย อะไรที่เก่าไม่ได้ใช้แล้วก็เก็บไปซะ จะได้ไม่ งง" → เก็บไฟล์ที่ไม่มีใครชี้ตามตารางสำรวจ (`C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\docs-survey.md` = สภาพก่อนเก็บ) เข้า `_archive\2026-10\`: `docs\foreign-investment\` · `docs\RESEARCH-LESSONS.md` · `docs\research-thai-stock-data-sources.md` · งานวิจัยรุ่น พ.ค. 2026 ที่เหลือใน `research\` + `research\refs\` — รายการเต็ม + วิธีเอากลับใน `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\README.md`
+- 2026-10-09 Art (ปิดงานแท็บ): "งั้นปิดงานแท็บนี้ไปก่อนได้เลย ไว้มาคุยกันรอบหน้า update เอกสารตามแนวทาง index tree system ด้วย อะไรที่เก่าไม่ได้ใช้แล้วก็เก็บไปซะ จะได้ไม่ งง" → เก็บไฟล์ที่ไม่มีใครชี้ตามตารางสำรวจ (`C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\docs-survey.md` = สภาพก่อนเก็บ) เข้า `_archive\2026-10\`: `docs\foreign-investment\` · `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\docs\RESEARCH-LESSONS.md` · `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\docs\research-thai-stock-data-sources.md` · งานวิจัยรุ่น พ.ค. 2026 ที่เหลือใน `research\` + `research\refs\` — รายการเต็ม + วิธีเอากลับใน `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\README.md`
 
 ## อ่านก่อน
 - ช่องว่าง + ร่างรูปใหม่: `C:\WORKSPACE\projects\4-MaxMahon\docs\review-2026-10\system-gap.md`
