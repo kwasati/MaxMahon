@@ -21,6 +21,7 @@
 
 ## → ลูก
 - `ROADMAP.md` — SSOT คิว + ข้อตกลง (เปิดก่อนวางแผน/ต่องาน) · `roadmap\` ใบของมัน
+- `C:\WORKSPACE\projects\4-MaxMahon\knowledge\knowledge-index.md` — กับดักข้อมูลที่เจอแล้ว (ตรวจตัวเลขข้ามแหล่ง · เว็บที่ดึงได้ · อัตราโตหลอก) เปิดเฉพาะใบที่งานแตะ
 - `scripts\` — 14 ไฟล์: ดึงข้อมูล (`data_adapter` `fetch_data` `set_official_adapter` `setsmart_adapter` `update_universe` `flake_queue`) · สแกน (`screen_stocks` `scan` `report_template` `history_manager`) · รายตัว / พอร์ต (`fact_sheet` `holdings_watch` `rebalance`) · `hong_stage1_scanner` · `tests\` — เทสต์ของทุกกลุ่ม
 - `config.json` — filters (ด่าน) / fact_sheet (เกณฑ์ใบข้อเท็จจริง) / special_dividends (ปันผลพิเศษที่ไม่นับเป็นปันผลปกติ) / holdings (นอกแผน + ต้นทุนเฉลี่ย + growth_scenarios = อัตราปันผลโต 3 ฉากจาก deep dive ใช้แทนกฎตายตัว) · `user_data.json` — watchlist/notes (scan อ่านตอนรัน)
 - `data\` `reports\` — ข้อมูลรัน + รายงาน scan · `research\` — deep dive ขา Niwes + TISCO (`<sym>-deep-dive-2026-10-09.md` ของ AMATA BBL TCAP TISCO) + ผล Hong scanner (`hong-v5-scan-<วันที่>`) · deep dive ขาเซียนฮงอยู่ `hong-lens\research\` · `docs\` — เอกสาร · `docs\review-2026-10\` — ผล review ระบบ + ตารางช่องว่าง (ที่มาของรูปปัจจุบัน)
