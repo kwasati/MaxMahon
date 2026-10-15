@@ -1,6 +1,6 @@
 """Hong Stage 1 Auto Scanner — Hong full philosophy.
 
-Reference research: _shared/docs/research-sianhong-stock-picking.md
+Reference research: hong-lens/research/research-sianhong-stock-picking.md
 
 Versions:
   v1 — legacy: D/E ≤ 1.0 for all sectors, 6 criteria all-or-nothing
@@ -1833,7 +1833,7 @@ def write_md(scan_result: dict, out_path: Path) -> None:
     lines.append("- **Margin trend:** linear slope on 3 data points, tolerance -0.005 / year (treat tiny dips as 'flat').")
     lines.append("- **'New high':** latest net profit ≥ max of prior 4 years AND latest > 0. Equal-to-max also counts.")
     lines.append("- **Stage 1 only:** quantitative pass — Stage 2 manual (management quality, business moat, governance) still required before any buy decision.")
-    lines.append("- **Hong's actual portfolio history** (PTL/KTC/OR/DITTO etc.) — see `_shared/docs/research-sianhong-stock-picking.md`. Hong does NOT mechanically apply filters; criteria here are codification of patterns extracted from interviews/books.")
+    lines.append("- **Hong's actual portfolio history** (PTL/KTC/OR/DITTO etc.) — see `hong-lens/research/research-sianhong-stock-picking.md`. Hong does NOT mechanically apply filters; criteria here are codification of patterns extracted from interviews/books.")
     lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")

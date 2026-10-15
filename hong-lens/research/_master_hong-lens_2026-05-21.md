@@ -555,7 +555,7 @@ Niwes pillar 1 (จาก BACKLOG): AMATA 35 + BBL 17.5 + TCAP 17.5 + เซี�
 **Supporting documents:**
 - Stage 2 mini-cards 15 ตัว: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\stage2-12-stocks-2026-05-21.md`
 - Scanner output v5 (ผู้รอด 29 ตัว · สูตร PEG แก้ทิศแล้ว): `C:\WORKSPACE\projects\4-MaxMahon\research\hong-v5-scan-2026-10-09.md` (รุ่น 39 ตัวที่ PEG กลับด้านเก็บแล้ว: `C:\WORKSPACE\projects\4-MaxMahon\_archive\2026-10\research\hong-v5-rerun.md`)
-- Hong philosophy research: `C:\WORKSPACE\_shared\docs\research-sianhong-stock-picking.md`
+- Hong philosophy research: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\research-sianhong-stock-picking.md`
 - Project memory: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\MEMORY.md`
 
 ---

@@ -60,7 +60,7 @@ hong-lens/
 External files:
 - **Scanner:** `../scripts/hong_stage1_scanner.py`
 - **Cache:** `../data/screener_cache/{date}/{SYM}.BK.json`
-- **Hong research:** `../../../_shared/docs/research-sianhong-stock-picking.md`
+- **Hong research:** `research/research-sianhong-stock-picking.md`
 
 ## Current Stock Lists (2026-05-21)
 
