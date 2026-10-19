@@ -218,7 +218,8 @@ def yearly_rows(data: dict) -> list:
         if eps is None:
             eps = _num(r.get("eps_setsmart"))
         capex = _num(r.get("capex"))
-        rows.append({"year": year, "eps": eps, "roe": _num(r.get("roe")), "net_income": _num(r.get("net_income")),
+        rows.append({"year": year, "eps": eps, "eps_normal": r.get("diluted_eps_total") is not None,
+                     "roe": _num(r.get("roe")), "net_income": _num(r.get("net_income")),
                      "ocf": _num(r.get("ocf")), "invest": abs(capex) if capex is not None else None,
                      "liabilities": _num(r.get("total_debt")), "equity": _num(r.get("equity")),
                      "total_assets": _num(r.get("total_assets")), "cash": _num(r.get("cash")), "revenue": _num(r.get("revenue")),
@@ -261,7 +262,7 @@ def cash_vs_dividend(rows: list, dps: dict, shares) -> list:
 
 
 def payout_rows(rows: list, dps: dict) -> list:
-    return [{"year": r["year"], "dps": dps.get(r["year"]), "eps": r["eps"],
+    return [{"year": r["year"], "dps": dps.get(r["year"]), "eps": r["eps"], "eps_normal": r.get("eps_normal"),
              "payout": dps[r["year"]] / r["eps"] if dps.get(r["year"]) is not None and r["eps"] and r["eps"] > 0 else None}
             for r in rows]
 
@@ -486,9 +487,17 @@ def flag_payout(payouts: list, limit: float) -> dict:
                  f"ปี {p['year']}: ปันผล {p['dps']:.4g} / กำไรต่อหุ้น {p['eps']:.4g} = {p['payout']*100:.0f}%")
 
 
-def flag_loss(years: list, window: int) -> dict:
+def flag_loss(years: list, window: int, dps: dict = None) -> dict:
     name = f"ปีขาดทุน (กำไรต่อหุ้น ≤ 0) ใน {window} ปีล่าสุด"
-    return _flag("LOSS", name, bool(years), ("ปี " + ", ".join(map(str, years))) if years else "ไม่พบปีขาดทุน")
+    detail = ("ปี " + ", ".join(map(str, years))) if years else "ไม่พบปีขาดทุน"
+    if dps is not None:
+        loss_div = [y for y in years if dps.get(y) is not None and dps.get(y) > 0]
+        if loss_div:
+            detail += " · ปีขาดทุนที่ยังจ่ายปันผล (ไม่ใช่ปันผลปกติ): " + ", ".join(map(str, loss_div))
+        else:
+            detail += " · ปีขาดทุนที่ยังจ่ายปันผล: ไม่พบ"
+        detail += " · ปีที่ยังไม่ได้จดกำไรปกติ ใช้กำไรรวม"
+    return _flag("LOSS", name, bool(years), detail)
 
 
 def past_double_cuts(cuts: list, n_years: int) -> list:
@@ -514,8 +523,9 @@ MANUAL_TODO = [
     "รายได้ประจำเทียบรายได้ก้อน (D5 D18)",
     "ยอดขาย/งานรอโอน (backlog presale) (T3 T5)",
     "ผู้บริหาร + นโยบายปันผล (D7)",
-    "อุตสาหกรรมตกต่ำถาวรไหม (D8)",
+    "อุตสาหกรรมกำลังตกต่ำลงไหม · อะไรรบกวนธุรกิจได้ง่าย (D8)",
     "เป็นเจ้าตลาดไหม (D9)",
+    "ตัวเลขแบงก์ (BIS/CET1 · NPL · coverage · credit cost) · นโยบายปันผลที่ประกาศ · ปีก่อตั้ง/ปีเข้าตลาด → เขียนลง data\\manual_facts\\<SYM>.json",
 ]
 
 
@@ -579,7 +589,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         flags.append(flag_t4(cash, cfg["t4_years"]))
     if not bank:
         flags.append(flag_t6(debt, cfg["t6_years"]))
-    flags += [flag_payout(payouts, cfg["payout_over"]), flag_loss(losses, cfg["loss_window_years"])]
+    flags += [flag_payout(payouts, cfg["payout_over"]), flag_loss(losses, cfg["loss_window_years"], complete)]
     last_row = next((r for r in rows if r["year"] == last_fy), None)
     pe_today, pbv_today = today_multiples(price, last_row) if last_row is not None else (None, None)
     price_date = data.get("price_as_of")
@@ -599,6 +609,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
                       "first_fy": min(list(complete) + list(partial)) if (complete or partial) else None},
         "cuts": cuts, "cut_count": len(cuts), "cut_material_count": sum(1 for c in cuts if c["material"]),
         "crisis": crisis_rows(data, cfg["crisis_years"]), "cagrs": cagrs, "eps_cagrs": eps_cagrs, "rates": rates, "rates_fixed": rates_fixed,
+        "agg_streaks": {"dividend_streak": agg.get("dividend_streak"), "dividend_growth_streak": agg.get("dividend_growth_streak")},
         "rates_source": ({"kind": "deep_dive", "source": growth_override.get("source"), "as_of": growth_override.get("as_of")}
                          if dd_rates else {"kind": "fixed"}),
         "costs": levels, "supplied_costs": supplied,
@@ -719,6 +730,9 @@ def _a1(fs):
     lines = ["## A1 ปันผลต่อหุ้นรายปีบัญชี", "",
              f"แหล่ง: {d['source'] or NA} · ปีที่มี {len(d['complete'])} ปี "
              f"({min(d['complete']) if d['complete'] else NA}–{d['last_fy'] or NA})"]
+    ag = fs.get("agg_streaks") or {}
+    ds, dgs = ag.get("dividend_streak"), ag.get("dividend_growth_streak")
+    lines.append(f"จ่ายปันผลไม่ขาด {ds if ds is not None else NA} ปี · ปันผลขึ้นติดกัน {dgs if dgs is not None else NA} ปี (ถึงปีบัญชีล่าสุดที่ครบ)")
     if d["source"] and "yahoo" in d["source"]:
         lines.append("หมายเหตุ: ค่าจาก yahoo เป็นค่าที่ปรับย้อนหลังตามการแตกพาร์/ปันผลหุ้น อาจต่างจากค่าที่บริษัทประกาศเล็กน้อย (เช่น AMATA 0.5456 แทน 0.55)")
     if fs["sector_profile"] == "reit":
@@ -925,8 +939,9 @@ def _a6(fs):
 
 def _a12(fs):
     lines = ["## A12 สัดส่วนจ่ายปันผลต่อกำไร (ปันผลต่อหุ้น ÷ กำไรต่อหุ้น)", ""]
-    body = [[x["year"], fn(x["dps"], 4), fn(x["eps"], 2), pct(x["payout"], 0)] for x in fs["payouts"]]
-    return lines + (_table(["ปี", "ปันผลต่อหุ้น", "กำไรต่อหุ้น", "จ่ายต่อกำไร"], body) if body else [NA]) + [""]
+    body = [[x["year"], fn(x["dps"], 4), fn(x["eps"], 2), pct(x["payout"], 0),
+             "ปกติ (จดแล้ว)" if x.get("eps_normal") else "รวม — ยังไม่ตัดกำไรพิเศษ"] for x in fs["payouts"]]
+    return lines + (_table(["ปี", "ปันผลต่อหุ้น", "กำไรต่อหุ้น", "จ่ายต่อกำไร", "กำไรที่ใช้"], body) if body else [NA]) + [""]
 
 
 def yield_vs_niwes_line(today_yield, niwes_min) -> str:

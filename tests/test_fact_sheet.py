@@ -186,8 +186,29 @@ class FlagTest(unittest.TestCase):
         self.assertEqual(fs.loss_years(rows, 10), [2023])
         self.assertTrue(fs.flag_loss([2023], 10)["triggered"])
 
+    def test_flag_loss_with_dps_lists_loss_dividend_years(self):
+        # assert: dps given, loss year 2020 paid dividend -> detail after the loss-dividend label lists 2020
+        detail = fs.flag_loss([2020], 10, {2020: 1.0, 2021: 2.0})["detail"]
+        self.assertIn("ปีขาดทุนที่ยังจ่ายปันผล (ไม่ใช่ปันผลปกติ): 2020", detail)
+        self.assertIn("ปีที่ยังไม่ได้จดกำไรปกติ ใช้กำไรรวม", detail)
+
+    def test_flag_loss_with_dps_no_loss_dividend(self):
+        # assert: dps given but loss year paid 0 -> says ไม่พบ
+        detail = fs.flag_loss([2020], 10, {2020: 0})["detail"]
+        self.assertIn("ปีขาดทุนที่ยังจ่ายปันผล: ไม่พบ", detail)
+
 
 class ComputeAndRenderTest(unittest.TestCase):
+    def test_a12_marks_normal_eps_rows(self):
+        # assert: a yearly row whose "diluted_eps_total" is present (normal EPS overlay applied) renders "ปกติ (จดแล้ว)"
+        #         in the A12 "กำไรที่ใช้" column; a plain row renders "รวม — ยังไม่ตัดกำไรพิเศษ"
+        d = make_data()
+        d["yearly_metrics"][-1]["diluted_eps_total"] = 10.0  # normal EPS overlay set on the latest row
+        md = fs.render_markdown(fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09"))
+        self.assertIn("ปกติ (จดแล้ว)", md)
+        self.assertIn("รวม — ยังไม่ตัดกำไรพิเศษ", md)
+        self.assertIn("กำไรที่ใช้", md)
+
     def test_general_has_a7_and_t4(self):
         # assert: general company computes cash table (OCF-invest, 400m) and carries a T4 flag
         out = fs.compute_fact_sheet(make_data(), costs=[40.0], cfg=CFG, today="2026-10-09")
