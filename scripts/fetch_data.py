@@ -644,13 +644,14 @@ def _save_to_cache(symbol: str, data: dict) -> None:
         logger.warning(f'cache save failed for {symbol}: {e}')
 
 
-def special_dividends_for(symbol: str, config_path=None) -> dict:
-    """{FY(int): baht} special (one-off) dividends a person entered in config.json "special_dividends" for this stock."""
+def _config_fy_values(section: str, symbol: str, config_path=None) -> dict:
+    """{FY(int): float} values from config.json "<section>" for this stock.
+    Non-integer keys (like "_source" / "_as_of") are ignored."""
     try:
         cfg = json.loads(Path(config_path or ROOT / "config.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    raw = (cfg.get("special_dividends") or {}).get(symbol.upper().replace(".BK", "")) or {}
+    raw = (cfg.get(section) or {}).get(symbol.upper().replace(".BK", "")) or {}
     out = {}
     for fy, amt in raw.items():
         try:
@@ -658,6 +659,32 @@ def special_dividends_for(symbol: str, config_path=None) -> dict:
         except (TypeError, ValueError):
             continue
     return out
+
+
+def special_dividends_for(symbol: str, config_path=None) -> dict:
+    """{FY(int): baht} special (one-off) dividends a person entered in config.json "special_dividends" for this stock."""
+    return _config_fy_values("special_dividends", symbol, config_path)
+
+
+def normal_eps_for(symbol: str, config_path=None) -> dict:
+    """{FY(int): baht/share} normal (core) EPS a deep dive recorded in config.json "normal_eps" for this stock."""
+    return _config_fy_values("normal_eps", symbol, config_path)
+
+
+def apply_normal_eps(yearly_metrics: list, normal: dict) -> None:
+    """Overlay normal EPS onto yearly_metrics rows in place. For every row whose int(year)
+    is in `normal`, capture the original total EPS in "diluted_eps_total" and replace
+    "diluted_eps" with the normal value. Rows not in `normal` stay untouched (no
+    "diluted_eps_total" key). Negative / zero values are valid and applied as given."""
+    for row in yearly_metrics:
+        y = row.get("year")
+        try:
+            fy = int(y)
+        except (TypeError, ValueError):
+            continue
+        if fy in normal:
+            row["diluted_eps_total"] = row.get("diluted_eps")
+            row["diluted_eps"] = normal[fy]
 
 
 def split_special_dividends(dividend_history: dict, specials: dict) -> tuple:
@@ -690,6 +717,10 @@ def fetch_multi_year(symbol: str) -> dict:
         adapter_result["dividend_history_special"] = special_removed
         adapter_result["special_dividends_applied"] = specials
         fy_is_complete = adapter_result.get("fy_is_complete")
+
+        normal = normal_eps_for(symbol)
+        apply_normal_eps(yearly_metrics, normal)
+        adapter_result["normal_eps_applied"] = normal
 
         aggregates = _build_aggregates(yearly_metrics, dividend_history,
                                        fy_is_complete=fy_is_complete,
@@ -727,8 +758,8 @@ def fetch_multi_year_safe(symbol: str, use_cache: bool = True, force: bool = Fal
     """
     if use_cache and not force:  # force = skip reading the day cache but still write the fresh result
         cached = _load_from_cache(symbol)
-        # a day-cache written before special_dividends were entered (or changed) is not reusable
-        if cached is not None and {int(k): v for k, v in (cached.get("special_dividends_applied") or {}).items()}                 == special_dividends_for(symbol):
+        # a day-cache written before special_dividends/normal_eps were entered (or changed) is not reusable
+        if cached is not None and {int(k): v for k, v in (cached.get("special_dividends_applied") or {}).items()}                 == special_dividends_for(symbol) and {int(k): v for k, v in (cached.get("normal_eps_applied") or {}).items()}                 == normal_eps_for(symbol):
             return cached
     try:
         result = fetch_multi_year(symbol)

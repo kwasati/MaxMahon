@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -148,6 +149,39 @@ class HistoryScopeTest(unittest.TestCase):
         dps = {y: 1.0 for y in range(2004, 2025)}
         md = fs.render_markdown(fs.compute_fact_sheet(make_data(dps=dps), cfg=CFG, today="2026-10-09"))
         self.assertIn("ระบบมีข้อมูลตั้งแต่ปี 2004 — เหตุการณ์ก่อนหน้านั้นไม่อยู่ในตาราง", md)
+
+
+class NormalEpsTest(unittest.TestCase):
+    def test_normal_eps_for_reads_config(self):
+        # assert: config {"normal_eps": {"AMATA": {"2025": 2.1, "_source": "x"}}} -> {2025: 2.1};
+        #         other symbol / missing file -> {}
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.json"
+            p.write_text(json.dumps({"normal_eps": {"AMATA": {"2025": 2.1, "_source": "x"}}}), encoding="utf-8")
+            self.assertEqual(fd.normal_eps_for("AMATA", p), {2025: 2.1})
+            self.assertEqual(fd.normal_eps_for("BBL", p), {})
+            self.assertEqual(fd.normal_eps_for("AMATA", Path(d) / "nope.json"), {})
+
+    def test_apply_normal_eps_overlays_and_keeps_total(self):
+        # assert: rows [{"year":"2024","diluted_eps":1.0}, {"year":"2025","diluted_eps":3.0}] with normal {2025:-0.5}
+        #         -> 2025 row diluted_eps == -0.5 and diluted_eps_total == 3.0; 2024 row untouched (no diluted_eps_total)
+        rows = [{"year": "2024", "diluted_eps": 1.0}, {"year": "2025", "diluted_eps": 3.0}]
+        fd.apply_normal_eps(rows, {2025: -0.5})
+        self.assertEqual(rows[0], {"year": "2024", "diluted_eps": 1.0})
+        self.assertEqual(rows[1]["diluted_eps"], -0.5)
+        self.assertEqual(rows[1]["diluted_eps_total"], 3.0)
+
+    def test_cache_not_reused_when_normal_eps_differs(self):
+        # assert: cached dict whose normal_eps_applied differs from config is not reused -> fresh fetch returned
+        cached = {"symbol": "AMATA", "price": 10.0, "normal_eps_applied": {2025: 9.9}}
+        fresh = {"symbol": "AMATA", "price": 10.0, "normal_eps_applied": {2025: 2.1}}
+        with mock.patch.object(fd, "_load_from_cache", return_value=cached), \
+             mock.patch.object(fd, "normal_eps_for", return_value={2025: 2.1}), \
+             mock.patch.object(fd, "fetch_multi_year", return_value=dict(fresh)), \
+             mock.patch.object(fd, "_save_to_cache"):
+            out = fd.fetch_multi_year_safe("AMATA")
+        self.assertEqual(out, fresh)
+        self.assertNotEqual(out.get("normal_eps_applied"), cached["normal_eps_applied"])
 
 
 if __name__ == "__main__":
