@@ -137,6 +137,12 @@ class DebtTest(unittest.TestCase):
                 self._row(2019, 8.7e10, 9.4e11, 8.45e11)]    # assets-equity = 9.5e10
         self.assertEqual(fs.suspect_liability_years(rows, 0.10), set())
 
+    def test_minority_interest_not_suspect(self):
+        # assert: an AMATA-like year where assets - equity exceeds liabilities by ~15% (parent-only equity,
+        #         so the difference is minority interest) is NOT suspect at the 0.5 identity gap — wide on purpose
+        rows = [self._row(2024, 3.92e10, 7.5e10, 2.89e10)]  # assets-equity = 4.61e10 vs liabilities 3.92e10 (~15% gap)
+        self.assertEqual(fs.suspect_liability_years(rows, 0.5), set())
+
     def test_general_stock_shows_text_instead_of_number_and_skips_t6(self):
         # assert: a bad year prints ข้อมูลปีนี้น่าสงสัย and is the only year marked suspect
         d = make_data()

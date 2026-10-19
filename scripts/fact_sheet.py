@@ -34,7 +34,7 @@ DEFAULT_CFG = {
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
-    "max_yahoo_only_share": 0.5, "debt_identity_gap": 0.10, "debt_yahoo_gap": 0.10,
+    "max_yahoo_only_share": 0.5, "debt_identity_gap": 0.5, "debt_yahoo_gap": 0.10,
     "avg_yield_years": 3,
 }
 
@@ -254,8 +254,10 @@ def payout_rows(rows: list, dps: dict) -> list:
 
 def suspect_liability_years(rows: list, gap: float) -> set:
     """Years where liabilities, total_assets and equity are all present and liabilities contradict
-    total_assets - equity by more than `gap`. Years missing assets or equity (or where assets <= equity)
-    are never suspect."""
+    total_assets - equity by more than `gap`. "equity" is the parent's shareholders' equity only, so
+    total_assets - equity also contains minority interest; the gap is kept wide (our debt_identity_gap)
+    on purpose to catch scale/field errors, not minority interest. Years missing assets or equity
+    (or where assets <= equity) are never suspect."""
     sus = set()
     for r in rows:
         liab, ta, eq = r.get("liabilities"), r.get("total_assets"), r.get("equity")
