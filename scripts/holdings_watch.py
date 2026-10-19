@@ -71,7 +71,7 @@ def resolve_costs(config_costs, cli_costs) -> dict:
 
 
 def status_of(fs: dict) -> str:
-    triggered = [f["code"] for f in fs.get("flags", []) if f.get("triggered")]
+    triggered = [f["code"] for f in fs.get("flags", []) if f.get("triggered") and f["code"] != "C2"]
     if "T1" in triggered:
         return REVIEW
     return WATCH if triggered else NORMAL

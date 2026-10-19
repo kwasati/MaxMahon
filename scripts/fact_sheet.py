@@ -366,19 +366,20 @@ def flag_t1(complete: dict, cuts: list, n_years: int) -> dict:
     return _flag("T1", name, False, f"FY{last} ปันผล {complete[last]:.4g} ไม่ลดจากปีก่อน")
 
 
-def flag_t2(base_dps, rates: dict, cost_list: list, year: int, low: float) -> dict:
+def flag_t2(base_dps, rates: dict, cost_list: list, year: int, low: float, code="T2", name=None) -> dict:
     """T2: year-N dividend / cost in the mid scenario is below the low target (per cost level)."""
-    name = f"ปันผลเทียบต้นทุนปีที่ {year} (ฉากกลาง) ต่ำกว่าเป้าล่าง {low:g}%"
+    if name is None:
+        name = f"ปันผลเทียบต้นทุนปีที่ {year} (ฉากกลาง) ต่ำกว่าเป้าล่าง {low:g}%"
     g = rates.get("mid")
     if g is None or not base_dps or base_dps <= 0 or not cost_list:
-        return _flag("T2", name, None, "ข้อมูลไม่พอ — ต้องมีหน้าต่างอัตรากำไรต่อหุ้นโต 10 ปีขึ้นไป (หรือไม่มีราคา/ปันผลฐาน) จึงสร้างฉากกลางไม่ได้")
+        return _flag(code, name, None, "ข้อมูลไม่พอ — ต้องมีหน้าต่างอัตรากำไรต่อหุ้นโต 10 ปีขึ้นไป (หรือไม่มีราคา/ปันผลฐาน) จึงสร้างฉากกลางไม่ได้")
     dps_n = base_dps * (1 + g) ** year
     parts, hit = [], False
     for c in cost_list:
         y = dps_n / c["cost"] * 100
         hit = hit or y < low
         parts.append(f"ต้นทุน {c['cost']:.2f} ({c['label']}): {y:.1f}%")
-    return _flag("T2", name, hit, f"ฉากกลางโต {g*100:.1f}%/ปี DPS ปีที่ {year} = {dps_n:.3f} · " + " · ".join(parts))
+    return _flag(code, name, hit, f"ฉากกลางโต {g*100:.1f}%/ปี DPS ปีที่ {year} = {dps_n:.3f} · " + " · ".join(parts))
 
 
 def flag_t4(cash_rows: list, n_years: int) -> dict:
@@ -499,7 +500,9 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     t2_costs = [c for c in levels if c["label"] == "ต้นทุนที่ส่งมา"] or [c for c in levels if c["label"] == "ราคาวันนี้"]
     losses = loss_years(rows, cfg["loss_window_years"])
     flags = [flag_t1(complete, cuts, cfg["t1_cut_years"]),
-             flag_t2(base, rates, t2_costs, cfg["t2_year"], cfg["yoc_target_low"])]
+             flag_t2(base, rates, t2_costs, cfg["t2_year"], cfg["yoc_target_low"]),
+             flag_t2(base, rates, [{"cost": price, "label": "ราคาวันนี้"}] if price else [], 5, cfg["yield_niwes_min"],
+                     code="C2", name=f"ปันผลปีที่ 5 (ฉากกลาง) ต่ำกว่า {cfg['yield_niwes_min']:g}% ของราคาวันนี้ — นิเวศน์ C2 \"อีก 5 ปีข้างหน้า ปันผล...ยังไม่น้อยกว่า 5%\"")]
     if not bank:
         flags.append(flag_t4(cash, cfg["t4_years"]))
     if not bank:

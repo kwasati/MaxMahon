@@ -65,6 +65,16 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(hw.status_of(fake_fs("A", trig=("T6",))), hw.WATCH)
         self.assertEqual(hw.status_of(fake_fs("A", missing=("T4",))), hw.NORMAL)
 
+    def test_c2_only_does_not_change_status(self):
+        # assert: a sheet where only C2 is triggered -> NORMAL (C2 is a Niwes fact, not a watch trigger);
+        #         C2 with T6 -> WATCH (C2 must not mask the real triggers)
+        fs = fake_fs("A")
+        fs["flags"] = [flag("C2", True)] + fs["flags"]
+        self.assertEqual(hw.status_of(fs), hw.NORMAL)
+        fs2 = fake_fs("A", trig=("T6",))
+        fs2["flags"] = [flag("C2", True)] + fs2["flags"]
+        self.assertEqual(hw.status_of(fs2), hw.WATCH)
+
 
 class SummaryTest(unittest.TestCase):
     ENTRY = {"symbol": "AAA", "in_plan": True, "target": 10.0}

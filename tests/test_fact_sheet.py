@@ -153,6 +153,16 @@ class FlagTest(unittest.TestCase):
         self.assertIsNone(fs.flag_t2(1.0, {"mid": None}, lv(20), 10, 7)["triggered"])
         self.assertIn("6.7%", fs.flag_t2(1.0, {"mid": 0.03}, lv(20), 10, 7)["detail"])
 
+    def test_t2_c2_code_and_name(self):
+        # assert: code="C2" + custom name kept; triggered True when mid-year-5 / price < low (1.0*1.05^5/30=4.25% < 5),
+        #         False at cost 20 (6.38% >= 5)
+        fig = fs.flag_t2(1.0, {"mid": 0.05}, [{"cost": 30.0, "label": "ราคาวันนี้"}], 5, 5, code="C2", name="x")
+        self.assertEqual(fig["code"], "C2")
+        self.assertEqual(fig["name"], "x")
+        self.assertTrue(fig["triggered"])
+        fig2 = fs.flag_t2(1.0, {"mid": 0.05}, [{"cost": 20.0, "label": "ราคาวันนี้"}], 5, 5, code="C2", name="x")
+        self.assertFalse(fig2["triggered"])
+
     def test_t4(self):
         # assert: free < paid in 2 adjacent latest years = ติด · one bad year = ไม่ติด · non-adjacent/short = None
         row = lambda y, f, p: {"year": y, "free": f, "paid": p}
