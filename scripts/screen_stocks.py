@@ -18,7 +18,7 @@ USER_DATA = ROOT / "user_data.json"
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from fetch_data import fetch_multi_year_safe
-from data_adapter import compute_normalized_earnings, last_complete_fy, refresh_prices_bulk
+from data_adapter import last_complete_fy, refresh_prices_bulk
 from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg
 
 GATE_VERSION = "niwes-gate-2026-10"
@@ -82,7 +82,11 @@ def gate_flags(data: dict) -> list:
     """Warning flags for a stock (never change PASS/FAIL). Own thresholds, not Niwes quotes."""
     flags: list[str] = []
     agg = data.get("aggregates") or {}
-    norm_eps = compute_normalized_earnings(data)
+    norm_eps = {
+        m.get("year"): m.get("diluted_eps")
+        for m in data.get("yearly_metrics", [])
+        if m.get("year") is not None and m.get("diluted_eps") is not None
+    }
     current_year = datetime.now().year
     years = sorted((y for y in norm_eps if int(y) < current_year), key=lambda y: int(y))[-5:]
     eps = [norm_eps[y] for y in years]

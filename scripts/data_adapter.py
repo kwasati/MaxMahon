@@ -211,13 +211,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
             capex_abs = abs(investing) if investing is not None else None
             capital_intensity = _safe_div(capex_abs, ocf) if ocf and ocf > 0 else None
 
-            # Payout ratio per year — thaifin doesn't provide directly; compute
-            payout_ratio_year = None
-            if dy is not None and close is not None and diluted_eps is not None and diluted_eps > 0:
-                # dy is percentage (e.g. 5.2), close is THB, diluted_eps is THB
-                dps_approx = (dy / 100.0) * close  # THB
-                payout_ratio_year = dps_approx / diluted_eps  # decimal (0-1+)
-
             # Additional thaifin columns exposed (previously unused)
             cash_val = _safe(df.loc[year].get("cash"))
             roa_year = _safe_pct(df.loc[year].get("roa"))
@@ -259,7 +252,6 @@ def _fetch_thaifin(symbol: str) -> dict | None:
                 "dividend_yield": dy,
                 "mkt_cap": mkt_cap,
                 "bvps": bvps,
-                "payout_ratio": payout_ratio_year,
                 "cash": cash_val,
                 "roa_year": roa_year,
                 "revenue_yoy": revenue_yoy,
@@ -1439,8 +1431,6 @@ def fetch_fundamentals(symbol: str) -> dict:
                     if eps_fy and eps_fy > 0:
                         payout_ratio = dps_current / eps_fy
                     break
-        if payout_ratio is None:
-            payout_ratio = yf_info.get("payoutRatio")  # fallback Yahoo
 
         # EPS
         eps_trailing = tf_snap.get("eps_trailing") or yf_info.get("trailingEps")
@@ -1525,31 +1515,6 @@ def fetch_fundamentals(symbol: str) -> dict:
         "sector_profile": classify_sector_profile(sector),
         "warnings": dividend_warnings,
     }
-
-
-# --- Niwes extensions (append-only — do not modify fetch_fundamentals) ---
-
-EXTRAORDINARY_KEYWORDS = ("extraordinary", "one-time", "one time", "gain on sale",
-                         "loss on sale", "impairment", "restructuring", "non-recurring")
-
-
-def compute_normalized_earnings(stock_data: dict) -> dict:
-    """Return {year: normalized_eps} after stripping extraordinary items.
-
-    thaifin yearly_dataframe does not expose line-item names for extraordinary
-    items, so this falls back to using diluted_eps as-is. When richer income
-    statement data becomes available (item-name keyword match against
-    EXTRAORDINARY_KEYWORDS), this function will exclude those items from
-    net_income before recomputing EPS.
-    """
-    out = {}
-    for m in stock_data.get("yearly_metrics", []):
-        year = m.get("year")
-        eps = m.get("diluted_eps")
-        if year is None or eps is None:
-            continue
-        out[year] = eps
-    return out
 
 
 if __name__ == '__main__':

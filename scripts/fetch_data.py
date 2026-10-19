@@ -167,7 +167,6 @@ def _year_int(m):
 # All helpers return None gracefully when source data is missing in yearly_metrics.
 # Field name notes (verified against data_adapter._fetch_thaifin yearly_metrics dict):
 #   - cash_and_equivalents → use field 'cash' (thaifin column)
-#   - payout_ratio_year → use field 'payout_ratio'
 #   - All other plan-referenced fields match actual schema.
 
 def _dps_transitions(dps_by_year: dict, fy_is_complete) -> list:
