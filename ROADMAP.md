@@ -10,8 +10,8 @@ SSOT · ทุกแถว = ชื่อ + สถานะสั้น + path �
 | คิว | ชื่อ | สถานะ | ใบ | desk |
 |---:|---|---|---|---|
 | 1 | ตรวจสูตร / แผนการจัดพอร์ตว่าถูกจริงไหม | สูตรใน `rebalance.py` ตรวจแล้วคิดถูก (ตอน review สคริปต์ทั้งหมด) · รอคุยกับ Art: แผนเงินสดซื้อของถูก + วิธีเกลี่ยเศษ | `roadmap\queue-rebalance-formula-check.md` | |
-| 2 | วิเคราะห์หุ้นที่ถืออยู่ตอนนี้ใหม่ — แนวโน้ม + ต้องปรับแผนไหม | deep dive ครบ 8 ตัว 2026-10-09 · รอ Art ตัดสิน 9 เรื่อง (รายการในใบ) | `roadmap\queue-holdings-reanalysis.md` | |
-| 3 | เกลาหลัก deep dive ขา Niwes | ลุย: แก้ระบบ 10 ใบงาน (DeepSeek ค่าเริ่ม) · ใบ 1 ที่มา yield ผ่าน (2b3fa4a) · ต่อใบ 2 → deep dive ใหม่ทั้งเล่ม AMATA BBL TCAP | `roadmap\queue-niwes-deepdive-principles.md` | z79h |
+| 2 | วิเคราะห์หุ้นที่ถืออยู่ตอนนี้ใหม่ — แนวโน้ม + ต้องปรับแผนไหม | deep dive 2026-10-09 ของ AMATA BBL TCAP ถูกแทนด้วยเล่มใหม่ 2026-10-19 (คิว เกลาหลัก deep dive ขา Niwes) · เล่มเก่าย้าย _archive · TISCO + ขาเซียนฮง ยังเป็นรุ่นเก่า · รอ Art ตัดสินเรื่องพอร์ต | `roadmap\queue-holdings-reanalysis.md` | |
+| 3 | เกลาหลัก deep dive ขา Niwes | แก้ระบบครบ + deep dive ใหม่ AMATA BBL TCAP เสร็จ · รอ Art: เคาะค่ากำไรปกติ + ฉากอัตราโตของ 3 ตัวก่อนจดลง config · AMATA ยังไม่มีข้อมูลที่ขายให้ data center + กำไรแยกประเทศ (หาเพิ่มถ้า Art ต้องการ) | `roadmap\queue-niwes-deepdive-principles.md` | z79h |
 
 ## ข้อตกลงที่ล็อก
 | งานแตะเรื่อง | ใบ |
@@ -20,6 +20,8 @@ SSOT · ทุกแถว = ชื่อ + สถานะสั้น + path �
 | กฎ scan | `roadmap\agreed-scan-rules.md` |
 | กรอบพอร์ต 70/25/5 | `roadmap\agreed-portfolio-framework.md` |
 | สายคัดหุ้น (ด่าน / ใบข้อเท็จจริง / deep dive / คะแนน) | `roadmap\agreed-selection-system.md` |
+| ข้อตกลง: แผนปรับระบบตามหลักนิเวศน์ 8 ข้อ + ลำดับลงมือ | `roadmap\agreed-niwes-principles-plan.md` |
+| แผนปรับระบบตามหลักนิเวศน์ ข้อ 4–8 + ของที่ Fable เจอ | `roadmap\agreed-niwes-principles-4-8.md` |
 
 ## เสร็จแล้ว / ปิดถาวร
 | เรื่อง | ใบ |
