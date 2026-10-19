@@ -19,7 +19,7 @@ USER_DATA = ROOT / "user_data.json"
 sys.path.insert(0, str(ROOT / "scripts"))
 from fetch_data import fetch_multi_year_safe
 from data_adapter import last_complete_fy, refresh_prices_bulk
-from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg
+from fact_sheet import dividend_series, dividend_cuts, load_cfg as load_fact_cfg, avg_yield
 
 GATE_VERSION = "niwes-gate-2026-10"
 
@@ -117,6 +117,11 @@ def gate_flags(data: dict) -> list:
         flags.append(f"PASSED_VIA_GROWTH:g={g:.3f},yield5y={py:.1f}%")
     if dy is not None and dy > HARD_FILTERS["yield_abnormal_pct"]:
         flags.append(f"YIELD_ABNORMAL:{dy:.1f}%")
+    complete, _ = dividend_series(data)
+    n = load_fact_cfg()["avg_yield_years"]
+    ay = avg_yield(complete, data.get("price"), n)
+    if ay is not None and ay < HARD_FILTERS["min_dividend_yield"]:
+        flags.append(f"AVG_YIELD_{n}Y:{ay:.1f}%")
     return flags
 
 

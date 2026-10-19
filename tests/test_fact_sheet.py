@@ -350,5 +350,20 @@ class WrapUpFixesTest(unittest.TestCase):
         self.assertIn("หนี้สินรวมนับรวมหนี้สินตามสัญญาเช่าและเจ้าหนี้การค้า — ธง T6 ติดไม่ได้แปลว่ากู้เพิ่ม", md2)
 
 
+class AvgYieldTest(unittest.TestCase):
+    def test_last_three_years_mean_dps_over_price(self):
+        # assert: mean of last 3 complete FYs (0.65+0.80+1.10)/3 = 0.85 / price 31.75 * 100 ≈ 2.68%
+        # (job brief said "≈ 2.73" — arithmetic slip; the true value is 2.677)
+        self.assertAlmostEqual(fs.avg_yield({2023: 0.65, 2024: 0.80, 2025: 1.10}, 31.75, 3), 2.68, places=2)
+
+    def test_fewer_complete_fys_than_years_is_none(self):
+        # assert: only 2 complete FYs but years=3 -> not enough history -> None
+        self.assertIsNone(fs.avg_yield({2024: 0.80, 2025: 1.10}, 31.75, 3))
+
+    def test_price_zero_is_none(self):
+        # assert: price 0 -> cannot divide -> None
+        self.assertIsNone(fs.avg_yield({2023: 0.65, 2024: 0.80, 2025: 1.10}, 0, 3))
+
+
 if __name__ == "__main__":
     unittest.main()

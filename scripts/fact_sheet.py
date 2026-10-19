@@ -35,6 +35,7 @@ DEFAULT_CFG = {
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
     "max_yahoo_only_share": 0.5, "debt_suspect_ratio": 5, "debt_yahoo_gap": 0.10,
+    "avg_yield_years": 3,
 }
 
 
@@ -58,6 +59,17 @@ def dividend_series(data: dict) -> tuple:
     hist = {int(k): v for k, v in (data.get("dividend_history") or {}).items() if v is not None}
     complete = complete_dividend_by_year(hist, data.get("fy_is_complete"))
     return complete, {y: v for y, v in hist.items() if y not in complete}
+
+
+def avg_yield(complete: dict, price, years: int):
+    """Mean DPS of the last `years` complete FYs ÷ price × 100. None when fewer than `years`
+    complete FYs exist or price is missing / ≤ 0. A second view on yield — never a pass/fail."""
+    if not price or price <= 0:
+        return None
+    last = sorted(complete)[-years:]
+    if len(last) < years or any(complete[y] is None for y in last):
+        return None
+    return sum(complete[y] for y in last) / years / price * 100
 
 
 def dividend_cuts(complete: dict, material_pct: float) -> list:
@@ -525,6 +537,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         "targets": targets, "rows": rows, "shares": shares, "cash": cash, "payouts": payouts,
         "debt": debt, "loss_years": losses, "history": hist,
         "today": {"yield": today_yield, "yield_system": _num(data.get("dividend_yield")),
+                  "yield_avg": avg_yield(complete, price, cfg["avg_yield_years"]),
                   "pe": pe_today, "pbv": _num(data.get("pb_ratio")),
                   "pe_below_max": None if pe_today is None else (0 < pe_today < cfg["pe_niwes_max"])},
         "price_label": price_label(today_yield, hist, cfg),
@@ -850,6 +863,7 @@ def _a10(fs):
         lines.append(f"ยีลด์วันนี้ {t['yield']:.1f}% อยู่ที่ตำแหน่ง {pl['rank']*100:.0f}% ของยีลด์สิ้นปีตัวเอง {pl['years']} ปี "
                      f"(ช่วง {pl['min']:.1f}–{pl['max']:.1f}%) · ตำแหน่งสูง = ราคาถูกเมื่อเทียบกับปันผล")
     lines.append(yield_vs_niwes_line(t["yield"], cfg["yield_niwes_min"]))
+    lines.append(f"ยีลด์เฉลี่ย {cfg['avg_yield_years']} ปีบัญชีล่าสุด (ปันผลเฉลี่ย ÷ ราคาวันนี้) = {fn(t['yield_avg'], 1, suffix='%')} · นิเวศน์: \"ในระดับ 5% ต่อปีโดยเฉลี่ยในระยะ 3-4 ปีขึ้นไป\" (S4) · จำนวนปี {cfg['avg_yield_years']} = เราตั้งเอง")
     lines += [f"กฎ (**เราตั้งเอง** ไม่ใช่คำนิเวศน์): ยีลด์วันนี้อยู่ในช่วงสูงสุด {cfg['price_cheap_top_pct']:g}% ของยีลด์สิ้นปีตัวเอง = ถูก · "
               f"ต่ำสุด {cfg['price_expensive_bottom_pct']:g}% = แพง · ที่เหลือ = กลาง · ประวัติน้อยกว่า {cfg['price_min_years']} ปี = ข้อมูลไม่พอ", ""]
     pe = t["pe"]
