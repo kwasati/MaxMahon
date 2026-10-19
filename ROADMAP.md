@@ -11,6 +11,7 @@ SSOT · ทุกแถว = ชื่อ + สถานะสั้น + path �
 |---:|---|---|---|---|
 | 1 | ตรวจสูตร / แผนการจัดพอร์ตว่าถูกจริงไหม | สูตรใน `rebalance.py` ตรวจแล้วคิดถูก (ตอน review สคริปต์ทั้งหมด) · รอคุยกับ Art: แผนเงินสดซื้อของถูก + วิธีเกลี่ยเศษ | `roadmap\queue-rebalance-formula-check.md` | |
 | 2 | วิเคราะห์หุ้นที่ถืออยู่ตอนนี้ใหม่ — แนวโน้ม + ต้องปรับแผนไหม | deep dive ครบ 8 ตัว 2026-10-09 · รอ Art ตัดสิน 9 เรื่อง (รายการในใบ) | `roadmap\queue-holdings-reanalysis.md` | |
+| 3 | เกลาหลัก deep dive ขา Niwes | ลุย: แก้ระบบ 10 ใบงาน (DeepSeek ค่าเริ่ม) · ใบ 1 ที่มา yield ผ่าน (2b3fa4a) · ต่อใบ 2 → deep dive ใหม่ทั้งเล่ม AMATA BBL TCAP | `roadmap\queue-niwes-deepdive-principles.md` | z79h |
 
 ## ข้อตกลงที่ล็อก
 | งานแตะเรื่อง | ใบ |

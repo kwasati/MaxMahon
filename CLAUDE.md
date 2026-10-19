@@ -8,7 +8,7 @@
 - จัดพอร์ต: `py C:\WORKSPACE\projects\4-MaxMahon\scripts\rebalance.py --cash <Cash Balance> SYM=vol@market ...`
 - ใบข้อเท็จจริงต่อหุ้น (แทนคะแนน 0–100 · ไม่มีคะแนนรวม ไม่ตัดสินแทนคน · ปันผลเทียบต้นทุนมี 2 มุม: ก้อนที่ถืออยู่ + ซื้อทุกเดือนแบบ DCA): `py C:\WORKSPACE\projects\4-MaxMahon\scripts\fact_sheet.py <SYM> [--cost SYM=ราคา] [--out <dir>]` → ค่าเริ่ม `reports\facts\`
 - เฝ้าหุ้นที่ถือ (รายชื่อ + ขาจาก TARGETS / LEGS ใน `rebalance.py` · นอกแผน + ต้นทุนเฉลี่ยใน `config.json` ท่อน `holdings` · ขา Niwes ได้สถานะ เปิดทบทวน / เฝ้า / ปกติ + ยอดรวมเทียบเป้า 7–12% · ขาเซียนฮงไม่ใช้เกณฑ์นิเวศน์): `py C:\WORKSPACE\projects\4-MaxMahon\scripts\holdings_watch.py [--cost SYM=ราคา] [--refresh] [--out <dir>]` → ค่าเริ่ม `reports\holdings\` · `--refresh` ดึงราคาล่าสุดเฉพาะหุ้นที่ถือ (ใช้กับ `fact_sheet.py` ได้ด้วย) — ไม่มีตัวตั้งเวลา รันเมื่อจะใช้
-- เทสต์: `py -m pytest tests` (รันใน `C:\WORKSPACE\projects\4-MaxMahon` · ตั้ง `PYTHONUTF8=1` · ผ่าน 146 เทสต์ — ข้อมูลปันผล `tests\test_dividend_data.py` · ด่านคัด `tests\test_gate.py` · ใบข้อเท็จจริง `tests\test_fact_sheet.py` · เฝ้าหุ้นที่ถือ `tests\test_holdings_watch.py` · ผลสแกน `tests\test_scan_output.py` · จัดพอร์ต `tests\test_rebalance.py` · Hong PEG `tests\test_hong_peg.py`)
+- เทสต์: `py -m pytest tests` (รันใน `C:\WORKSPACE\projects\4-MaxMahon` · ตั้ง `PYTHONUTF8=1` · ผ่าน 171 เทสต์ — ข้อมูลปันผล `tests\test_dividend_data.py` · ด่านคัด `tests\test_gate.py` · ใบข้อเท็จจริง `tests\test_fact_sheet.py` · เฝ้าหุ้นที่ถือ `tests\test_holdings_watch.py` · ผลสแกน `tests\test_scan_output.py` · จัดพอร์ต `tests\test_rebalance.py` · Hong PEG `tests\test_hong_peg.py`)
 
 ## Rules
 - scan pipeline ต้อง deterministic ห้ามเอา AI มาตัดสินใจในสายนี้
