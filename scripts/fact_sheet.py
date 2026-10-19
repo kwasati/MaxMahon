@@ -102,6 +102,12 @@ def cagr_windows(data: dict, windows) -> dict:
             for n in windows}
 
 
+def eps_cagr_windows(rows: list, windows) -> dict:
+    """{years: CAGR or None} of EPS (normal EPS when recorded). Reuses compute_dps_cagr's CAGR math."""
+    by_year = {r["year"]: r["eps"] for r in rows}
+    return {n: compute_dps_cagr(by_year, None, years=n) for n in windows}
+
+
 # --- A4: scenarios, cost levels, dividend-vs-cost table ---
 
 def growth_scenarios(cagrs: dict, cap: float, min_window: int = 10) -> dict:
@@ -365,7 +371,7 @@ def flag_t2(base_dps, rates: dict, cost_list: list, year: int, low: float) -> di
     name = f"ปันผลเทียบต้นทุนปีที่ {year} (ฉากกลาง) ต่ำกว่าเป้าล่าง {low:g}%"
     g = rates.get("mid")
     if g is None or not base_dps or base_dps <= 0 or not cost_list:
-        return _flag("T2", name, None, "ข้อมูลไม่พอ — ต้องมีหน้าต่างอัตราโตปันผล 10 ปีขึ้นไป (หรือไม่มีราคา/ปันผลฐาน) จึงสร้างฉากกลางไม่ได้")
+        return _flag("T2", name, None, "ข้อมูลไม่พอ — ต้องมีหน้าต่างอัตรากำไรต่อหุ้นโต 10 ปีขึ้นไป (หรือไม่มีราคา/ปันผลฐาน) จึงสร้างฉากกลางไม่ได้")
     dps_n = base_dps * (1 + g) ** year
     parts, hit = [], False
     for c in cost_list:
@@ -478,7 +484,8 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     shares = shares_outstanding(data)
     cuts = dividend_cuts(complete, cfg["cut_material_pct"])
     cagrs = cagr_windows(data, cfg["cagr_windows"])
-    rates_fixed = growth_scenarios(cagrs, cfg["growth_cap"], cfg["min_scenario_window_years"])
+    eps_cagrs = eps_cagr_windows(rows, cfg["cagr_windows"])
+    rates_fixed = growth_scenarios(eps_cagrs, cfg["growth_cap"], cfg["min_scenario_window_years"])
     dd_rates = deep_dive_rates(growth_override)
     rates = dd_rates or rates_fixed
     supplied = normalize_costs(costs)
@@ -515,7 +522,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
                       "special": {int(k): v for k, v in (data.get("dividend_history_special") or {}).items()},
                       "first_fy": min(list(complete) + list(partial)) if (complete or partial) else None},
         "cuts": cuts, "cut_count": len(cuts), "cut_material_count": sum(1 for c in cuts if c["material"]),
-        "crisis": crisis_rows(data, cfg["crisis_years"]), "cagrs": cagrs, "rates": rates, "rates_fixed": rates_fixed,
+        "crisis": crisis_rows(data, cfg["crisis_years"]), "cagrs": cagrs, "eps_cagrs": eps_cagrs, "rates": rates, "rates_fixed": rates_fixed,
         "rates_source": ({"kind": "deep_dive", "source": growth_override.get("source"), "as_of": growth_override.get("as_of")}
                          if dd_rates else {"kind": "fixed"}),
         "costs": levels, "supplied_costs": supplied,
@@ -680,7 +687,9 @@ def _a2(fs):
 
 def _a3(fs):
     lines = ["## A3 อัตราปันผลโตทบต้น (จากปีบัญชีล่าสุดที่ครบ)", ""]
-    lines += _table(["หน้าต่าง", "โตต่อปี"], [[f"{n} ปี", pct(v)] for n, v in fs["cagrs"].items()])
+    lines += _table(["หน้าต่าง", "ปันผลโตต่อปี", "กำไรต่อหุ้นโตต่อปี"],
+                    [[f"{n} ปี", pct(fs["cagrs"][n]), pct(fs["eps_cagrs"][n])] for n in fs["cagrs"]])
+    lines.append("ฉากอัตราโตใน A4 ใช้กำไรต่อหุ้นโต (กำไรปกติถ้าจดไว้ใน config ไม่งั้นกำไรรวม ยังไม่ตัดกำไรพิเศษ) — ปันผลที่โตเพราะขยับ payout ไม่นับเป็นการโต")
     return lines + ["", "หน้าต่างเดียวหลอกตาได้ — ดูทุกหน้าต่างด้วยกัน", ""]
 
 
@@ -700,8 +709,8 @@ def _a4(fs):
     lines += ["ฉากอัตราโตตามกฎตายตัว (**เราตั้งเอง** ไม่ใช่คำนิเวศน์ และไม่ใช่คำทำนาย)" + (" — ไม่ได้ใช้ในตารางหลักของหุ้นนี้:" if dd else ":"),
              f"- ต้องมีหน้าต่างอัตราโตตั้งแต่ {fs['cfg']['min_scenario_window_years']} ปีขึ้นไปอย่างน้อย 1 หน้าต่าง ไม่งั้น = ข้อมูลไม่พอ (ไม่สร้างฉาก)",
              f"- เพดานอัตราโตทุกฉาก {fs['cfg']['growth_cap']*100:g}% ต่อปี",
-             f"- แย่ = ค่าต่ำสุดของอัตราโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(rule['bad']) if rule['bad'] is not None else 'ข้อมูลไม่พอ'}",
-             f"- ดี = ค่าสูงสุดของอัตราโตทุกหน้าต่างที่มี ตัดที่เพดาน → {pct(rule['good']) if rule['good'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- แย่ = ค่าต่ำสุดของอัตรากำไรต่อหุ้นโตทุกหน้าต่างที่มี (ไม่ต่ำกว่า 0) → {pct(rule['bad']) if rule['bad'] is not None else 'ข้อมูลไม่พอ'}",
+             f"- ดี = ค่าสูงสุดของอัตรากำไรต่อหุ้นโตทุกหน้าต่างที่มี ตัดที่เพดาน → {pct(rule['good']) if rule['good'] is not None else 'ข้อมูลไม่พอ'}",
              f"- กลาง = ค่าเฉลี่ยของแย่กับดี → {pct(rule['mid']) if rule['mid'] is not None else 'ข้อมูลไม่พอ'}",
              "- ต้นทุน = ที่ส่งมาด้วย `--cost` + ราคาวันนี้ + ราคาวันนี้ x 0.8 และ x 0.6 "
              + ("" if fs["supplied_costs"] else "(ยังไม่ได้ส่งต้นทุน — ใช้ราคาวันนี้แทน)"), ""]

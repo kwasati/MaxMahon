@@ -56,6 +56,15 @@ class GrowthTest(unittest.TestCase):
             self.assertAlmostEqual(c[n], 0.05, places=6)
         self.assertIsNone(c[20])
 
+    def test_eps_cagr_windows(self):
+        # assert: eps 1.0 (2015) growing to 2.0 (2025) -> 10y CAGR ≈ (2.0/1.0)^(1/10)-1 = 0.0718; 15y / 20y windows None (too short)
+        rows = [{"year": y, "eps": 1.0 + (y - 2015) * 0.1} for y in range(2015, 2026)]  # 1.0 .. 2.0
+        c = fs.eps_cagr_windows(rows, [5, 10, 15, 20])
+        self.assertAlmostEqual(c[10], 2.0 ** 0.1 - 1, places=7)
+        self.assertAlmostEqual(c[5], (2.0 / 1.5) ** 0.2 - 1, places=7)
+        self.assertIsNone(c[15])
+        self.assertIsNone(c[20])
+
     def test_scenarios_rule(self):
         # assert: bad = min window (0..cap) - good = max window capped - mid = mean
         r = fs.growth_scenarios({5: 0.30, 10: 0.09, 15: 0.04, 20: None}, 0.10)
@@ -292,7 +301,7 @@ class DcaTest(unittest.TestCase):
         short = fs.compute_fact_sheet(make_data(dps={2023: 1.0, 2024: 1.1}), cfg=CFG, today="2026-10-09")
         self.assertFalse(any(x["ok"] for x in short["dca"]))
         self.assertIn("ถ้าซื้อทุกเดือน (DCA)", fs.render_markdown(short))
-        full = fs.compute_fact_sheet(make_data(), cfg=CFG, today="2026-10-09")
+        full = fs.compute_fact_sheet(make_data(n_years=20), cfg=CFG, today="2026-10-09")
         md = fs.render_markdown(full)
         self.assertTrue(all(x["ok"] for x in full["dca"]))
         self.assertIn("ราคาโตเท่าปันผล", md)
