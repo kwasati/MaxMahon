@@ -100,6 +100,16 @@ class GateTest(unittest.TestCase):
         # assert: yield None -> FAIL
         self.assertEqual(hard_filter(make(None, dps=0.0))[0], "FAIL")
 
+    def test_setsmart_snapshot_yield_pending(self):
+        # assert: yield from SETSMART snapshot (not a complete FY DPS) -> PENDING;
+        # same stock with dps_fy source (the default) -> PASS
+        snap = make(6.0)
+        snap["dividend_yield_source"] = "setsmart_snapshot"
+        self.assertEqual(hard_filter(snap)[0], "PENDING")
+        fy = make(6.0)
+        fy["dividend_yield_source"] = "dps_fy"
+        self.assertEqual(hard_filter(fy)[0], "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()

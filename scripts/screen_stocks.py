@@ -142,7 +142,8 @@ def hard_filter(data: dict) -> tuple:
 
     Passes when all hold:
     1. market cap >= min_market_cap — our own number for C5 "large enough"
-    2. data sane — yahoo flake (yield > 0, no DPS history) -> PENDING
+    2. data sane — yahoo flake (yield > 0, no DPS history) -> PENDING; yield from
+       SETSMART snapshot (not a complete fiscal-year DPS) -> PENDING
     3. dividend, either path:
        - C1: dividend_yield >= min_dividend_yield (5%)
        - C3: yield >= growing_yield_floor, DPS rising >= growing_min_streak complete years,
@@ -159,6 +160,9 @@ def hard_filter(data: dict) -> tuple:
     dy = data.get("dividend_yield")
     if dy is not None and dy > 0 and agg.get("dividend_streak", 0) == 0 and not (data.get("dividend_history") or {}):
         return "PENDING", ["ไม่มีข้อมูลปันผลย้อนหลัง (yahoo flake — queued for retry)"]
+
+    if data.get("dividend_yield_source") == "setsmart_snapshot":
+        return "PENDING", ["yield มาจาก snapshot SETSMART ไม่ใช่ปันผลปีบัญชีที่ครบ — รอข้อมูลปันผล"]
 
     if dy is None:
         return "FAIL", ["ไม่มีข้อมูลปันผล"]

@@ -1404,10 +1404,13 @@ def fetch_fundamentals(symbol: str) -> dict:
 
         if dps_current is not None and price is not None and price > 0:
             dy = dps_current / price * 100
+            dy_source = "dps_fy"
         elif dy_snapshot is not None:
             dy = dy_snapshot  # SETSMART EOD dividendYield
+            dy_source = "setsmart_snapshot"
         else:
             dy = None
+            dy_source = None
             logger.warning(
                 "no DPS for %s (latest_complete_fy=%s, dps_current=%s, price=%s, dps_source=%s) — "
                 "dy unset (no DPS in dividend_history for latest complete FY; thaifin DPS approximation NOT used)",
@@ -1485,6 +1488,7 @@ def fetch_fundamentals(symbol: str) -> dict:
         "forward_pe": forward_pe,
         "pb_ratio": pb_ratio,
         "dividend_yield": dy,  # percentage (e.g. 4.5 = 4.5%)
+        "dividend_yield_source": dy_source,  # "dps_fy" | "setsmart_snapshot" | None
         "dps": dps_current,  # actual dividend per share amount
         "dividend_rate": dividend_rate,
         "payout_ratio": payout_ratio,
