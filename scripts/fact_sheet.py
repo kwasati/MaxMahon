@@ -226,6 +226,14 @@ def yearly_rows(data: dict) -> list:
     return sorted(rows, key=lambda x: x["year"])
 
 
+def today_multiples(price, row):
+    """PE / PBV for the 'today' row, using the latest complete-FY `row` (eps/bvps) — same rule as the A10 yearly rows.
+    Returns (None, None) unless price and the needed figure are positive."""
+    pe = price / row["eps"] if price and price > 0 and row.get("eps") and row["eps"] > 0 else None
+    pbv = price / row["bvps"] if price and price > 0 and row.get("bvps") and row["bvps"] > 0 else None
+    return pe, pbv
+
+
 def shares_outstanding(data: dict):
     mcap, price = _num(data.get("market_cap")), _num(data.get("price"))
     return mcap / price if mcap and price else None
@@ -508,7 +516,8 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     if not bank:
         flags.append(flag_t6(debt, cfg["t6_years"]))
     flags += [flag_payout(payouts, cfg["payout_over"]), flag_loss(losses, cfg["loss_window_years"])]
-    pe_today = _num(data.get("pe_ratio"))
+    last_row = next((r for r in rows if r["year"] == last_fy), None)
+    pe_today, pbv_today = today_multiples(price, last_row) if last_row is not None else (None, None)
     price_date = data.get("price_as_of")
     try:
         price_age = (date.fromisoformat(str(today or date.today())) - date.fromisoformat(str(price_date)[:10])).days
@@ -536,7 +545,8 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         "debt": debt, "loss_years": losses, "history": hist,
         "today": {"yield": today_yield, "yield_system": _num(data.get("dividend_yield")),
                   "yield_avg": avg_yield(complete, price, cfg["avg_yield_years"]),
-                  "pe": pe_today, "pbv": _num(data.get("pb_ratio")),
+                  "pe": pe_today, "pbv": pbv_today,
+                  "pe_system": _num(data.get("pe_ratio")), "pbv_system": _num(data.get("pb_ratio")),
                   "pe_below_max": None if pe_today is None else (0 < pe_today < cfg["pe_niwes_max"])},
         "price_label": price_label(today_yield, hist, cfg),
         "pbv_position": pbv_position(_num(data.get("pb_ratio")), hist, cfg["price_min_years"]),
@@ -692,6 +702,7 @@ def _a3(fs):
     lines = ["## A3 อัตราปันผลโตทบต้น (จากปีบัญชีล่าสุดที่ครบ)", ""]
     lines += _table(["หน้าต่าง", "ปันผลโตต่อปี", "กำไรต่อหุ้นโตต่อปี"],
                     [[f"{n} ปี", pct(fs["cagrs"][n]), pct(fs["eps_cagrs"][n])] for n in fs["cagrs"]])
+    lines.append("")
     lines.append("ฉากอัตราโตใน A4 ใช้กำไรต่อหุ้นโต (กำไรปกติถ้าจดไว้ใน config ไม่งั้นกำไรรวม ยังไม่ตัดกำไรพิเศษ) — ปันผลที่โตเพราะขยับ payout ไม่นับเป็นการโต")
     return lines + ["", "หน้าต่างเดียวหลอกตาได้ — ดูทุกหน้าต่างด้วยกัน", ""]
 
@@ -855,7 +866,9 @@ def _a10(fs):
     body.append(["วันนี้", fn(fs["price"]), fn(t["pe"], 1), fn(t["pbv"], 2), fn(t["yield"], 1, suffix="%")])
     lines += _table(["ปี", "ราคาปิดสิ้นปี", "PE", "PBV", "ยีลด์"], body)
     lines += ["", f"ยีลด์วันนี้ = ปันผล FY{fs['dividends']['last_fy'] or NA} ÷ ราคาวันนี้ (ให้เทียบกับตารางได้) · "
-              f"ยีลด์ที่ระบบรายงาน (`dividend_yield`) = {fn(t['yield_system'], 2, suffix='%')}", ""]
+              f"ยีลด์ที่ระบบรายงาน (`dividend_yield`) = {fn(t['yield_system'], 2, suffix='%')}",
+              f"PE / PBV วันนี้ = ราคาวันนี้ ÷ กำไรต่อหุ้น / มูลค่าทางบัญชีต่อหุ้น ของ FY{fs['dividends']['last_fy'] or NA} (สูตรเดียวกับแถวรายปี) · "
+              f"PE / PBV ที่ระบบรายงาน (SETSMART 12 เดือนย้อนหลัง) = {fn(t['pe_system'], 1)} / {fn(t['pbv_system'], 2)}", ""]
     lines.append(f"### ป้ายราคา: **{pl['label']}**")
     if pl["rank"] is None:
         lines.append(f"ข้อมูลไม่พอ — มียีลด์ย้อนหลัง {pl['years']} ปี ต้องมีอย่างน้อย {cfg['price_min_years']} ปี")
@@ -868,7 +881,7 @@ def _a10(fs):
               f"ต่ำสุด {cfg['price_expensive_bottom_pct']:g}% = แพง · ที่เหลือ = กลาง · ประวัติน้อยกว่า {cfg['price_min_years']} ปี = ข้อมูลไม่พอ", ""]
     pe = t["pe"]
     lines.append(f"- PE วันนี้ {fn(pe, 1)} → " + (NA if t["pe_below_max"] is None else
-                 ("ต่ำกว่า" if t["pe_below_max"] else "ไม่ต่ำกว่า") + f" {cfg['pe_niwes_max']:g} (เลข PE <{cfg['pe_niwes_max']:g} ที่นิเวศน์ให้ — หลัก P3)"))
+                 ("ต่ำกว่า" if t["pe_below_max"] else "ไม่ต่ำกว่า") + f" {cfg['pe_niwes_max']:g} (เลข PE <{cfg['pe_niwes_max']:g} มาจากเครื่องมือสรุปบทความ S2 ไม่ใช่คำที่ยกมาตรง ๆ — หลัก P3)"))
     if pp["rank"] is None:
         lines.append(f"- PBV วันนี้ {fn(t['pbv'], 2)} · เทียบช่วงตัวเอง: ข้อมูลไม่พอ ({pp['years']} ปี)")
     else:

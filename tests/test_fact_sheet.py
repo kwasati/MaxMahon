@@ -263,6 +263,26 @@ class ComputeAndRenderTest(unittest.TestCase):
         self.assertAlmostEqual(h[1]["pbv"], 2.5)
 
 
+class TodayMultiplesTest(unittest.TestCase):
+    def test_pe_pbv_from_fy_row(self):
+        # assert: pe = price/eps, pbv = price/bvps of the same FY row
+        pe, pbv = fs.today_multiples(182.5, {"eps": 24.09, "bvps": 300.0})
+        self.assertAlmostEqual(pe, 7.576, places=3)
+        self.assertAlmostEqual(pbv, 0.608, places=3)
+
+    def test_zero_eps_gives_none_pe(self):
+        # assert: eps <= 0 -> pe None (same rule as A10 yearly rows); pbv still computed
+        pe, pbv = fs.today_multiples(182.5, {"eps": 0, "bvps": 300.0})
+        self.assertIsNone(pe)
+        self.assertAlmostEqual(pbv, 0.608, places=3)
+
+    def test_missing_bvps_gives_none_pbv(self):
+        # assert: bvps None -> pbv None
+        pe, pbv = fs.today_multiples(182.5, {"eps": 24.09, "bvps": None})
+        self.assertAlmostEqual(pe, 7.576, places=3)
+        self.assertIsNone(pbv)
+
+
 class DcaTest(unittest.TestCase):
     G, F = fs.PRICE_GROWS, fs.PRICE_FLAT
 
