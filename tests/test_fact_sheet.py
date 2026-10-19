@@ -404,5 +404,52 @@ class AvgYieldTest(unittest.TestCase):
         self.assertIsNone(fs.avg_yield({2023: 0.65, 2024: 0.80, 2025: 1.10}, 0, 3))
 
 
+class A5FactsTest(unittest.TestCase):
+    def _row(self, year, revenue=None, eps=None, cash=None):
+        # full row as yearly_rows carries (revenue / eps / cash keys always present)
+        return {"year": year, "revenue": revenue, "cash": cash, "eps": eps}
+
+    def test_revenue_streak_and_break(self):
+        # assert: revenue 10,11,12,11,12,13 (2020-2025): the latest run is 2023→2024→2025 (2 steps),
+        #         so rev_streak=2 and the break year is 2023 (did not rise vs 2022's 12)
+        rows = [self._row(y, revenue=v) for y, v in zip(range(2020, 2026), [10, 11, 12, 11, 12, 13])]
+        out = fs.a5_facts(rows, [], [])
+        self.assertEqual(out["rev_streak"], 2)
+        self.assertEqual(out["rev_break"], 2023)
+
+    def test_eps_worst_drop(self):
+        # assert: eps 2,3,1.5,2 (2022-2025): the only drop is 3→1.5 at 2024 = -50%; no earlier drop
+        rows = [self._row(2022, eps=2), self._row(2023, eps=3),
+                self._row(2024, eps=1.5), self._row(2025, eps=2)]
+        out = fs.a5_facts(rows, [], [])
+        self.assertEqual(out["eps_worst"], (2024, -0.5))
+
+    def test_eps_no_drop_is_none(self):
+        # assert: always rising eps -> eps_worst None
+        rows = [self._row(2020 + i, eps=1.0 + i) for i in range(4)]
+        self.assertIsNone(fs.a5_facts(rows, [], [])["eps_worst"])
+
+    def test_headroom_from_latest_payout(self):
+        # assert: payout 0.4 -> headroom 0.6; ignored older rows with different payout
+        payouts = [{"year": 2022, "payout": 0.2}, {"year": 2023, "payout": 0.4}]
+        self.assertAlmostEqual(fs.a5_facts([], [], payouts)["headroom"], 0.6)
+
+    def test_headroom_none_when_payout_at_or_above_one(self):
+        # assert: payout 1.1 -> headroom None (no room to cut)
+        self.assertIsNone(fs.a5_facts([], [], [{"year": 2024, "payout": 1.1}])["headroom"])
+
+    def test_runway_cash_over_paid(self):
+        # assert: cash 100 / paid 25 -> runway 4.0 years
+        rows = [self._row(2024, cash=100)]
+        cash_rows = [{"year": 2024, "paid": 25}]
+        self.assertAlmostEqual(fs.a5_facts(rows, cash_rows, [])["runway"], 4.0)
+
+    def test_runway_none_for_banks_or_missing(self):
+        # assert: empty cash_rows (bank) -> None; paid <= 0 -> None; cash missing -> None
+        self.assertIsNone(fs.a5_facts([self._row(2024, cash=100)], [], [])["runway"])
+        self.assertIsNone(fs.a5_facts([self._row(2024, cash=100)], [{"year": 2024, "paid": 0}], [])["runway"])
+        self.assertIsNone(fs.a5_facts([self._row(2024, cash=None)], [{"year": 2024, "paid": 25}], [])["runway"])
+
+
 if __name__ == "__main__":
     unittest.main()

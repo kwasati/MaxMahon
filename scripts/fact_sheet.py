@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from data_adapter import complete_dividend_by_year, dividend_crisis_facts  # noqa: E402
-from fetch_data import compute_dps_cagr  # noqa: E402
+from fetch_data import compute_dps_cagr, count_dividend_growth_streak  # noqa: E402
 
 CONFIG_PATH = ROOT / "config.json"
 NA = "ไม่มีข้อมูล"
@@ -266,6 +266,69 @@ def payout_rows(rows: list, dps: dict) -> list:
             for r in rows]
 
 
+def _streak_break(series: dict, streak: int):
+    """The year where the rising streak stopped = first year of the latest rising run
+    (the year that did not rise vs its previous year). None when the run reaches the first year."""
+    if not series:
+        return None
+    break_year = max(series) - streak
+    if break_year <= min(series):
+        return None
+    return break_year
+
+
+def _eps_worst(eps: dict):
+    """(year, change) of the largest year-on-year EPS drop; None when no drop exists."""
+    worst = None
+    for y in sorted(eps):
+        prev = eps.get(y - 1)
+        if prev is None or prev <= 0:
+            continue
+        chg = eps[y] / prev - 1
+        if chg < 0 and (worst is None or chg < worst[1]):
+            worst = (y, chg)
+    return worst
+
+
+def _headroom(payouts: list):
+    """1 - payout of the latest payout row with payout not None; None when payout >= 1 or missing."""
+    pts = [p for p in payouts if p["payout"] is not None]
+    if not pts:
+        return None
+    latest = max(pts, key=lambda p: p["year"])
+    if latest["payout"] >= 1:
+        return None
+    return 1 - latest["payout"]
+
+
+def _runway(rows: list, cash_rows: list):
+    """Latest row cash ÷ latest cash_rows paid; None when either missing or paid <= 0."""
+    if not rows or not cash_rows:
+        return None
+    cash = rows[-1]["cash"]
+    paid = cash_rows[-1]["paid"]
+    if cash is None or paid is None or paid <= 0:
+        return None
+    return cash / paid
+
+
+def a5_facts(rows: list, cash_rows: list, payouts: list) -> dict:
+    """A5 streaks / worst drop / headroom / runway from yearly rows.
+
+    rows carry revenue / cash / eps; only complete years (< current calendar year) count.
+    cash_rows = cash_vs_dividend output (runway None for banks -> pass []); payouts = payout_rows output."""
+    current_year = date.today().year
+    rev = {r["year"]: r["revenue"] for r in rows if r["revenue"] is not None and r["year"] < current_year}
+    eps = {r["year"]: r["eps"] for r in rows if r["eps"] is not None and r["year"] < current_year}
+    rev_streak = count_dividend_growth_streak(rev, None)
+    eps_streak = count_dividend_growth_streak(eps, None)
+    return {
+        "rev_streak": rev_streak, "eps_streak": eps_streak,
+        "rev_break": _streak_break(rev, rev_streak), "eps_break": _streak_break(eps, eps_streak),
+        "eps_worst": _eps_worst(eps), "headroom": _headroom(payouts), "runway": _runway(rows, cash_rows),
+    }
+
+
 def suspect_liability_years(rows: list, gap: float) -> set:
     """Years where liabilities, total_assets and equity are all present and liabilities contradict
     total_assets - equity by more than `gap`. "equity" is the parent's shareholders' equity only, so
@@ -482,6 +545,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     cfg = cfg or load_cfg()
     profile = data.get("sector_profile") or (data.get("aggregates") or {}).get("sector_profile") or "general"
     bank = profile == "bank"
+    agg = data.get("aggregates") or {}
     price = _num(data.get("price"))
     complete, partial = dividend_series(data)
     last_fy = max(complete) if complete else None
@@ -542,6 +606,10 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
         "required": required_growth(base, levels, targets, cfg["yoc_years"]),
         "dca": dca_table(base, price, rates, cfg["dca_report_years"], cfg["dca_years"], targets, cfg["dca_required_year"]),
         "targets": targets, "rows": rows, "shares": shares, "cash": cash, "payouts": payouts,
+        "a5": a5_facts(rows, [] if bank else cash, payouts),
+        "rev_cagr": agg.get("revenue_cagr"),
+        "rev_up": agg.get("revenue_growth_years"),
+        "rev_total": agg.get("revenue_growth_total_comparisons"),
         "debt": debt, "loss_years": losses, "history": hist,
         "today": {"yield": today_yield, "yield_system": _num(data.get("dividend_yield")),
                   "yield_avg": avg_yield(complete, price, cfg["avg_yield_years"]),
@@ -776,21 +844,33 @@ def _a4_dca(fs):
 
 def _a5(fs):
     bank = fs["bank"]
+    a = fs["a5"]
     lines = ["## A5 กำไรต่อหุ้น · ROE · เงินสด · เงินลงทุน รายปี", "",
              "แหล่ง: `yearly_metrics` (thaifin/SETSMART) · หน่วยเงิน = ล้านบาท · เงินลงทุน = ค่าสัมบูรณ์ของ capex (เครื่องหมายใน cache ไม่คงที่)"]
     if bank:
         lines.append("แบงก์: ไม่แสดงเงินสดจากดำเนินงาน/เงินลงทุน — ความหมายต่างจากธุรกิจทั่วไป (เงินฝาก/เงินให้สินเชื่อวิ่งผ่านงบกระแสเงินสด)")
     lines.append("")
-    head = ["ปี", "กำไรต่อหุ้น", "ROE", "กำไรสุทธิ"] + ([] if bank else ["เงินสดจากดำเนินงาน", "เงินลงทุน"]) + ["ขาดทุน?"]
+    head = ["ปี", "รายได้", "กำไรต่อหุ้น", "ROE", "กำไรสุทธิ"] + ([] if bank else ["เงินสดจากดำเนินงาน", "เงินลงทุน", "เงินสด"]) + ["ขาดทุน?"]
     body = []
     for r in fs["rows"]:
         loss = r["year"] in fs["loss_years"]
-        body.append([r["year"], fn(r["eps"], 2), pct(r["roe"]), fn(r["net_income"], 0, 1e6)] +
-                    ([] if bank else [fn(r["ocf"], 0, 1e6), fn(r["invest"], 0, 1e6)]) + ["ใช่" if loss else ""])
+        body.append([r["year"], fn(r["revenue"], 0, 1e6), fn(r["eps"], 2), pct(r["roe"]), fn(r["net_income"], 0, 1e6)] +
+                    ([] if bank else [fn(r["ocf"], 0, 1e6), fn(r["invest"], 0, 1e6), fn(r["cash"], 0, 1e6)]) + ["ใช่" if loss else ""])
     lines += _table(head, body) if body else [NA]
     lines.append("")
     lines.append("ปีขาดทุน (ช่วง %d ปีล่าสุด): %s" % (fs["cfg"]["loss_window_years"],
                  ", ".join(map(str, fs["loss_years"])) if fs["loss_years"] else "ไม่พบ"))
+    lines.append(f"รายได้โตทบต้นทั้งช่วงข้อมูล {pct(fs['rev_cagr'])} · ปีที่รายได้เพิ่ม {fs['rev_up']}/{fs['rev_total']} ปี")
+    if bank:
+        lines.append("แบงก์: รายได้รวมดอกเบี้ยรับ ขึ้นลงตามรอบดอกเบี้ยนโยบาย ไม่ใช่ยอดขาย")
+    worst = f"{a['eps_worst'][0]} ({pct(a['eps_worst'][1])})" if a["eps_worst"] else NA
+    lines.append(f"ขึ้นติดกันถึงปีล่าสุด: รายได้ {a['rev_streak']} ปี (สะดุดล่าสุด {a['rev_break'] or NA}) · "
+                 f"กำไรต่อหุ้น {a['eps_streak']} ปี (สะดุดล่าสุด {a['eps_break'] or NA}) · ปีที่กำไรต่อหุ้นตกหนักสุด {worst}")
+    tail = f"กำไรตกได้อีก {pct(a['headroom'])} ก่อน payout ชน 100%"
+    if not bank:
+        tail += f" · เงินสดปลายปีล่าสุดพอจ่ายปันผลปีล่าสุดได้ {fn(a['runway'], 1)} ปีถ้ากำไรเป็นศูนย์"
+    tail += " — ตัวเลขเราคิดเอง ไม่ใช่เกณฑ์นิเวศน์"
+    lines.append(tail)
     return lines + [""]
 
 
