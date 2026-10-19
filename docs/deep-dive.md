@@ -4,7 +4,7 @@ Art สั่ง deep dive หุ้นตัวหนึ่ง → ทำตา
 
 ## ขั้นตอน
 1. ออกใบข้อเท็จจริง (ตั้ง `PYTHONUTF8=1`): `py C:\WORKSPACE\projects\4-MaxMahon\scripts\fact_sheet.py <SYM> --refresh --cost <SYM>=<ต้นทุนเฉลี่ย>` — ต้นทุนของหุ้นที่ถืออยู่ใน `config.json` ท่อน `holdings`
-2. ส่งงานให้ Fable (ข้อตกลง N10) ตอบคำถาม D1–D18 ใน `C:\WORKSPACE\projects\4-MaxMahon\docs\niwes-principles.md` ท่อน 5 + ตัววัด T1–T6 ท่อน 4 · ทุกคำถามบอกว่าใช้ท่อนไหนของใบข้อเท็จจริง · ต้นแบบรูปเล่ม 10 ท่อน: `C:\WORKSPACE\projects\4-MaxMahon\research\amata-deep-dive-2026-10-09.md`
+2. ส่งงานให้ Fable (ข้อตกลง N10) ตอบคำถาม D1–D18 ใน `C:\WORKSPACE\projects\4-MaxMahon\docs\niwes-principles.md` ท่อน 5 + ตัววัด T1–T6 ท่อน 4 · ทุกคำถามบอกว่าใช้ท่อนไหนของใบข้อเท็จจริง · ต้นแบบรูปเล่ม 10 ท่อน: `C:\WORKSPACE\projects\4-MaxMahon\research\amata-deep-dive-2026-10-19.md`
 3. Fable จดผลที่สคริปต์ใช้ต่อ 2 ที่ (รูปเดียว: ค่า + `_source` ชี้ท่อนในเล่ม + `_as_of`):
    - `config.json` `normal_eps` → `{"<SYM>": {"<FY>": กำไรปกติต่อหุ้น, "_source": ..., "_as_of": ...}}` — อย่างน้อยปีบัญชีล่าสุดที่ครบ · ติดลบ / 0 จดได้ · สคริปต์ใส่ตอนดึงข้อมูล → แก้แล้วต้องดึงใหม่ (`--refresh`) ใบถึงเปลี่ยน · `holdings.growth_scenarios` (อัตราโต 3 ฉาก อิงกำไร) · `special_dividends` (ปันผลพิเศษ)
    - `data\manual_facts\<SYM>.json` → ใบข้อเท็จจริงพิมพ์ตามที่จด ไม่คำนวณ: แบงก์ (BIS/CET1 · NPL · coverage · credit cost ย้อนหลัง) · นโยบายปันผลที่ประกาศ (ไม่ระบุ % ก็จด) · ปีก่อตั้ง / ปีเข้าตลาด
