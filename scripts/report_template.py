@@ -54,7 +54,7 @@ def _flags(c: dict) -> str:
 
 MAIN_HEAD = ["หุ้น", "ชื่อ", "กลุ่ม", "ราคา", "yield วันนี้", "ปันผลปีครบล่าสุด", "โตปันผล 5ป / 10ป",
              "จ่ายต่อเนื่อง (ปี)", "ลด≥10% ใน 10ปี (ครั้ง)", "PE", "PBV", "ธง"]
-GROWTH_HEAD = MAIN_HEAD[:5] + ["yield ที่คาดปีที่ 5", "อัตราโตที่ใช้"] + MAIN_HEAD[5:]
+GROWTH_HEAD = MAIN_HEAD[:5] + ["yield ที่คาดปีที่ 5", "อัตรากำไรโต 10 ปีที่ใช้"] + MAIN_HEAD[5:]
 
 
 def _main_table(rows: list) -> str:

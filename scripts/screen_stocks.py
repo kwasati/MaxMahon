@@ -61,21 +61,33 @@ def _last_complete_dps(data: dict):
 
 
 def projected_yield_5y(data: dict):
-    """Niwes C2/C3: yield in year 5 vs today's price = last-complete-FY DPS x (1+g)^5 / price (%).
+    """Niwes C2/C3: yield in year 5 vs today's price = base x (1+g)^5 / price (%).
 
-    g = lower of dps_cagr (5y) and dps_10y_cagr (one None -> use the other), capped at growing_growth_cap.
+    g = eps_10y_cagr (EPS growth; normal EPS where recorded), capped at growing_growth_cap.
+    base dividend = min(last complete FY DPS, that FY's diluted_eps from yearly_metrics) —
+    the dividend can't exceed profit (Niwes allows payout up to 100%); if that FY's EPS
+    is missing, base = DPS.
     Returns (projected_yield_pct, g) or (None, g) when it cannot be computed / g <= 0.
     """
     agg = data.get("aggregates") or {}
-    cands = [g for g in (agg.get("dps_cagr"), agg.get("dps_10y_cagr")) if g is not None]
-    if not cands:
+    g = agg.get("eps_10y_cagr")
+    if g is None:
         return None, None
-    g = min(min(cands), HARD_FILTERS["growing_growth_cap"])
-    _, dps = _last_complete_dps(data)
-    price = data.get("price")
-    if g <= 0 or not dps or not price or price <= 0:
+    g = min(g, HARD_FILTERS["growing_growth_cap"])
+    fy, dps = _last_complete_dps(data)
+    if g <= 0 or not dps or fy is None:
         return None, g
-    return dps * (1 + g) ** 5 / price * 100, g
+    # base dividend = min(DPS, that FY's diluted_eps); DPS if that FY's EPS missing
+    eps = None
+    for m in data.get("yearly_metrics", []):
+        if m.get("year") is not None and int(m["year"]) == fy:
+            eps = m.get("diluted_eps")
+            break
+    base = dps if eps is None else min(dps, eps)
+    price = data.get("price")
+    if base <= 0 or not price or price <= 0:
+        return None, g
+    return base * (1 + g) ** 5 / price * 100, g
 
 
 def gate_flags(data: dict) -> list:
@@ -151,7 +163,8 @@ def hard_filter(data: dict) -> tuple:
     3. dividend, either path:
        - C1: dividend_yield >= min_dividend_yield (5%)
        - C3: yield >= growing_yield_floor, DPS rising >= growing_min_streak complete years,
-         and projected year-5 yield (last complete DPS x (1+g)^5 / price) >= 5% (C2)
+         and projected year-5 yield (min(last complete DPS, its FY EPS) x (1+g)^5 / price) >= 5% (C2),
+         where g = eps_10y_cagr (EPS growth; normal EPS where recorded)
          growing_yield_floor / growing_min_streak / growing_growth_cap are our own numbers
        - no dividend data = FAIL
     PE, PBV, EPS-positive years are not gate conditions; see gate_flags() for warnings.

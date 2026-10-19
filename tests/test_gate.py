@@ -13,7 +13,7 @@ CY = datetime.now().year
 
 
 def make(dy, price=100.0, dps=None, cagr5=None, cagr10=None, growth_streak=0, mcap=10e9,
-         eps=None, pe=10, pbv=1.0, payout=0.5, gaps=None, streak=10, hist="auto"):
+         eps=None, pe=10, pbv=1.0, payout=0.5, gaps=None, streak=10, hist="auto", eps10=None):
     if dps is None:
         dps = dy * price / 100
     eps = eps if eps is not None else [1.0] * 5
@@ -26,7 +26,7 @@ def make(dy, price=100.0, dps=None, cagr5=None, cagr10=None, growth_streak=0, mc
         "yearly_metrics": [{"year": str(y), "diluted_eps": e} for y, e in zip(years, eps)],
         "aggregates": {
             "dividend_streak": streak, "dividend_growth_streak": growth_streak,
-            "dps_cagr": cagr5, "dps_10y_cagr": cagr10,
+            "dps_cagr": cagr5, "dps_10y_cagr": cagr10, "eps_10y_cagr": eps10,
             "dividend_last_complete_fy": CY - 1, "data_gaps": gaps or [],
         },
     }
@@ -40,34 +40,41 @@ class GateTest(unittest.TestCase):
         self.assertFalse(any(f.startswith("PASSED_VIA_GROWTH") for f in gate_flags(d)))
 
     def test_growth_path_passes_with_flag(self):
-        # assert: yield 4, dps 4, g=0.10 -> 4*1.1^5=6.44% >= 5 -> PASS + flag
-        d = make(4.0, cagr5=0.10, cagr10=0.12, growth_streak=3)
+        # assert: yield 4, dps 4, eps10=0.10, base=min(4,5)=4 -> 4*1.1^5=6.44% >= 5 -> PASS + flag
+        d = make(4.0, eps10=0.10, growth_streak=3, eps=[1.0, 1.0, 1.0, 1.0, 5.0])
         self.assertEqual(hard_filter(d)[0], "PASS")
         self.assertTrue(any(f.startswith("PASSED_VIA_GROWTH") for f in gate_flags(d)))
 
     def test_growth_not_enough_fails(self):
-        # assert: yield 3, g=0.10 -> 3*1.61=4.83% < 5 -> FAIL
-        d = make(3.0, cagr5=0.10, cagr10=0.10, growth_streak=3)
+        # assert: yield 3, g=eps10=0.10 -> base=3, 3*1.1^5=4.83% < 5 -> FAIL
+        d = make(3.0, eps10=0.10, growth_streak=3, eps=[1.0, 1.0, 1.0, 1.0, 4.0])
         self.assertEqual(hard_filter(d)[0], "FAIL")
 
     def test_no_growth_fails(self):
-        # assert: yield 4 with growth_streak 0 / g None -> FAIL
-        self.assertEqual(hard_filter(make(4.0, cagr5=0.2, growth_streak=0))[0], "FAIL")
+        # assert: yield 4 with growth_streak 0 / g None / g<=0 -> FAIL
+        self.assertEqual(hard_filter(make(4.0, eps10=0.2, growth_streak=0))[0], "FAIL")
         self.assertEqual(hard_filter(make(4.0, growth_streak=3))[0], "FAIL")
-        self.assertEqual(hard_filter(make(4.0, cagr5=-0.05, growth_streak=3))[0], "FAIL")
+        self.assertEqual(hard_filter(make(4.0, eps10=-0.05, growth_streak=3))[0], "FAIL")
 
     def test_growth_capped_at_015(self):
-        # assert: cagr 0.40 is capped to 0.15 -> g==0.15, projected = 3*1.15^5=6.03
-        d = make(3.0, cagr5=0.40, cagr10=0.50, growth_streak=3)
+        # assert: eps10 0.40 is capped to 0.15 -> g==0.15, base=min(3,4)=3, projected = 3*1.15^5=6.03
+        d = make(3.0, eps10=0.40, growth_streak=3, eps=[1.0, 1.0, 1.0, 1.0, 4.0])
         py, g = projected_yield_5y(d)
         self.assertAlmostEqual(g, 0.15)
         self.assertAlmostEqual(py, 3.0 * 1.15 ** 5, places=6)
 
-    def test_lower_of_two_cagr_used(self):
-        # assert: g = min(0.05, 0.20) = 0.05 -> 3*1.05^5=3.83 < 5 -> FAIL
-        d = make(3.0, cagr5=0.20, cagr10=0.05, growth_streak=4)
+    def test_growth_low_rate_fails(self):
+        # assert: g=eps10=0.05 -> base=3, 3*1.05^5=3.83 < 5 -> FAIL
+        d = make(3.0, eps10=0.05, growth_streak=4, eps=[1.0, 1.0, 1.0, 1.0, 4.0])
         self.assertAlmostEqual(projected_yield_5y(d)[1], 0.05)
         self.assertEqual(hard_filter(d)[0], "FAIL")
+
+    def test_base_capped_at_fy_eps(self):
+        # assert: DPS 3.0, that FY EPS 2.0, eps10 0.10 -> base=min(3,2)=2, py=2.0*1.1^5/price*100
+        d = make(3.0, eps10=0.10, eps=[1.0, 1.0, 1.0, 1.0, 2.0])
+        py, g = projected_yield_5y(d)
+        self.assertAlmostEqual(g, 0.10)
+        self.assertAlmostEqual(py, 2.0 * 1.1 ** 5 / d["price"] * 100, places=6)
 
     def test_pe_pbv_do_not_fail(self):
         # assert: PE 30 / PBV 5 with yield 6 -> PASS

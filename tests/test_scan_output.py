@@ -17,14 +17,17 @@ FORBIDDEN = ["score", "display_score", "breakdown", "disqualified", "penalty", "
 NOW = datetime(2026, 10, 9, 12, 0)
 
 
-def stock(dy, dps_hist=None, g5=0.05, g10=0.04, price=100.0):
+def stock(dy, dps_hist=None, g5=0.05, g10=0.04, price=100.0, eps10=None, eps=None):
     hist = dps_hist or {CY - 1 - i: 5.0 for i in range(10)}
+    if eps is None:
+        eps = [1.0] * 5
     return {
         "symbol": "T.BK", "name": "Test", "sector": "Commerce", "sector_profile": "general",
         "price": price, "price_as_of": "2026-10-08", "dividend_yield": dy, "pe_ratio": 9.0, "pb_ratio": 1.1,
         "market_cap": 10e9, "payout_ratio": 0.5, "dividend_history": hist,
-        "yearly_metrics": [{"year": str(CY - 5 + i), "diluted_eps": 1.0} for i in range(5)],
+        "yearly_metrics": [{"year": str(CY - 5 + i), "diluted_eps": e} for i, e in enumerate(eps)],
         "aggregates": {"dividend_streak": 10, "dividend_growth_streak": 4, "dps_cagr": g5, "dps_10y_cagr": g10,
+                       "eps_10y_cagr": eps10,
                        "dividend_last_complete_fy": CY - 1, "data_gaps": ["x_gap"]},
     }
 
@@ -58,8 +61,9 @@ class EntryTest(unittest.TestCase):
         self.assertEqual(e["data_gaps"], ["x_gap"])
 
     def test_growth_path_entry_has_projection(self):
-        # assert: yield 3% with g=15% (cap) -> growth path, projected yield = dps x 1.15^5 / price, rate used = 0.15
-        e = build_entry("T.BK", stock(3.0, g5=0.15, g10=0.15, price=100.0), False)
+        # assert: yield 3% with eps10=0.15 (cap) -> growth path, base=min(dps5, eps5)=5,
+        # projected = 5 x 1.15^5 / price, rate used = 0.15
+        e = build_entry("T.BK", stock(3.0, eps10=0.15, price=100.0, eps=[1.0, 1.0, 1.0, 1.0, 5.0]), False)
         self.assertEqual(e["gate_path"], "growth")
         self.assertAlmostEqual(e["growth_used"], 0.15)
         self.assertAlmostEqual(e["projected_yield_5y"], 5.0 * 1.15 ** 5 / 100 * 100, places=6)

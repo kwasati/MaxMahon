@@ -514,6 +514,13 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=N
     dps_cagr = compute_dps_cagr(dps_by_year, fy_is_complete, years=5)
     dps_10y_cagr = compute_dps_cagr(dps_by_year, fy_is_complete, years=10)
 
+    # eps_10y_cagr: 10-year CAGR of diluted_eps (normal EPS where recorded, applied
+    # before this call). Reuses compute_dps_cagr over the EPS series with
+    # fy_is_complete=None → every year before the current calendar year counts;
+    # returns None when either end is missing or <= 0.
+    eps_by_year = {_year_int(m): m.get("diluted_eps") for m in yearly_metrics if m.get("year") is not None}
+    eps_10y_cagr = compute_dps_cagr(eps_by_year, None, years=10)
+
     latest = yearly_metrics[-1] if yearly_metrics else {}
 
     avg_gross_margin = sum(gm_list) / len(gm_list) if gm_list else None
@@ -522,6 +529,7 @@ def _build_aggregates(yearly_metrics, dps_by_year, fy_is_complete=None, symbol=N
     aggregates = {
         "revenue_cagr": revenue_cagr,
         "eps_cagr": eps_cagr,
+        "eps_10y_cagr": eps_10y_cagr,
         "dps_cagr": dps_cagr,
         "dps_10y_cagr": dps_10y_cagr,
         "avg_roe": avg_roe,
@@ -721,6 +729,18 @@ def fetch_multi_year(symbol: str) -> dict:
         normal = normal_eps_for(symbol)
         apply_normal_eps(yearly_metrics, normal)
         adapter_result["normal_eps_applied"] = normal
+
+        # Payout: the adapter computed payout before the normal-EPS overlay. For symbols
+        # with a normal-EPS record, recompute for the latest complete dividend FY using
+        # normal EPS so the screener's PAYOUT_OVER_100 reads normal earnings; when that
+        # FY has no normal>0 EPS, payout is None. Otherwise keep the adapter's value.
+        fy = last_complete_fy(dividend_history, fy_is_complete)
+        if fy is not None and fy in normal:
+            adps = adapter_result.get("dps")
+            if adps is not None and normal[fy] > 0:
+                adapter_result["payout_ratio"] = adps / normal[fy]
+            else:
+                adapter_result["payout_ratio"] = None
 
         aggregates = _build_aggregates(yearly_metrics, dividend_history,
                                        fy_is_complete=fy_is_complete,
