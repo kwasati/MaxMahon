@@ -34,7 +34,7 @@ DEFAULT_CFG = {
     "t1_cut_years": 2, "t4_years": 2, "t6_years": 3, "t2_year": 10,
     "payout_over": 1.0, "loss_window_years": 10, "price_stale_days": 5,
     "dca_years": 10, "dca_report_years": [5, 10, 15], "dca_required_year": 10,
-    "max_yahoo_only_share": 0.5, "debt_suspect_ratio": 5, "debt_yahoo_gap": 0.10,
+    "max_yahoo_only_share": 0.5, "debt_identity_gap": 0.10, "debt_yahoo_gap": 0.10,
     "avg_yield_years": 3,
 }
 
@@ -215,6 +215,7 @@ def yearly_rows(data: dict) -> list:
         rows.append({"year": year, "eps": eps, "roe": _num(r.get("roe")), "net_income": _num(r.get("net_income")),
                      "ocf": _num(r.get("ocf")), "invest": abs(capex) if capex is not None else None,
                      "liabilities": _num(r.get("total_debt")), "equity": _num(r.get("equity")),
+                     "total_assets": _num(r.get("total_assets")), "cash": _num(r.get("cash")), "revenue": _num(r.get("revenue")),
                      "bvps": _num(r.get("bvps")), "dividends_paid": _num(r.get("dividends_paid"))})
     return sorted(rows, key=lambda x: x["year"])
 
@@ -251,43 +252,28 @@ def payout_rows(rows: list, dps: dict) -> list:
             for r in rows]
 
 
-def suspect_liability_years(liab: dict, ratio: float) -> set:
-    """Years whose total liabilities jump more than `ratio` x against an adjacent year (either direction).
-    Of a jumping pair only the year further from the series median (in log terms) is called suspect, so a good year
-    next to a bad one is not dragged along; a run of bad years is caught at each jump."""
-    import math
-    vals = sorted(v for v in liab.values() if v and v > 0)
-    if len(vals) < 3:
-        return set()
-    med = vals[len(vals) // 2]
+def suspect_liability_years(rows: list, gap: float) -> set:
+    """Years where liabilities, total_assets and equity are all present and liabilities contradict
+    total_assets - equity by more than `gap`. Years missing assets or equity (or where assets <= equity)
+    are never suspect."""
     sus = set()
-    for y, v in liab.items():
-        nb = liab.get(y + 1)
-        if not v or v <= 0 or not nb or nb <= 0:
+    for r in rows:
+        liab, ta, eq = r.get("liabilities"), r.get("total_assets"), r.get("equity")
+        expected = None if (ta is None or eq is None) else ta - eq
+        if liab is None or expected is None or expected <= 0:
             continue
-        if max(v, nb) / min(v, nb) > ratio:
-            sus.add(y if abs(math.log(v / med)) > abs(math.log(nb / med)) else y + 1)
-    # extend through a run: adjacent years within ratio of an already-suspect year on the same side of the median
-    changed = True
-    while changed:
-        changed = False
-        for y, v in liab.items():
-            if y in sus or not v or v <= 0:
-                continue
-            for n in (y - 1, y + 1):
-                nv = liab.get(n)
-                if n in sus and nv and nv > 0 and max(v, nv) / min(v, nv) <= ratio                         and (v < med) == (nv < med) and abs(math.log(v / med)) > math.log(ratio):
-                    sus.add(y)
-                    changed = True
+        if abs(liab - expected) / expected > gap:
+            sus.add(r["year"])
     return sus
 
 
-def debt_rows(rows: list, interest_bearing: dict, suspect_ratio: float = 5, yahoo_gap: float = 0.10) -> list:
+def debt_rows(rows: list, interest_bearing: dict, identity_gap: float = 0.10, yahoo_gap: float = 0.10) -> list:
     """A6: total liabilities / equity from the cache (it is NOT interest-bearing debt) + yahoo interest-bearing if any.
-    A year whose total liabilities jump > suspect_ratio x against an adjacent year is marked suspect (data likely wrong).
+    A year whose total liabilities contradict total_assets - equity by more than identity_gap is marked suspect
+    (data likely wrong).
     A non-suspect year where yahoo's total liabilities differ from the cache by more than yahoo_gap uses the yahoo
     figure (liab_source = "yahoo", the cache value stays in liab_cache); yahoo is also where `lease` comes from."""
-    sus = suspect_liability_years({r["year"]: r["liabilities"] for r in rows if r["liabilities"] is not None}, suspect_ratio)
+    sus = suspect_liability_years(rows, identity_gap)
     out = []
     for r in rows:
         ib = (interest_bearing or {}).get(r["year"]) or {}
@@ -498,7 +484,7 @@ def compute_fact_sheet(data: dict, costs=None, cfg=None, closes=None, interest_b
     targets = [cfg["yoc_target_low"], cfg["yoc_target_high"]]
     cash = None if bank else cash_vs_dividend(rows, complete, shares)
     payouts = payout_rows(rows, complete)
-    debt = debt_rows(rows, interest_bearing, cfg["debt_suspect_ratio"], cfg.get("debt_yahoo_gap", 0.10))
+    debt = debt_rows(rows, interest_bearing, cfg["debt_identity_gap"], cfg.get("debt_yahoo_gap", 0.10))
     hist = price_history(rows, complete, closes or {})
     today_yield = base / price * 100 if base and price else None
     t2_costs = [c for c in levels if c["label"] == "ต้นทุนที่ส่งมา"] or [c for c in levels if c["label"] == "ราคาวันนี้"]
@@ -809,7 +795,7 @@ def _a6(fs):
     lines.append("")
     sus = [x["year"] for x in fs["debt"] if x.get("suspect")]
     if sus:
-        lines += [f"⛔ ข้อมูลปีนี้น่าสงสัย: {', '.join(map(str, sus))} — หนี้สินรวมต่างจากปีข้างเคียงเกิน {fs['cfg']['debt_suspect_ratio']:g} เท่า "
+        lines += [f"⛔ ข้อมูลปีนี้น่าสงสัย: {', '.join(map(str, sus))} — หนี้สินรวมไม่ตรงกับ สินทรัพย์รวม − ส่วนผู้ถือหุ้น เกิน {fs['cfg']['debt_identity_gap']:.0%} "
                   "(น่าจะเป็นฟิลด์ผิดในแหล่งข้อมูล) ไม่แสดงตัวเลขปีนั้น และไม่ใช้คิดธง T6", ""]
     S = "ข้อมูลปีนี้น่าสงสัย"
     body = [[x["year"], S if x.get("suspect") else fn(x["liabilities"], 0, 1e6), fn(x["equity"], 0, 1e6),

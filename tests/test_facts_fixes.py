@@ -113,22 +113,35 @@ class GrowthOverrideTest(unittest.TestCase):
 
 
 class DebtTest(unittest.TestCase):
-    def _liab(self, vals):
-        return {2015 + i: v for i, v in enumerate(vals)}
+    def _row(self, y, liab, ta, eq):
+        return {"year": y, "liabilities": liab, "total_assets": ta, "equity": eq}
 
     def test_suspect_years_bbl_like(self):
-        # assert: trillions-level series with 3 mid years at ~1/10 scale -> exactly those 3 years suspect, neighbours not
-        liab = self._liab([2.4e12, 2.5e12, 2.6e12, 2.7e12, 2.8e11, 3.3e11, 4.2e11, 3.9e12, 4.0e12, 4.0e12])
-        self.assertEqual(fs.suspect_liability_years(liab, 5), {2019, 2020, 2021})
+        # assert: BBL-like cache where 2019-2021 total liabilities sit at ~1/10 of assets-equity
+        #         -> exactly those 3 years suspect from the balance-sheet identity, neighbours (consistent) not
+        def cons(y, liab, ta):
+            return self._row(y, liab, ta, ta - liab)
+        rows = [cons(2015, 2.4e12, 4.6e12), cons(2016, 2.5e12, 4.7e12), cons(2017, 2.6e12, 4.8e12), cons(2018, 2.7e12, 4.9e12)]
+        rows += [self._row(2019, 2.81e11, 3.87e12, 1.08e12),  # assets-equity = 2.79e12
+                 self._row(2020, 3.31e11, 4.2e12, 1.2e12),     # assets-equity = 3.0e12
+                 self._row(2021, 4.26e11, 4.4e12, 1.1e12)]     # assets-equity = 3.3e12
+        rows += [cons(2022, 3.9e12, 5.6e12), cons(2023, 4.0e12, 5.7e12), cons(2024, 4.0e12, 5.7e12)]
+        self.assertEqual(fs.suspect_liability_years(rows, 0.10), {2019, 2020, 2021})
 
     def test_normal_growth_not_suspect(self):
-        # assert: smooth 20% growth never flagged
-        self.assertEqual(fs.suspect_liability_years(self._liab([100 * 1.2 ** i for i in range(10)]), 5), set())
+        # assert: a real drop in liabilities (TCAP-like) that still matches assets-equity is NOT suspect:
+        #         2018 liab 9.23e11 vs assets-equity 9.2e11 (~0.3% gap), 2019 liab 8.7e10 vs assets-equity 9.5e10 (8.4% gap)
+        rows = [self._row(2016, 1.0e12, 4.0e12, 3.0e12),
+                self._row(2017, 9.6e11, 3.99e12, 3.03e12),
+                self._row(2018, 9.23e11, 3.8e12, 2.88e12),   # assets-equity = 9.2e11
+                self._row(2019, 8.7e10, 9.4e11, 8.45e11)]    # assets-equity = 9.5e10
+        self.assertEqual(fs.suspect_liability_years(rows, 0.10), set())
 
     def test_general_stock_shows_text_instead_of_number_and_skips_t6(self):
         # assert: a bad year prints ข้อมูลปีนี้น่าสงสัย and is the only year marked suspect
         d = make_data()
         d["yearly_metrics"][5]["total_debt"] = 1e6   # 1000x below neighbours
+        d["yearly_metrics"][5]["total_assets"] = 3000e6  # contradict liabilities (assets-equity 2e9 vs 1e6)
         out = fs.compute_fact_sheet(d, cfg=CFG, today="2026-10-09")
         bad = [x for x in out["debt"] if x["suspect"]]
         self.assertEqual([x["year"] for x in bad], [int(d["yearly_metrics"][5]["year"])])
