@@ -14,5 +14,5 @@
 - เนื้อ: cache ของ scanner มีแต่ `yearly_metrics` → ด่าน "กำไร new high" / PEG ผ่านทั้งที่ TTM ต่ำกว่าปีก่อน → เช็ค TTM จาก yfinance รายไตรมาสก่อนสรุป
 - ทำไม: SECURE ผ่าน 6 ด่านทั้งที่กำไรไตรมาสล่าสุดพัง
 - ที่มา: กล่อง MaxMahon (ย่อยกล่องจด 2026-10-15)
-- ใช้เมื่อ: project:maxmahon
+- ใช้เมื่อ: project:maxmahon · hong_stage1_scanner.py · screen_stocks.py
 - คำจับ: TTM · scanner

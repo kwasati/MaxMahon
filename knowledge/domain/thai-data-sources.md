@@ -6,7 +6,7 @@
 - เนื้อ: kaohoon / Bangkok Post / prachachat ตอบ 403/402 · set.or.th / settrade โหลดด้วย JS อ่านตัวเลขไม่ได้ · bangkokbank.com timeout 60 วิทุก URL → งบรายไตรมาสใช้ yfinance `quarterly_income_stmt / balance_sheet / cashflow` (ตรงกับ MD&A ทุกตัวที่เทียบ) · PDF ของ IR ใช้ curl + pypdf (ดู `C:\WORKSPACE\_shared\knowledge\code\web-fetch-pdf.md`)
 - ทำไม: เสียรอบ fetch ซ้ำหลายสิบครั้ง
 - ที่มา: กล่อง MaxMahon (ย่อยกล่องจด 2026-10-15)
-- ใช้เมื่อ: project:maxmahon
+- ใช้เมื่อ: project:maxmahon · fetch_data.py · fact_sheet.py
 - คำจับ: 403 · timeout · settrade
 
 ### TD-2 yahooquery ไม่รับ trailing ทุกงบ
@@ -14,5 +14,5 @@
 - เนื้อ: `trailing=` ใช้ได้กับ `income_statement()` เท่านั้น `balance_sheet()` / `cash_flow()` ไม่รับ
 - ทำไม: script ล้มเมื่อส่ง trailing
 - ที่มา: กล่อง MaxMahon (ย่อยกล่องจด 2026-10-15)
-- ใช้เมื่อ: project:maxmahon
+- ใช้เมื่อ: project:maxmahon · data_adapter.py · fetch_data.py
 - คำจับ: yahooquery · trailing
