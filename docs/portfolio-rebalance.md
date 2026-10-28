@@ -14,6 +14,7 @@ Art ส่งรูปหน้า Portfolio จากแอปโบรก + �
 - นอกแผน (TISCO legacy, LALIN ฯลฯ) ไม่นับฐาน ไม่เติม · TISCO หยุดเติม ปล่อยเจือจางเอง
 - บทบาทหุ้นวัดจากทิศที่เติม: AMATA = ตัวหลัก (ไม่ใช่ TISCO ถึงจะใหญ่)
 - การเงินกระจุก (BBL+TCAP+TISCO) = Art ตั้งใจ ไม่ต้องเสนอแก้
+- SISB · SECURE คัดแล้ว ห้ามซื้อเพิ่ม (F6) — สคริปต์ยังคิดยอดเติมให้เพราะ TARGETS ยังไม่แก้ → ตัดแถวสองตัวนี้ออกจากตารางซื้อ เงินส่วนนั้นค้างเป็นเงินสด บอก Art 1 บรรทัด
 - AI คำนวณให้ Art ตัดสินเอง · ไม่สั่งขาย/ซื้อนอกกรอบนี้
 - สคริปต์หยุด (ไม่คำนวณ) เมื่อใส่หุ้นซ้ำ หรือราคา ≤ 0
 - เงินสดไม่เกินช่อง 5% ของฐาน → เงินใช้ได้ = 0 สคริปต์พิมพ์เหตุและไม่ซื้อ
@@ -21,4 +22,4 @@ Art ส่งรูปหน้า Portfolio จากแอปโบรก + �
 
 ## ที่มา
 - สภาพพอร์ต + ปันผลเทียบต้นทุน: `py C:\WORKSPACE\projects\4-MaxMahon\scripts\holdings_watch.py --refresh`
-- กรอบ 70/25/5 + เป้า + กฎขาย (F1–F4): `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-portfolio-framework.md` (ตัวเลขเป้าอยู่ใน `scripts\rebalance.py` TARGETS ที่เดียว)
+- กรอบ 70/25/5 + เป้า + กฎขาย (F1–F6): `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-portfolio-framework.md` (ตัวเลขเป้าอยู่ใน `scripts\rebalance.py` TARGETS ที่เดียว)

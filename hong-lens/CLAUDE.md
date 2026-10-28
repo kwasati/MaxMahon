@@ -18,6 +18,6 @@ Sub-project ใน MaxMahon — คัดหุ้นไทยแนวเซี
 
 ## → ลูก
 - `C:\WORKSPACE\projects\4-MaxMahon\scripts\hong_stage1_scanner.py` — scanner ทั้งหมดอยู่ที่นี่
-- `research\` — บันทึกและผลคัด
+- `research\` — บันทึกและผลคัด · ผู้สมัครแทน SISB SECURE (SWC PSP KCG) + ชุดขาใหม่ที่เสนอ = `research\hong-candidates-2026-10-28.md` (deep dive `research\_deep_<SYM>_2026-10-28.md`)
 - `set-companyprofiles\` `set-factsheets\` — เอกสาร SET ที่ใช้ audit
 - `C:\WORKSPACE\projects\4-MaxMahon\CLAUDE.md` — กฎของโปรเจกต์แม่

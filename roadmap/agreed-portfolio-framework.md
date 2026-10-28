@@ -16,4 +16,7 @@
   - DCA รายเดือน (F4) ทำต่อตามปกติ ไม่หยุด ไม่พัก — Art: "DCA ทุกเดือนตลอดไป"
   - คนเฝ้า = Karl (Hermes) เช็คราคาทุกวันทำการ 17:30 แจ้ง Art เมื่อแตะขั้น · ไม่มีสคริปต์ใน project · `rebalance.py` ไม่แก้
   - ตัดคำ "ตามช่วงเวลา" (Art 2026-10-09) — Art จำไม่ได้ว่าพูด · แทนเงื่อนไขเดิมที่ขัดกัน 2 ฉบับ (ตก 30% จากราคาซื้อ / ตก 20% จากยอดสูง)
+- F6 ขาเซียนฮง SISB · SECURE = คัดทิ้ง — 2026-10-28 Art เคาะ (ผ่าน Karl/Hermes) ตาม `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\hong-keep-or-cut-2026-10-28.md`:
+  - สถานะ = คัดแล้วแต่ยังถือไว้ · ไม่ขายจนกว่าจะได้ตัวใหม่เข้าแทน · ระหว่างนี้ห้ามซื้อเพิ่ม (DCA ไม่ลงสองตัวนี้) · ขายพร้อมตอนซื้อตัวใหม่ (Art 2026-10-28)
+  - TARGETS ใน `rebalance.py` ยังไม่แก้ — รอ Art เคาะว่าน้ำหนัก 13.75% (SISB 7.5 + SECURE 6.25) ไปตัวไหน · ผู้สมัครแทน: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\research\hong-candidates-2026-10-28.md`
 - ใช้กับขั้นตอนจัดพอร์ต: `C:\WORKSPACE\projects\4-MaxMahon\docs\portfolio-rebalance.md` บรรทัด 21 · pillar 2: `C:\WORKSPACE\projects\4-MaxMahon\hong-lens\CLAUDE.md` บรรทัด 3
