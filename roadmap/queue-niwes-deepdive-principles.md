@@ -8,7 +8,7 @@
 แผนปรับระบบ 8 ข้อ + ลำดับลงมือ + ของที่ Fable เจอ → `C:\WORKSPACE\projects\4-MaxMahon\roadmap\agreed-niwes-principles-plan.md`
 
 ## สถานะ
-2026-10-19 แก้ระบบครบ + deep dive ใหม่ AMATA BBL TCAP เสร็จ · รอ Art: เคาะค่ากำไรปกติ + ฉากอัตราโตของ 3 ตัวก่อนจดลง config · AMATA ยังไม่มีข้อมูลที่ขายให้ data center + กำไรแยกประเทศ (หาเพิ่มถ้า Art ต้องการ)
+2026-10-28 ค่ากำไรปกติ + ฉากโตของ AMATA BBL TCAP จดลง config แล้ว (2026-10-28) · TCAP 2019 ยังไม่จด (ภาษีกำไรขายบริษัทลูกไม่เปิดเผย) · AMATA ยังไม่มีข้อมูลขาย data center + กำไรแยกประเทศ
 
 ## Art เคาะ / สั่ง (วันที่ + คำ Art)
 
@@ -26,6 +26,7 @@
 - 2026-10-19 "โอเค เห็นด้วย ปรับแผนให้ตรง (ข้อ 8) แล้วส่งแผนทั้งหมดแบบรวม 8 ข้อ ให้ fable review อีกรอบ"
 - 2026-10-19 "แก้ระบบเสร็จ deep dive 3 ตัวหลัก (AMATA BBL TCAP) แค่นี้ แล้วทำใหม่ทั้งเล่มไปเลย เพราะมันคือของใหม่ที่แก้แล้ว · เคาะ+ลุย opus worker + opus advisor"
 - 2026-10-19 "งั้นไม่เป็นไร เอาตามดีฟอลปกติก็ได้ (worker DeepSeek + advisor ตามค่าเริ่ม แทน opus)"
+- 2026-10-28 "จดค่าจาก deep dive ใหม่ 2026-10-19 ลง config.json (normal_eps + holdings.growth_scenarios) ของ AMATA BBL TCAP · TCAP 2019 เช็คก่อน ไม่ชัดจดแค่ 2025 · TISCO คงไว้ (ผ่าน Karl)"
 
 ## ใบที่เกี่ยว
 - deep dive ใหม่ 2026-10-19: `C:\WORKSPACE\projects\4-MaxMahon\research\amata-deep-dive-2026-10-19.md` · `C:\WORKSPACE\projects\4-MaxMahon\research\bbl-deep-dive-2026-10-19.md` · `C:\WORKSPACE\projects\4-MaxMahon\research\tcap-deep-dive-2026-10-19.md` (ค่าที่ต้องจดลง config อยู่ท่อนท้ายของแต่ละเล่ม)

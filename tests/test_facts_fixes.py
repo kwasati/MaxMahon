@@ -93,11 +93,11 @@ class GrowthOverrideTest(unittest.TestCase):
         self.assertIn("โต 7.0%/ปี", next(f for f in out["flags"] if f["code"] == "T2")["detail"])
 
     def test_real_config_has_amata_with_source(self):
-        # assert: config AMATA 3/7/11 + source + as_of
+        # assert: config AMATA 0/5/9 (deep dive 2026-10-19, Art 2026-10-28) + source + as_of
         g = hw.load_holdings_cfg()["growth_scenarios"]
-        self.assertEqual((g["AMATA"]["bad"], g["AMATA"]["mid"], g["AMATA"]["good"]), (0.03, 0.07, 0.11))
+        self.assertEqual((g["AMATA"]["bad"], g["AMATA"]["mid"], g["AMATA"]["good"]), (0.0, 0.05, 0.09))
         self.assertIn("amata-deep-dive", g["AMATA"]["source"])
-        self.assertEqual(g["AMATA"]["as_of"], "2026-10-09")
+        self.assertEqual(g["AMATA"]["as_of"], "2026-10-19")
 
     def test_watch_report_names_rates_used_per_stock(self):
         # assert: roll-up lists the deep dive stock with the label and fixed rates; fixed stock says กฎตายตัว

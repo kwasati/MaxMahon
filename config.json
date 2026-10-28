@@ -39,16 +39,21 @@
     "_source": "TCAP FY2019 พิเศษ 4.00 บาท (XD 27 ธ.ค. 2562 เงินจากดีลควบรวม TBANK เข้า TMB) = _desk/maxmahon/krv3/files/tcap-deep-dive.md ข้อ 2.1 บรรทัด 77 · AMATA / BBL deep dive ไม่ระบุปันผลพิเศษ",
     "_as_of": "2026-10-09"
   },
+  "normal_eps": {
+    "AMATA": {"2025": 2.73, "2024": 2.11, "2023": 1.59, "2022": 1.02, "_source": "research/amata-deep-dive-2026-10-19.md D1 + section 2.2: FY2025 reported 2.74 + 113 M non-recurring income tax - 125 M one-time Vietnam land-cost reversal (after tax + 72.84% parent share, our estimate) -> 3,137 M / 1,150 M sh = 2.73 · FY2024 2,467.12 M - 44.2 M x0.8 investment-property gain = 2.11 · FY2023 1,884.76 M - 72.2 M x0.8 gain = 1.59 · FY2022 ordinary profit 1,177 M = 1.02 per broker note quoted by mitihoon 2023-03-01 (snippet-level; reported 2.04)", "_as_of": "2026-10-19"},
+    "BBL": {"2025": 18.6, "2024": 23.69, "_source": "research/bbl-deep-dive-2026-10-19.md section 2.3 — FY2025: reported EPS 24.10 minus after-tax excess of non-interest income over 2024 (12,709 m x (1-0.172) = 5.51/share); provisions kept as normal bank cost; harsher variant 16.9. FY2024: reported EPS kept, no exceptional item identified", "_as_of": "2026-10-19"},
+    "TCAP": {"2025": 7.32, "_source": "research/tcap-deep-dive-2026-10-19.md section 3 D1 — FY2025: profit attributable 7,750 mn minus discontinued TNS +75 mn = 7,675 / 1,048.6 mn shares; stricter alternative 6.94. FY2019 (book proposes 5.36) NOT entered: the 4,664 mn disposal gain is pre-tax, tax effect not disclosed (book range 5.4-6.2) — enter once the AR19 discontinued-operations note is checked", "_as_of": "2026-10-28"}
+  },
   "holdings": {
     "off_plan": ["TISCO"],
     "costs": {"AMATA": 26.4, "BBL": 172.1, "TCAP": 59.8, "TISCO": 103.16, "TOA": 12.7, "SISB": 9.54, "SECURE": 12.39, "MOSHI": 36.42},
     "costs_as_of": "2026-10-09",
     "yoc_year": 10,
     "growth_scenarios": {
-      "AMATA": {"bad": 0.03, "mid": 0.07, "good": 0.11, "source": "_archive/2026-10/research/amata-deep-dive-2026-10-09.md ท่อน 4.1 (บรรทัด 186-188)", "as_of": "2026-10-09"},
-      "BBL": {"bad": 0.015, "mid": 0.04, "good": 0.06, "source": "_archive/2026-10/research/bbl-deep-dive-2026-10-09.md ท่อน 4.1 — deep dive ตั้งฉากเป็น 2 ช่วง (ปี 1-5: 0/3/5% · ปี 6-15: 3/5/7%) หัวแปลงเป็นอัตราเดียวที่ให้ปันผลปีที่ 10 เท่ากัน (11.59 / 14.80 / 17.90 บาท) — ปีที่ 5 กับ 15 จึงคลาดจาก deep dive เล็กน้อย", "as_of": "2026-10-09"},
+      "AMATA": {"bad": 0.0, "mid": 0.05, "good": 0.09, "source": "research/amata-deep-dive-2026-10-19.md section 4.1 — earnings-based: peak-to-peak FY2014-25 EPS CAGR 2.5%, trough-based FY2015/16-25 9.2-10.4%, FY2019-25 9.0%; payout held at the 40% policy floor; 10% ceiling", "as_of": "2026-10-19"},
+      "BBL": {"bad": 0.0, "mid": 0.025, "good": 0.045, "source": "research/bbl-deep-dive-2026-10-19.md section 4.1 — earnings-based: normal-EPS CAGR 10 y 0.4% / 15 y 2.4%; reported-EPS CAGR 10 y 3.0% / 15 y 4.2% (FS A3); 5-y 21.8% rejected (base 2020 = BOT-cut year). bad = dividend flat while payout rises; mid = long-run normal EPS growth; good = reported-EPS 15-y rate with payout room to 55%", "as_of": "2026-10-19"},
       "TISCO": {"bad": 0.0, "mid": 0.0105, "good": 0.03, "source": "research/tisco-deep-dive-2026-10-09.md ท่อน 4.1 — แย่ = ลดแล้วฟื้นกลับ 7.75 แล้วนิ่ง (ปีที่ 10 ยัง 7.75) · กลาง = นิ่ง 3 ปีแล้วโต 1.5% หัวแปลงเป็นอัตราเดียวที่ให้ปันผลปีที่ 10 = 8.60 · ดี = 3% · ฉากแย่มาก (ลด 19% ไม่ฟื้น เหลือ 6.30) ใส่เป็นอัตราเดียวไม่ได้ ดูในไฟล์ deep dive", "as_of": "2026-10-09"},
-      "TCAP": {"bad": 0.02, "mid": 0.04, "good": 0.054, "source": "_archive/2026-10/research/tcap-deep-dive-2026-10-09.md ท่อน 4ก — deep dive มี 5 ฉาก หัวเลือก: แย่ = ฉากต่ำ 2% · กลาง = กลางของ deep dive 4% · ดี = กลางตามกฎระบบ 5.4% (ฉาก 7.7% deep dive ให้โอกาสต่ำ เพราะมาจากยุคก่อนควบรวมธนาคาร)", "as_of": "2026-10-09"}
+      "TCAP": {"bad": 0.015, "mid": 0.04, "good": 0.07, "source": "research/tcap-deep-dive-2026-10-19.md section 4.1 — EPS-based: bad = ttb profit flat, no TCAP buyback; mid = EPS CAGR 2020-2025 3.4-3.8% post-merger base (FS A3 5y 3.8% / 10y 4.8%); good = ttb cancels 10.3% treasury shares + ttb profit +3%/yr + THANI/TNI growth, below 10% ceiling. 2021-2025 10%/yr not used (COVID base, GM-1)", "as_of": "2026-10-19"}
     }
   }
 }
