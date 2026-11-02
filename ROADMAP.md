@@ -10,7 +10,7 @@ SSOT · ทุกแถว = ชื่อ + สถานะสั้น + path �
 | คิว | ชื่อ | สถานะ | ใบ | desk |
 |---:|---|---|---|---|
 | 1 | ตรวจสูตร / แผนการจัดพอร์ตว่าถูกจริงไหม | แผนเงินสดเคาะแล้ว (F5) · เหลือเกลี่ยเศษ | `roadmap\queue-rebalance-formula-check.md` | |
-| 2 | วิเคราะห์หุ้นที่ถืออยู่ตอนนี้ใหม่ — แนวโน้ม + ต้องปรับแผนไหม | deep dive เล่มใหม่ 2026-10-19 แทนเล่มเก่า (AMATA BBL TCAP) · TISCO + ขาเซียนฮงยังรุ่นเก่า · รอ Art ตัดสินเรื่องพอร์ต | `roadmap\queue-holdings-reanalysis.md` | |
+| 2 | วิเคราะห์หุ้นที่ถืออยู่ตอนนี้ใหม่ — แนวโน้ม + ต้องปรับแผนไหม | 2026-11-02 keep-or-cut 2026-10-28: AMATA watch · BBL TCAP keep · Art ตัด SISB SECURE ถือจนได้ตัวใหม่ · ผู้สมัครอยู่ในใบ | `roadmap\queue-holdings-reanalysis.md` | |
 | 3 | เกลาหลัก deep dive ขา Niwes | ค่ากำไรปกติ + ฉากโตของ AMATA BBL TCAP จดลง config แล้ว (2026-10-28) · TCAP 2019 ยังไม่จด (ภาษีกำไรขายบริษัทลูกไม่เปิดเผย) · AMATA ยังไม่มีข้อมูลขาย data center + กำไรแยกประเทศ | `roadmap\queue-niwes-deepdive-principles.md` | z79h |
 
 ## ข้อตกลงที่ล็อก
